@@ -1,0 +1,147 @@
+<!doctype html>
+<html lang="th">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ธนาคารโรงเรียน — โรงเรียนบ้านใหม่</title>
+<link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet">
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+<header class="app-header">
+  <a href="index.html" class="back">‹</a>
+  <span class="logo">🐷</span>
+  <div>
+    <div class="title">ธนาคารโรงเรียน</div>
+    <div style="font-size:13px;opacity:.9">ฝาก · ถอน · สมุดบัญชี</div>
+  </div>
+</header>
+
+<main class="container">
+
+  <div class="tabs">
+    <button class="tab active" data-tab="dashboard">📊 ภาพรวม</button>
+    <button class="tab" data-tab="txn">💵 ฝาก/ถอน</button>
+    <button class="tab" data-tab="history">📜 ประวัติ</button>
+    <button class="tab" data-tab="passbook">📒 สมุดบัญชี</button>
+  </div>
+
+  <!-- ── Dashboard ── -->
+  <section class="tab-pane" id="tab-dashboard">
+    <div class="card">
+      <h3 class="card-title">📊 ภาพรวมธนาคาร</h3>
+      <div class="stat-grid">
+        <div class="stat"><div class="label">ยอดเงินรวมทั้งโรงเรียน</div><div class="value green" id="d-total">-</div></div>
+        <div class="stat"><div class="label">ฝากวันนี้</div><div class="value green" id="d-dep">-</div></div>
+        <div class="stat"><div class="label">ถอนวันนี้</div><div class="value pink" id="d-wd">-</div></div>
+        <div class="stat"><div class="label">จำนวนบัญชี</div><div class="value" id="d-acc">-</div></div>
+      </div>
+    </div>
+    <div class="card">
+      <h3 class="card-title">🏆 Top 10 ยอดเงินสูงสุด</h3>
+      <div id="d-top10" class="text-muted">กำลังโหลด...</div>
+    </div>
+    <div class="card">
+      <h3 class="card-title">📈 ค่าเฉลี่ยยอดเงินรายชั้น</h3>
+      <canvas id="d-chart" height="140"></canvas>
+    </div>
+  </section>
+
+  <!-- ── ฝาก/ถอน ── -->
+  <section class="tab-pane hidden" id="tab-txn">
+    <div class="card">
+      <h3 class="card-title">🔎 ค้นหานักเรียน</h3>
+      <div class="form-group">
+        <input class="form-control" id="txn-search" placeholder="พิมพ์ชื่อ / รหัสนักเรียน / เลขบัตร">
+      </div>
+      <div id="txn-results"></div>
+    </div>
+
+    <div class="card hidden" id="txn-panel">
+      <h3 class="card-title">💵 ทำรายการ</h3>
+      <div class="alert alert-info" id="txn-student"></div>
+      <div class="stat" style="max-width:260px;margin-bottom:14px">
+        <div class="label">ยอดคงเหลือ</div><div class="value green" id="txn-balance">-</div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>จำนวนเงิน (บาท)</label>
+          <input class="form-control" id="txn-amount" type="number" min="0" step="1" inputmode="decimal" placeholder="0">
+        </div>
+        <div class="form-group">
+          <label>ผู้บันทึก</label>
+          <input class="form-control" id="txn-by" placeholder="ชื่อผู้ทำรายการ">
+        </div>
+      </div>
+      <div class="form-group">
+        <label>หมายเหตุ (ไม่บังคับ)</label>
+        <input class="form-control" id="txn-note" placeholder="เช่น เงินออมประจำสัปดาห์">
+      </div>
+      <button class="btn btn-success" id="btn-deposit"><i class="bi bi-plus-circle"></i> ฝากเงิน</button>
+      <button class="btn btn-warning" id="btn-withdraw"><i class="bi bi-dash-circle"></i> ถอนเงิน</button>
+      <div id="txn-result" class="alert alert-success hidden mt-2"></div>
+    </div>
+  </section>
+
+  <!-- ── ประวัติ ── -->
+  <section class="tab-pane hidden" id="tab-history">
+    <div class="card">
+      <h3 class="card-title">📜 ประวัติรายการ</h3>
+      <div class="form-row">
+        <div class="form-group">
+          <label>ค้นหา (ชื่อ/รหัส)</label>
+          <input class="form-control" id="h-search" placeholder="เว้นว่าง = ทั้งหมด">
+        </div>
+        <div class="form-group">
+          <label>ประเภท</label>
+          <select class="form-control" id="h-type">
+            <option value="">ทั้งหมด</option>
+            <option value="deposit">ฝาก</option>
+            <option value="withdraw">ถอน</option>
+          </select>
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group"><label>ตั้งแต่วันที่</label><input class="form-control" id="h-from" type="date"></div>
+        <div class="form-group"><label>ถึงวันที่</label><input class="form-control" id="h-to" type="date"></div>
+      </div>
+      <button class="btn btn-primary" id="h-go"><i class="bi bi-search"></i> ค้นหา</button>
+      <div id="h-result" class="mt-2 text-muted">กดค้นหาเพื่อดูรายการ</div>
+    </div>
+  </section>
+
+  <!-- ── สมุดบัญชี ── -->
+  <section class="tab-pane hidden" id="tab-passbook">
+    <div class="card">
+      <h3 class="card-title">📒 สมุดบัญชีรายบุคคล</h3>
+      <div class="form-group">
+        <input class="form-control" id="pb-search" placeholder="พิมพ์ชื่อ / รหัสนักเรียน / เลขบัตร">
+      </div>
+      <div id="pb-results"></div>
+    </div>
+    <div class="card hidden" id="pb-panel">
+      <div class="flex" style="justify-content:space-between;flex-wrap:wrap;gap:8px">
+        <h3 class="card-title" style="margin:0" id="pb-name">สมุดบัญชี</h3>
+        <button class="btn btn-danger" id="pb-pdf"><i class="bi bi-filetype-pdf"></i> Export PDF</button>
+      </div>
+      <div class="stat" style="max-width:260px;margin:12px 0">
+        <div class="label">ยอดคงเหลือปัจจุบัน</div><div class="value green" id="pb-balance">-</div>
+      </div>
+      <div id="pb-table"></div>
+    </div>
+  </section>
+
+</main>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/jspdf-autotable@3.8.2/dist/jspdf.plugin.autotable.min.js"></script>
+<script src="js/config.js"></script>
+<script src="js/auth.js"></script>
+<script src="js/api.js"></script>
+<script src="js/utils.js"></script>
+<script src="js/pdf.js"></script>
+<script src="js/modules/bank.js"></script>
+</body>
+</html>

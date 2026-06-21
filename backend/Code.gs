@@ -36,6 +36,7 @@ function handle(req) {
     auth: AuthAPI,
     settings: SettingsAPI,
     students: StudentsAPI,
+    bank: BankAPI,
   };
 
   const mod = router[moduleName];

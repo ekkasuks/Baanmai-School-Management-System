@@ -6,7 +6,7 @@
 - [x] **Step 2** ออกแบบฐานข้อมูล (10 sheets) → [database-schema.md](database-schema.md)
 - [x] **Step 3** ขอไฟล์ DMC ตัวอย่าง → finalize STUDENTS (21 คอลัมน์) → [dmc-field-map.md](dmc-field-map.md)
 - [x] **Step 4** Module 1 — ตั้งค่าระบบ + Import DMC + Backup/Restore (โค้ดเสร็จ + ผ่าน local test) → รอผู้ใช้ deploy + import จริง ([setup-guide.md](setup-guide.md))
-- [ ] **Step 5** Module 2 — ธนาคารโรงเรียน (PIN 127)
+- [~] **Step 5** Module 2 — ธนาคารโรงเรียน (PIN 127): ฝาก/ถอน, Dashboard (ยอดรวม/Top10/เฉลี่ยรายชั้น/ฝาก-ถอนวันนี้), ประวัติ, สมุดบัญชี + Export PDF (jsPDF+Sarabun) + สลิป — โค้ดเสร็จ + ผ่าน syntax check → รอผู้ใช้ deploy + ทดสอบจริง
 - [ ] **Step 6** Module 3 — พฤติกรรม (รีเซ็ตรายเดือน)
 - [ ] **Step 7** Module 4 — ตรวจสุขภาพ
 - [ ] **Step 8** Module 5 — เช็คการมาเรียน (PIN)
