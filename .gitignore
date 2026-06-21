@@ -1,0 +1,17 @@
+# ── DMC / ข้อมูลส่วนบุคคล (PDPA) ──
+# ห้าม commit ไฟล์ที่มีเลขบัตรประชาชน/ที่อยู่/โทรศัพท์ของนักเรียน
+*.xlsx
+*.xls
+*.csv
+
+# ── ระบบ ──
+.DS_Store
+Thumbs.db
+*.swp
+.vscode/
+.idea/
+
+# ── Logs / Cache ──
+*.log
+.cache/
+node_modules/
