@@ -1,0 +1,135 @@
+<!doctype html>
+<html lang="th">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ตั้งค่าระบบ — โรงเรียนบ้านใหม่</title>
+<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+<link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet">
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+<header class="app-header">
+  <a href="index.html" class="back">‹</a>
+  <span class="logo">⚙️</span>
+  <div>
+    <div class="title">ตั้งค่าระบบ</div>
+    <div style="font-size:13px;opacity:.9">ข้อมูลโรงเรียน · DMC · PIN · สำรองข้อมูล</div>
+  </div>
+</header>
+
+<main class="container">
+
+  <div class="tabs">
+    <button class="tab active" data-tab="school">🏫 ข้อมูลโรงเรียน</button>
+    <button class="tab" data-tab="dmc">📥 นำเข้า DMC</button>
+    <button class="tab" data-tab="pin">🔒 PIN</button>
+    <button class="tab" data-tab="backup">💾 สำรองข้อมูล</button>
+    <button class="tab" data-tab="system">🛠️ ระบบ</button>
+  </div>
+
+  <!-- ข้อมูลโรงเรียน -->
+  <section class="tab-pane" id="tab-school">
+    <div class="card">
+      <h3 class="card-title">🏫 ข้อมูลโรงเรียน</h3>
+      <form id="school-form">
+        <div class="form-row">
+          <div class="form-group"><label>รหัสโรงเรียน</label><input class="form-control" name="school_code"></div>
+          <div class="form-group"><label>ชื่อโรงเรียน</label><input class="form-control" name="school_name" required></div>
+        </div>
+        <div class="form-group"><label>ที่อยู่</label><input class="form-control" name="address"></div>
+        <div class="form-row">
+          <div class="form-group"><label>โทรศัพท์</label><input class="form-control" name="phone"></div>
+          <div class="form-group"><label>อีเมล</label><input class="form-control" type="email" name="email"></div>
+        </div>
+        <div class="form-row">
+          <div class="form-group"><label>เว็บไซต์</label><input class="form-control" name="website"></div>
+          <div class="form-group"><label>ผู้อำนวยการ</label><input class="form-control" name="director"></div>
+        </div>
+        <div class="form-row">
+          <div class="form-group"><label>ปีการศึกษา (พ.ศ.)</label><input class="form-control" name="current_year" type="number"></div>
+          <div class="form-group"><label>ภาคเรียน</label>
+            <select class="form-control" name="current_semester">
+              <option value="1">ภาคเรียนที่ 1</option>
+              <option value="2">ภาคเรียนที่ 2</option>
+            </select>
+          </div>
+        </div>
+        <button class="btn btn-primary" type="submit"><i class="bi bi-save"></i> บันทึก</button>
+      </form>
+    </div>
+  </section>
+
+  <!-- นำเข้า DMC -->
+  <section class="tab-pane hidden" id="tab-dmc">
+    <div class="card">
+      <h3 class="card-title">📥 นำเข้าข้อมูลนักเรียนจาก DMC</h3>
+      <div class="alert alert-info"><strong>วิธีใช้:</strong> เลือกไฟล์ Excel จาก DMC (.xlsx) — ระบบอ่านหัวคอลัมน์ภาษาไทยอัตโนมัติ แล้วนำเข้าทีละ 50 แถว · รหัสที่ซ้ำจะถูกอัปเดต</div>
+      <div class="form-group"><label>เลือกไฟล์ Excel (.xlsx)</label><input type="file" id="dmc-file" accept=".xlsx,.xls" class="form-control"></div>
+      <div id="dmc-preview" class="hidden">
+        <div class="alert alert-success"><strong>พบ <span id="dmc-rows">0</span> แถว</strong> &nbsp;|&nbsp; <span id="dmc-cols">0</span> คอลัมน์</div>
+        <button class="btn btn-success" id="dmc-import"><i class="bi bi-upload"></i> เริ่มนำเข้า</button>
+      </div>
+      <div id="dmc-progress" class="hidden mt-2">
+        <div class="progress"><div id="dmc-bar" class="progress-bar"></div></div>
+        <div id="dmc-status" class="text-muted text-center" style="margin-top:8px;font-size:14px"></div>
+      </div>
+      <div id="dmc-result" class="hidden alert alert-success mt-2"></div>
+    </div>
+  </section>
+
+  <!-- PIN -->
+  <section class="tab-pane hidden" id="tab-pin">
+    <div class="card">
+      <h3 class="card-title">🔒 ตั้งค่า PIN</h3>
+      <div class="alert alert-info">PIN ใช้เข้าโมดูล <strong>ธนาคาร · เช็คการมาเรียน</strong> · ค่าเริ่มต้น = <code>127</code> · กรอกวันละ 1 ครั้ง</div>
+      <form id="pin-form">
+        <div class="form-row">
+          <div class="form-group"><label>PIN ธนาคาร</label><input class="form-control" type="password" name="pin_bank" inputmode="numeric" placeholder="ว่าง = ไม่เปลี่ยน"></div>
+          <div class="form-group"><label>PIN เช็คการมาเรียน</label><input class="form-control" type="password" name="pin_attendance" inputmode="numeric" placeholder="ว่าง = ไม่เปลี่ยน"></div>
+        </div>
+        <button class="btn btn-primary" type="submit"><i class="bi bi-shield-check"></i> บันทึก PIN</button>
+      </form>
+    </div>
+  </section>
+
+  <!-- สำรองข้อมูล -->
+  <section class="tab-pane hidden" id="tab-backup">
+    <div class="card">
+      <h3 class="card-title">💾 สำรองข้อมูล (Backup)</h3>
+      <p class="text-muted">ดาวน์โหลดข้อมูลทุก sheet เป็นไฟล์ JSON เก็บไว้ในเครื่อง</p>
+      <button class="btn btn-success" id="btn-backup"><i class="bi bi-download"></i> ดาวน์โหลดไฟล์สำรอง</button>
+    </div>
+    <div class="card">
+      <h3 class="card-title">♻️ กู้คืนข้อมูล (Restore)</h3>
+      <div class="alert alert-warning"><strong>คำเตือน:</strong> การกู้คืนจะ<strong>เขียนทับ</strong>ข้อมูลปัจจุบันทั้งหมด ควรสำรองก่อนเสมอ</div>
+      <div class="form-group"><label>เลือกไฟล์สำรอง (.json)</label><input type="file" id="restore-file" accept=".json" class="form-control"></div>
+    </div>
+  </section>
+
+  <!-- ระบบ -->
+  <section class="tab-pane hidden" id="tab-system">
+    <div class="card">
+      <h3 class="card-title">🛠️ ระบบ</h3>
+      <p class="text-muted">ตรวจสอบการเชื่อมต่อ และติดตั้งฐานข้อมูลครั้งแรก</p>
+      <button class="btn btn-secondary" id="btn-ping"><i class="bi bi-wifi"></i> ทดสอบเชื่อมต่อ</button>
+      <button class="btn btn-secondary" id="btn-init"><i class="bi bi-database-add"></i> สร้าง Sheet ทั้งหมด (init)</button>
+      <div id="system-result" class="alert alert-info hidden mt-2"></div>
+    </div>
+    <div class="card">
+      <h3 class="card-title">🔧 ค่าระบบทั้งหมด</h3>
+      <div id="all-settings" class="text-muted">กำลังโหลด...</div>
+    </div>
+  </section>
+
+</main>
+
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+<script src="js/config.js"></script>
+<script src="js/auth.js"></script>
+<script src="js/api.js"></script>
+<script src="js/utils.js"></script>
+<script src="js/modules/settings.js"></script>
+</body>
+</html>
