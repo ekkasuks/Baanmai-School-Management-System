@@ -52,6 +52,63 @@ const StudentsAPI = {
     return { ok: true };
   },
 
+  /**
+   * โปรไฟล์รายบุคคล — รวมข้อมูลข้ามโมดูล (ธนาคาร/พฤติกรรม/สุขภาพ/มาเรียน)
+   * params = { citizen_id }
+   */
+  profile: function (params) {
+    if (!params.citizen_id) apiError('VALIDATION', 'ไม่ได้ระบุ citizen_id');
+    const cid = String(params.citizen_id);
+    const student = buildIndex('STUDENTS', 'citizen_id')[cid];
+    if (!student) apiError('NOT_FOUND', 'ไม่พบนักเรียน');
+
+    // ธนาคาร — ยอดคงเหลือ
+    const balRow = buildIndex('BANK_BALANCE', 'citizen_id')[cid];
+    const balance = balRow ? Number(balRow.balance) || 0 : 0;
+
+    // พฤติกรรม — คะแนนเดือนปัจจุบัน + 5 รายการล่าสุด
+    const ym = yearMonth();
+    const start = behaviorStart();
+    const itemIndex = buildIndex('BEHAVIOR_MASTER', 'item_id');
+    const bhvLogs = readAll('BEHAVIOR_LOG')
+      .filter(function (l) { return String(l.citizen_id) === cid && String(l.year_month) === ym; })
+      .sort(function (a, b) { return String(a.created_at).localeCompare(String(b.created_at)); });
+    const behaviorScore = bhvLogs.length ? Number(bhvLogs[bhvLogs.length - 1].points_after) || start : start;
+    const recentBehavior = bhvLogs.slice(-5).reverse().map(function (l) {
+      const it = itemIndex[String(l.item_id)];
+      return { date: l.date, item_name: it ? it.name : '(ลบแล้ว)', points_change: Number(l.points_change) || 0 };
+    });
+
+    // สุขภาพ — ผลตรวจล่าสุด
+    const healthItems = ['hair', 'nails', 'cup', 'toothbrush', 'toothpaste'];
+    let latestHealth = null;
+    readAll('HEALTH_CHECK').forEach(function (c) {
+      if (String(c.citizen_id) !== cid) return;
+      if (!latestHealth || String(c.date) > String(latestHealth.date)) latestHealth = c;
+    });
+    let health = null;
+    if (latestHealth) {
+      health = { date: latestHealth.date };
+      healthItems.forEach(function (k) { health[k] = latestHealth[k] || ''; });
+    }
+
+    // การมาเรียน — สรุปเดือนปัจจุบัน
+    const attCounts = { 'มา': 0, 'ขาด': 0, 'ลา': 0, 'สาย': 0 };
+    readAll('ATTENDANCE').forEach(function (a) {
+      if (String(a.citizen_id) !== cid) return;
+      if (String(a.year_month || String(a.date).substring(0, 7)) !== ym) return;
+      if (attCounts[a.status] !== undefined) attCounts[a.status]++;
+    });
+
+    return {
+      student: student,
+      bank: { balance: balance },
+      behavior: { year_month: ym, score: behaviorScore, recent: recentBehavior },
+      health: health,
+      attendance: { year_month: ym, counts: attCounts },
+    };
+  },
+
   /** สถิติสรุป — ใช้ใน Dashboard ข้อมูลนักเรียน + Dashboard หลัก */
   stats: function () {
     const rows = readAll('STUDENTS').filter(function (r) { return r.status !== 'inactive'; });

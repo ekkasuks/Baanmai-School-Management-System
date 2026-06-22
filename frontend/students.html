@@ -1,0 +1,144 @@
+<!doctype html>
+<html lang="th">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ข้อมูลนักเรียน — โรงเรียนบ้านใหม่</title>
+<link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet">
+<link rel="stylesheet" href="css/style.css">
+<style>
+  .info-grid { display:grid; gap:8px 18px; grid-template-columns:repeat(auto-fit,minmax(220px,1fr)); }
+  .info-grid .k { color:var(--muted); font-size:13px; }
+  .info-grid .v { font-weight:600; }
+  .modal-lg { max-width:640px; }
+</style>
+</head>
+<body>
+
+<header class="app-header">
+  <a href="index.html" class="back">‹</a>
+  <span class="logo">🧑‍🎓</span>
+  <div>
+    <div class="title">ข้อมูลนักเรียน</div>
+    <div style="font-size:13px;opacity:.9">ทะเบียน · ค้นหา · แก้ไข · รายบุคคล</div>
+  </div>
+</header>
+
+<main class="container">
+
+  <div class="tabs">
+    <button class="tab active" data-tab="list">📋 รายชื่อ</button>
+    <button class="tab" data-tab="dashboard">📊 ภาพรวม</button>
+  </div>
+
+  <!-- ── รายชื่อ ── -->
+  <section class="tab-pane" id="tab-list">
+    <div class="card">
+      <h3 class="card-title">🔎 ค้นหา / กรอง</h3>
+      <div class="form-row">
+        <div class="form-group">
+          <label>ค้นหา (ชื่อ/รหัส/เลขบัตร)</label>
+          <input class="form-control" id="f-search" placeholder="พิมพ์เพื่อค้นหา">
+        </div>
+        <div class="form-group">
+          <label>ชั้น</label>
+          <select class="form-control" id="f-grade"><option value="">ทุกชั้น</option></select>
+        </div>
+      </div>
+      <div id="list-count" class="text-muted" style="font-size:14px"></div>
+    </div>
+    <div class="card">
+      <div id="list-result" class="text-muted">กำลังโหลด...</div>
+    </div>
+
+    <!-- โปรไฟล์รายบุคคล -->
+    <div class="card hidden" id="profile-panel">
+      <div class="flex" style="justify-content:space-between;flex-wrap:wrap;gap:8px">
+        <h3 class="card-title" style="margin:0" id="p-name">โปรไฟล์นักเรียน</h3>
+        <button class="btn btn-primary" id="p-edit"><i class="bi bi-pencil-square"></i> แก้ไขข้อมูล</button>
+      </div>
+
+      <div class="stat-grid" style="margin:14px 0">
+        <div class="stat"><div class="label">เงินฝากคงเหลือ</div><div class="value green" id="p-bank">-</div></div>
+        <div class="stat"><div class="label">คะแนนพฤติกรรม</div><div class="value pink" id="p-behavior">-</div></div>
+        <div class="stat"><div class="label">สุขภาพล่าสุด</div><div class="value" id="p-health" style="font-size:18px">-</div></div>
+        <div class="stat"><div class="label">มาเรียนเดือนนี้</div><div class="value" id="p-att" style="font-size:18px">-</div></div>
+      </div>
+
+      <h3 class="card-title">ข้อมูลทะเบียน</h3>
+      <div class="info-grid" id="p-info"></div>
+
+      <h3 class="card-title" style="margin-top:16px">พฤติกรรมล่าสุด (เดือนนี้)</h3>
+      <div id="p-bhv-list" class="text-muted">-</div>
+    </div>
+  </section>
+
+  <!-- ── ภาพรวม ── -->
+  <section class="tab-pane hidden" id="tab-dashboard">
+    <div class="card">
+      <h3 class="card-title">📊 ภาพรวมนักเรียน</h3>
+      <div class="stat-grid">
+        <div class="stat"><div class="label">นักเรียนทั้งหมด</div><div class="value" id="d-total">-</div></div>
+        <div class="stat"><div class="label">ชาย</div><div class="value" id="d-male">-</div></div>
+        <div class="stat"><div class="label">หญิง</div><div class="value pink" id="d-female">-</div></div>
+      </div>
+    </div>
+    <div class="card">
+      <h3 class="card-title">📈 จำนวนนักเรียนรายชั้น</h3>
+      <canvas id="d-chart" height="140"></canvas>
+    </div>
+  </section>
+
+</main>
+
+<!-- Modal แก้ไข -->
+<div class="modal-backdrop" id="edit-modal">
+  <div class="modal modal-lg">
+    <h3 class="modal-title">✏️ แก้ไขข้อมูลนักเรียน</h3>
+    <form id="edit-form">
+      <div class="form-row">
+        <div class="form-group"><label>คำนำหน้า</label><input class="form-control" name="prefix"></div>
+        <div class="form-group"><label>เพศ</label><select class="form-control" name="gender"><option value="ช">ช</option><option value="ญ">ญ</option></select></div>
+      </div>
+      <div class="form-row">
+        <div class="form-group"><label>ชื่อ</label><input class="form-control" name="first_name"></div>
+        <div class="form-group"><label>นามสกุล</label><input class="form-control" name="last_name"></div>
+      </div>
+      <div class="form-row">
+        <div class="form-group"><label>ชั้น</label><input class="form-control" name="grade" placeholder="เช่น ป.3"></div>
+        <div class="form-group"><label>ห้อง</label><input class="form-control" name="room" type="number" min="1"></div>
+      </div>
+      <div class="form-row">
+        <div class="form-group"><label>วันเกิด (วว/ดด/ปปปป พ.ศ.)</label><input class="form-control" name="birth_date"></div>
+        <div class="form-group"><label>หมู่เลือด</label><input class="form-control" name="blood_type"></div>
+      </div>
+      <div class="form-row">
+        <div class="form-group"><label>ศาสนา</label><input class="form-control" name="religion"></div>
+        <div class="form-group"><label>สัญชาติ</label><input class="form-control" name="nationality"></div>
+      </div>
+      <div class="form-row">
+        <div class="form-group"><label>ผู้ปกครอง</label><input class="form-control" name="guardian_name"></div>
+        <div class="form-group"><label>เบอร์โทรผู้ปกครอง</label><input class="form-control" name="guardian_phone"></div>
+      </div>
+      <div class="form-group"><label>ที่อยู่</label><input class="form-control" name="address"></div>
+      <div class="form-row">
+        <div class="form-group"><label>น้ำหนักแรกเข้า (กก.)</label><input class="form-control" name="weight_init" type="number" step="0.1"></div>
+        <div class="form-group"><label>ส่วนสูงแรกเข้า (ซม.)</label><input class="form-control" name="height_init" type="number" step="0.1"></div>
+      </div>
+      <div class="form-group"><label>สถานะ</label><select class="form-control" name="status"><option value="active">กำลังศึกษา (active)</option><option value="inactive">พ้นสภาพ (inactive)</option></select></div>
+      <div class="flex" style="justify-content:flex-end;gap:8px">
+        <button type="button" class="btn btn-secondary" id="edit-cancel">ยกเลิก</button>
+        <button type="submit" class="btn btn-success"><i class="bi bi-check-circle"></i> บันทึก</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<script src="js/config.js"></script>
+<script src="js/auth.js"></script>
+<script src="js/api.js"></script>
+<script src="js/utils.js"></script>
+<script src="js/modules/students.js"></script>
+</body>
+</html>

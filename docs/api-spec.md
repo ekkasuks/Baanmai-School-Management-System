@@ -32,6 +32,7 @@
 | `settings.backup` / `settings.restore` | admin | สำรอง/กู้คืนข้อมูล |
 | `students.import_dmc` | — | นำเข้า DMC (ทีละ chunk) |
 | `students.list` / `students.get` / `students.update` / `students.stats` | — | ทะเบียนนักเรียน |
+| `students.profile` | — | โปรไฟล์รายบุคคล (รวมข้ามโมดูล: ธนาคาร/พฤติกรรม/สุขภาพ/มาเรียน) |
 | `auth.verify_pin` / `auth.check` | — | ตรวจ PIN → ออก token |
 | `bank.deposit` / `bank.withdraw` / `bank.history` / `bank.passbook` / `bank.dashboard` | 127 | ธนาคาร |
 | `bank.classes` / `bank.by_class` | 127 | เลือกชั้น → รายชื่อนักเรียน+ยอดเงิน (แทนการพิมพ์ค้นหา) |
@@ -43,4 +44,4 @@
 | `health.save` / `health.history` / `health.dashboard` | — | บันทึกรายชั้น (upsert date+citizen_id) · ประวัติ · ภาพรวมรายวัน |
 | `attendance.classes` / `attendance.by_class` | 127 | เลือกชั้น → รายชื่อ+สถานะของวันนั้น (pre-fill) |
 | `attendance.save` / `attendance.history` / `attendance.dashboard` | 127 | บันทึกรายชั้น (upsert date+citizen_id) · ประวัติ · ภาพรวมรายวัน |
-| `dashboard.summary` | — | Dashboard หลัก |
+| `dashboard.summary` | — | Dashboard หลัก (รวมตัวเลขทุกโมดูล อ่าน sheet ตรง ไม่ผ่าน PIN) |

@@ -53,7 +53,7 @@ document.getElementById('stat-date').textContent = Utils.fmtDateThai(new Date())
 // เมนู — ระบุ ready=false สำหรับโมดูลที่ยังไม่สร้าง (จะทยอยเปิดทีละ Module)
 const MENUS = [
   { href: 'settings.html',   icon: 'gear-fill',          name: 'ตั้งค่าระบบ',     desc: 'ข้อมูลโรงเรียน · นำเข้า DMC · สำรองข้อมูล', ready: true },
-  { href: 'students.html',   icon: 'people-fill',        name: 'ข้อมูลนักเรียน',  desc: 'ทะเบียน · ค้นหา · แก้ไข',  ready: false },
+  { href: 'students.html',   icon: 'people-fill',        name: 'ข้อมูลนักเรียน',  desc: 'ทะเบียน · ค้นหา · แก้ไข',  ready: true },
   { href: 'bank.html',       icon: 'piggy-bank-fill',    name: 'ธนาคารโรงเรียน',  desc: 'ฝาก / ถอน · PIN',          ready: true },
   { href: 'behavior.html',   icon: 'star-fill',          name: 'พฤติกรรม',        desc: 'เริ่มต้น 20 คะแนน · รายเดือน', ready: true },
   { href: 'health.html',     icon: 'heart-pulse-fill',   name: 'ตรวจสุขภาพ',      desc: 'ผม · เล็บ · ฟัน · รายชั้น', ready: true },
@@ -78,14 +78,18 @@ async function loadDashboard() {
     return;
   }
   try {
-    const st = await api('students.stats', {}, { silent: true, loading: false });
-    document.getElementById('stat-total').textContent = Utils.fmtInt(st.total);
-    document.getElementById('stat-gender').textContent = st.male + ' / ' + st.female;
-  } catch (e) { /* ยังไม่ได้ import */ }
-  try {
-    const bh = await api('behavior.dashboard', {}, { silent: true, loading: false });
-    document.getElementById('stat-behavior').textContent = Utils.fmtNumber(bh.avg_score, 1);
-  } catch (e) { /* ยังไม่มีข้อมูลพฤติกรรม */ }
+    const d = await api('dashboard.summary', {}, { silent: true, loading: false });
+    document.getElementById('stat-total').textContent = Utils.fmtInt(d.students.total);
+    document.getElementById('stat-gender').textContent = d.students.male + ' / ' + d.students.female;
+    document.getElementById('stat-bank').textContent = Utils.fmtMoney(d.bank.total_balance);
+    document.getElementById('stat-behavior').textContent = Utils.fmtNumber(d.behavior.avg_score, 1);
+    if (d.attendance.present_rate != null) {
+      document.getElementById('stat-attend').innerHTML = Utils.fmtNumber(d.attendance.present_rate, 0) + '%' +
+        '<div style="font-size:12px;color:var(--muted);font-weight:400">มา ' + d.attendance.counts['มา'] + ' จากเช็ค ' + d.attendance.checked + ' คน</div>';
+    } else {
+      document.getElementById('stat-attend').innerHTML = '<span style="font-size:15px;color:var(--muted)">ยังไม่เช็ควันนี้</span>';
+    }
+  } catch (e) { /* ยังไม่ได้ deploy dashboard.summary หรือยังไม่มีข้อมูล */ }
 }
 loadDashboard();
 </script>

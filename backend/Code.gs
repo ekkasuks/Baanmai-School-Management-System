@@ -40,6 +40,7 @@ function handle(req) {
     behavior: BehaviorAPI,
     health: HealthAPI,
     attendance: AttendanceAPI,
+    dashboard: DashboardAPI,
   };
 
   const mod = router[moduleName];
