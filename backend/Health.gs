@@ -23,10 +23,10 @@ const HealthAPI = {
    */
   by_class: function (params) {
     if (!params.grade) apiError('VALIDATION', 'กรุณาเลือกชั้นเรียน');
-    const date = params.date || today();
+    const date = params.date ? toYmd(params.date) : today();
     const checkIndex = {};
     readAll('HEALTH_CHECK').forEach(function (c) {
-      if (String(c.date) === date) checkIndex[String(c.citizen_id)] = c;
+      if (toYmd(c.date) === date) checkIndex[String(c.citizen_id)] = c;
     });
 
     const results = studentsInClass(params.grade, params.room).map(function (s) {
@@ -49,7 +49,7 @@ const HealthAPI = {
   save: function (params) {
     const records = params.records;
     if (!Array.isArray(records) || !records.length) apiError('VALIDATION', 'ไม่มีข้อมูลให้บันทึก');
-    const date = params.date || today();
+    const date = params.date ? toYmd(params.date) : today();
     const ts = now();
     const by = params.recorded_by || 'admin';
 
@@ -66,7 +66,7 @@ const HealthAPI = {
         const dates = sh.getRange(2, dateCol, lastRow - 1, 1).getValues();
         const cids = sh.getRange(2, cidCol, lastRow - 1, 1).getValues();
         for (let i = 0; i < dates.length; i++) {
-          keyToRow[String(dates[i][0]) + '|' + String(cids[i][0])] = i + 2;
+          keyToRow[toYmd(dates[i][0]) + '|' + String(cids[i][0])] = i + 2;
         }
       }
 
@@ -104,9 +104,9 @@ const HealthAPI = {
     const stIndex = buildIndex('STUDENTS', 'citizen_id');
     let rows = readAll('HEALTH_CHECK');
 
-    if (p.date) rows = rows.filter(function (c) { return String(c.date) === p.date; });
-    if (p.date_from) rows = rows.filter(function (c) { return String(c.date) >= p.date_from; });
-    if (p.date_to) rows = rows.filter(function (c) { return String(c.date) <= p.date_to; });
+    if (p.date) rows = rows.filter(function (c) { return toYmd(c.date) === toYmd(p.date); });
+    if (p.date_from) rows = rows.filter(function (c) { return toYmd(c.date) >= p.date_from; });
+    if (p.date_to) rows = rows.filter(function (c) { return toYmd(c.date) <= p.date_to; });
     if (p.citizen_id) rows = rows.filter(function (c) { return String(c.citizen_id) === String(p.citizen_id); });
     if (p.grade) {
       rows = rows.filter(function (c) {
@@ -142,9 +142,9 @@ const HealthAPI = {
 
   /** Dashboard — ผ่าน/ไม่ผ่านรายข้อ, ภาพรวม, รายชั้น, รายชื่อที่ไม่ผ่าน (ของวันที่ระบุ) */
   dashboard: function (params) {
-    const date = (params && params.date) || today();
+    const date = (params && params.date) ? toYmd(params.date) : today();
     const stIndex = buildIndex('STUDENTS', 'citizen_id');
-    const checks = readAll('HEALTH_CHECK').filter(function (c) { return String(c.date) === date; });
+    const checks = readAll('HEALTH_CHECK').filter(function (c) { return toYmd(c.date) === date; });
 
     const totalStudents = readAll('STUDENTS').filter(function (s) { return s.status !== 'inactive'; }).length;
 

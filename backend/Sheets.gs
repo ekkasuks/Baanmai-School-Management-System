@@ -166,6 +166,29 @@ function now() {
   return Utilities.formatDate(new Date(), 'Asia/Bangkok', "yyyy-MM-dd'T'HH:mm:ss");
 }
 
+/**
+ * แปลงค่าวันที่ให้เป็น 'YYYY-MM-DD' (โซนเวลาไทย) เสมอ
+ * รองรับ Date object / ISO string / 'YYYY-MM-DD'
+ * ⚠️ จำเป็นเพราะ Google Sheets แปลง string วันที่เป็น Date เอง แล้วอ่านกลับมาเป็น ISO (UTC)
+ */
+function toYmd(v) {
+  if (v === null || v === undefined || v === '') return '';
+  if (Object.prototype.toString.call(v) === '[object Date]') {
+    return Utilities.formatDate(v, 'Asia/Bangkok', 'yyyy-MM-dd');
+  }
+  const s = String(v);
+  if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return s;
+  const d = new Date(s);
+  if (!isNaN(d.getTime())) return Utilities.formatDate(d, 'Asia/Bangkok', 'yyyy-MM-dd');
+  return s;
+}
+
+/** แปลงค่าวันที่ → 'YYYY-MM' (เดือน) */
+function toYm(v) {
+  const s = toYmd(v);
+  return s ? s.substring(0, 7) : '';
+}
+
 function today() {
   return Utilities.formatDate(new Date(), 'Asia/Bangkok', 'yyyy-MM-dd');
 }

@@ -54,7 +54,7 @@ const BankAPI = {
     const td = today();
     let depositToday = 0, withdrawToday = 0, depCount = 0, wdCount = 0;
     readAll('BANK_TRANSACTIONS').forEach(function (t) {
-      if (String(t.date) !== td) return;
+      if (toYmd(t.date) !== td) return;
       const amt = Number(t.amount) || 0;
       if (t.type === 'deposit') { depositToday += amt; depCount++; }
       else if (t.type === 'withdraw') { withdrawToday += amt; wdCount++; }
@@ -141,8 +141,8 @@ const BankAPI = {
 
     if (p.citizen_id) rows = rows.filter(function (t) { return String(t.citizen_id) === String(p.citizen_id); });
     if (p.type) rows = rows.filter(function (t) { return t.type === p.type; });
-    if (p.date_from) rows = rows.filter(function (t) { return String(t.date) >= p.date_from; });
-    if (p.date_to) rows = rows.filter(function (t) { return String(t.date) <= p.date_to; });
+    if (p.date_from) rows = rows.filter(function (t) { return toYmd(t.date) >= p.date_from; });
+    if (p.date_to) rows = rows.filter(function (t) { return toYmd(t.date) <= p.date_to; });
     if (p.grade) {
       rows = rows.filter(function (t) {
         const s = stIndex[String(t.citizen_id)];

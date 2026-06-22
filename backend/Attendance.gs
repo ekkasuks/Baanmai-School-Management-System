@@ -23,10 +23,10 @@ const AttendanceAPI = {
   by_class: function (params, ctx) {
     requirePin(ctx, 'attendance');
     if (!params.grade) apiError('VALIDATION', 'กรุณาเลือกชั้นเรียน');
-    const date = params.date || today();
+    const date = params.date ? toYmd(params.date) : today();
     const attIndex = {};
     readAll('ATTENDANCE').forEach(function (a) {
-      if (String(a.date) === date) attIndex[String(a.citizen_id)] = a;
+      if (toYmd(a.date) === date) attIndex[String(a.citizen_id)] = a;
     });
 
     const results = studentsInClass(params.grade, params.room).map(function (s) {
@@ -49,7 +49,7 @@ const AttendanceAPI = {
     requirePin(ctx, 'attendance');
     const records = params.records;
     if (!Array.isArray(records) || !records.length) apiError('VALIDATION', 'ไม่มีข้อมูลให้บันทึก');
-    const date = params.date || today();
+    const date = params.date ? toYmd(params.date) : today();
     const ts = now();
     const by = params.recorded_by || 'admin';
 
@@ -66,7 +66,7 @@ const AttendanceAPI = {
         const dates = sh.getRange(2, dateCol, lastRow - 1, 1).getValues();
         const cids = sh.getRange(2, cidCol, lastRow - 1, 1).getValues();
         for (let i = 0; i < dates.length; i++) {
-          keyToRow[String(dates[i][0]) + '|' + String(cids[i][0])] = i + 2;
+          keyToRow[toYmd(dates[i][0]) + '|' + String(cids[i][0])] = i + 2;
         }
       }
 
@@ -104,9 +104,9 @@ const AttendanceAPI = {
     const stIndex = buildIndex('STUDENTS', 'citizen_id');
     let rows = readAll('ATTENDANCE');
 
-    if (p.date) rows = rows.filter(function (a) { return String(a.date) === p.date; });
-    if (p.date_from) rows = rows.filter(function (a) { return String(a.date) >= p.date_from; });
-    if (p.date_to) rows = rows.filter(function (a) { return String(a.date) <= p.date_to; });
+    if (p.date) rows = rows.filter(function (a) { return toYmd(a.date) === toYmd(p.date); });
+    if (p.date_from) rows = rows.filter(function (a) { return toYmd(a.date) >= p.date_from; });
+    if (p.date_to) rows = rows.filter(function (a) { return toYmd(a.date) <= p.date_to; });
     if (p.citizen_id) rows = rows.filter(function (a) { return String(a.citizen_id) === String(p.citizen_id); });
     if (p.status) rows = rows.filter(function (a) { return a.status === p.status; });
     if (p.grade) {
@@ -133,9 +133,9 @@ const AttendanceAPI = {
   /** Dashboard — สรุปสถานะรายวัน, รายชั้น, รายชื่อที่ไม่มา (ของวันที่ระบุ) */
   dashboard: function (params, ctx) {
     requirePin(ctx, 'attendance');
-    const date = (params && params.date) || today();
+    const date = (params && params.date) ? toYmd(params.date) : today();
     const stIndex = buildIndex('STUDENTS', 'citizen_id');
-    const records = readAll('ATTENDANCE').filter(function (a) { return String(a.date) === date; });
+    const records = readAll('ATTENDANCE').filter(function (a) { return toYmd(a.date) === date; });
     const totalStudents = readAll('STUDENTS').filter(function (s) { return s.status !== 'inactive'; }).length;
 
     const counts = { 'มา': 0, 'ขาด': 0, 'ลา': 0, 'สาย': 0 };

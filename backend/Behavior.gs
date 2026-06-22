@@ -139,8 +139,8 @@ const BehaviorAPI = {
     const lock = LockService.getScriptLock();
     lock.waitLock(15000);
     try {
-      const date = params.date || today();
-      const ym = String(date).substring(0, 7);
+      const date = params.date ? toYmd(params.date) : today();
+      const ym = toYm(date);
       const ms = monthScores(ym);
       const current = ms.start + (ms.sums[String(cid)] || 0);
       const pointsAfter = current + change;
@@ -178,7 +178,7 @@ const BehaviorAPI = {
     const itemIndex = buildIndex('BEHAVIOR_MASTER', 'item_id');
 
     const logs = readAll('BEHAVIOR_LOG')
-      .filter(function (l) { return String(l.citizen_id) === String(cid) && String(l.year_month) === ym; })
+      .filter(function (l) { return String(l.citizen_id) === String(cid) && toYm(l.year_month) === ym; })
       .sort(function (a, b) { return String(a.created_at).localeCompare(String(b.created_at)); })
       .map(function (l) {
         const it = itemIndex[String(l.item_id)];
@@ -203,7 +203,7 @@ const BehaviorAPI = {
     const itemIndex = buildIndex('BEHAVIOR_MASTER', 'item_id');
     let rows = readAll('BEHAVIOR_LOG');
 
-    if (p.year_month) rows = rows.filter(function (l) { return String(l.year_month) === p.year_month; });
+    if (p.year_month) rows = rows.filter(function (l) { return toYm(l.year_month) === p.year_month; });
     if (p.citizen_id) rows = rows.filter(function (l) { return String(l.citizen_id) === String(p.citizen_id); });
     if (p.type) {
       rows = rows.filter(function (l) {
@@ -298,7 +298,7 @@ const BehaviorAPI = {
 
     // จำนวนการบันทึกในเดือนนี้
     let recordCount = 0;
-    readAll('BEHAVIOR_LOG').forEach(function (l) { if (String(l.year_month) === ym) recordCount++; });
+    readAll('BEHAVIOR_LOG').forEach(function (l) { if (toYm(l.year_month) === ym) recordCount++; });
 
     return {
       year_month: ym,
@@ -326,7 +326,7 @@ function behaviorStart() {
 function monthScores(ym) {
   const sums = {};
   readAll('BEHAVIOR_LOG').forEach(function (l) {
-    if (String(l.year_month) !== ym) return;
+    if (toYm(l.year_month) !== ym) return;
     const cid = String(l.citizen_id);
     sums[cid] = (sums[cid] || 0) + (Number(l.points_change) || 0);
   });

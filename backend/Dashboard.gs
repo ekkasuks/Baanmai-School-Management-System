@@ -32,12 +32,12 @@ const DashboardAPI = {
     // ── ตรวจสุขภาพ: วันล่าสุดที่มีการตรวจ ──
     const healthRows = readAll('HEALTH_CHECK');
     let healthDate = '';
-    healthRows.forEach(function (c) { if (String(c.date) > healthDate) healthDate = String(c.date); });
+    healthRows.forEach(function (c) { const cd = toYmd(c.date); if (cd > healthDate) healthDate = cd; });
     let hPass = 0, hCells = 0, hChecked = 0;
     if (healthDate) {
       const items = ['hair', 'nails', 'cup', 'toothbrush', 'toothpaste'];
       healthRows.forEach(function (c) {
-        if (String(c.date) !== healthDate) return;
+        if (toYmd(c.date) !== healthDate) return;
         hChecked++;
         items.forEach(function (k) {
           if (c[k] === 'ผ่าน') { hPass++; hCells++; }
@@ -51,7 +51,7 @@ const DashboardAPI = {
     const counts = { 'มา': 0, 'ขาด': 0, 'ลา': 0, 'สาย': 0 };
     let attChecked = 0;
     readAll('ATTENDANCE').forEach(function (a) {
-      if (String(a.date) !== td) return;
+      if (toYmd(a.date) !== td) return;
       attChecked++;
       if (counts[a.status] !== undefined) counts[a.status]++;
     });

@@ -71,7 +71,7 @@ const StudentsAPI = {
     const start = behaviorStart();
     const itemIndex = buildIndex('BEHAVIOR_MASTER', 'item_id');
     const bhvLogs = readAll('BEHAVIOR_LOG')
-      .filter(function (l) { return String(l.citizen_id) === cid && String(l.year_month) === ym; })
+      .filter(function (l) { return String(l.citizen_id) === cid && toYm(l.year_month) === ym; })
       .sort(function (a, b) { return String(a.created_at).localeCompare(String(b.created_at)); });
     const behaviorScore = bhvLogs.length ? Number(bhvLogs[bhvLogs.length - 1].points_after) || start : start;
     const recentBehavior = bhvLogs.slice(-5).reverse().map(function (l) {
@@ -84,11 +84,11 @@ const StudentsAPI = {
     let latestHealth = null;
     readAll('HEALTH_CHECK').forEach(function (c) {
       if (String(c.citizen_id) !== cid) return;
-      if (!latestHealth || String(c.date) > String(latestHealth.date)) latestHealth = c;
+      if (!latestHealth || toYmd(c.date) > toYmd(latestHealth.date)) latestHealth = c;
     });
     let health = null;
     if (latestHealth) {
-      health = { date: latestHealth.date };
+      health = { date: toYmd(latestHealth.date) };
       healthItems.forEach(function (k) { health[k] = latestHealth[k] || ''; });
     }
 
@@ -96,7 +96,7 @@ const StudentsAPI = {
     const attCounts = { 'มา': 0, 'ขาด': 0, 'ลา': 0, 'สาย': 0 };
     readAll('ATTENDANCE').forEach(function (a) {
       if (String(a.citizen_id) !== cid) return;
-      if (String(a.year_month || String(a.date).substring(0, 7)) !== ym) return;
+      if (toYm(a.date) !== ym) return;
       if (attCounts[a.status] !== undefined) attCounts[a.status]++;
     });
 
