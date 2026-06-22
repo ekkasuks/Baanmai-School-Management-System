@@ -41,5 +41,6 @@
 | `behavior.history` / `behavior.ranking` / `behavior.dashboard` | — | ประวัติ · อันดับรายเดือน · ภาพรวม (รับ `year_month`) |
 | `health.classes` / `health.by_class` | — | เลือกชั้น → รายชื่อ+ผลตรวจของวันนั้น (pre-fill) |
 | `health.save` / `health.history` / `health.dashboard` | — | บันทึกรายชั้น (upsert date+citizen_id) · ประวัติ · ภาพรวมรายวัน |
-| `attendance.record` / `attendance.list` / `attendance.dashboard` | ✓ | เช็คชื่อ |
+| `attendance.classes` / `attendance.by_class` | 127 | เลือกชั้น → รายชื่อ+สถานะของวันนั้น (pre-fill) |
+| `attendance.save` / `attendance.history` / `attendance.dashboard` | 127 | บันทึกรายชั้น (upsert date+citizen_id) · ประวัติ · ภาพรวมรายวัน |
 | `dashboard.summary` | — | Dashboard หลัก |

@@ -1,0 +1,294 @@
+/**
+ * Module 5 — เช็คการมาเรียน (PIN: attendance)
+ * เช็คชื่อรายชั้น (มา/ขาด/ลา/สาย) · ภาพรวม + PDF · ประวัติ
+ */
+(function () {
+
+  let schoolName = 'โรงเรียนบ้านใหม่';
+  let chart = null;
+  let lastDash = null;
+
+  const STATUSES = [
+    { label: 'มา', color: '#2E7D32', bg: '#E8F5E9', border: '#A5D6A7' },
+    { label: 'ขาด', color: '#C62828', bg: '#FFEBEE', border: '#EF9A9A' },
+    { label: 'ลา', color: '#EF6C00', bg: '#FFF8E1', border: '#FFE0B2' },
+    { label: 'สาย', color: '#E65100', bg: '#FFF3E0', border: '#FFCC80' },
+  ];
+  const metaOf = {};
+  STATUSES.forEach(function (s) { metaOf[s.label] = s; });
+
+  /* ── เรียก API พร้อม retry เมื่อ PIN หมดอายุ ── */
+  async function attApi(action, params, opts) {
+    try {
+      return await api(action, params, opts);
+    } catch (e) {
+      if (e.code === 'TOKEN_EXPIRED') {
+        Auth.clear('attendance');
+        await Auth.requirePin('attendance');
+        return await api(action, params, opts);
+      }
+      throw e;
+    }
+  }
+
+  /* ── Tabs ── */
+  document.querySelectorAll('.tab').forEach(function (t) {
+    t.addEventListener('click', function () {
+      document.querySelectorAll('.tab').forEach(function (x) { x.classList.remove('active'); });
+      t.classList.add('active');
+      document.querySelectorAll('.tab-pane').forEach(function (p) { p.classList.add('hidden'); });
+      document.getElementById('tab-' + t.dataset.tab).classList.remove('hidden');
+      if (t.dataset.tab === 'record') loadRecClasses();
+      else if (t.dataset.tab === 'dashboard') loadDashboard();
+    });
+  });
+
+  function fillClassSelect(sel, classes) {
+    const opts = ['<option value="">— เลือกชั้น/ห้อง —</option>'];
+    classes.forEach(function (c) {
+      const label = c.grade + (c.room ? '/' + c.room : '') + ' (' + c.count + ' คน)';
+      opts.push('<option value="' + Utils.esc(c.grade + '|' + c.room) + '">' + Utils.esc(label) + '</option>');
+    });
+    sel.innerHTML = opts.join('');
+  }
+
+  function fillGrades(byGrade) {
+    const grades = byGrade.slice().sort(function (a, b) {
+      return Utils.gradeSortKey(a.grade) - Utils.gradeSortKey(b.grade);
+    }).map(function (g) { return g.grade; });
+    const sel = document.getElementById('h-grade');
+    const cur = sel.value;
+    sel.innerHTML = '<option value="">ทุกชั้น</option>' + Utils.options(grades, cur);
+  }
+
+  function applyBtn(btn, active) {
+    const m = metaOf[btn.dataset.status];
+    if (active) {
+      btn.style.background = m.bg; btn.style.borderColor = m.border; btn.style.color = m.color;
+      btn.classList.add('active');
+    } else {
+      btn.style.background = '#fff'; btn.style.borderColor = 'var(--border)'; btn.style.color = 'var(--muted)';
+      btn.classList.remove('active');
+    }
+  }
+
+  /* ════ เช็คชื่อ ════ */
+  let recClassesLoaded = false;
+  async function loadRecClasses() {
+    if (recClassesLoaded) return;
+    try {
+      const d = await attApi('attendance.classes', {}, { silent: true, loading: false });
+      fillClassSelect(document.getElementById('rec-class'), d.classes);
+      recClassesLoaded = true;
+    } catch (e) { /* ignore */ }
+  }
+
+  function getRecDate() {
+    return document.getElementById('rec-date').value || Utils.todayYmd();
+  }
+
+  async function loadRecStudents() {
+    const cls = document.getElementById('rec-class').value;
+    const host = document.getElementById('rec-table');
+    const actions = document.getElementById('rec-actions');
+    document.getElementById('rec-result').classList.add('hidden');
+    if (!cls) { host.innerHTML = 'เลือกชั้นเพื่อแสดงรายชื่อนักเรียน'; host.className = 'text-muted'; actions.classList.add('hidden'); return; }
+    const parts = cls.split('|');
+    try {
+      host.className = '';
+      const d = await attApi('attendance.by_class', { grade: parts[0], room: parts[1], date: getRecDate() }, { loadingMsg: 'กำลังโหลดรายชื่อ...' });
+      renderRecTable(d.results);
+      actions.classList.remove('hidden');
+    } catch (e) { host.innerHTML = '<div class="alert alert-danger">' + Utils.esc(e.message) + '</div>'; }
+  }
+
+  function renderRecTable(students) {
+    const host = document.getElementById('rec-table');
+    if (!students.length) { host.innerHTML = '<div class="text-muted">ไม่มีนักเรียนในชั้นนี้</div>'; return; }
+    const body = students.map(function (s) {
+      const btns = STATUSES.map(function (st) {
+        return '<button type="button" class="att-btn" data-status="' + st.label + '">' + st.label + '</button>';
+      }).join('');
+      const tag = s.checked ? '<span class="badge badge-pass">เช็คแล้ว</span>' : '<span class="text-muted" style="font-size:13px">ใหม่</span>';
+      return '<tr data-cid="' + Utils.esc(s.citizen_id) + '" data-cur="' + Utils.esc(s.status) + '">' +
+        '<td>' + Utils.esc(s.name) + '<br><span class="text-muted" style="font-size:12px">' + Utils.esc(s.grade) + '/' + Utils.esc(s.room) + '</span></td>' +
+        '<td><div class="att-seg">' + btns + '</div></td><td>' + tag + '</td></tr>';
+    }).join('');
+    host.innerHTML = '<div class="table-wrap"><table class="att-table"><thead><tr><th>ชื่อ</th><th>สถานะ</th><th></th></tr></thead><tbody>' + body + '</tbody></table></div>';
+
+    host.querySelectorAll('tbody tr').forEach(function (tr) {
+      const cur = tr.dataset.cur || 'มา';
+      tr.querySelectorAll('.att-btn').forEach(function (b) {
+        applyBtn(b, b.dataset.status === cur);
+        b.onclick = function () {
+          tr.querySelectorAll('.att-btn').forEach(function (x) { applyBtn(x, false); });
+          applyBtn(b, true);
+        };
+      });
+    });
+  }
+
+  document.getElementById('rec-class').addEventListener('change', loadRecStudents);
+  document.getElementById('rec-date').addEventListener('change', function () {
+    if (document.getElementById('rec-class').value) loadRecStudents();
+  });
+
+  document.getElementById('rec-allpresent').onclick = function () {
+    document.querySelectorAll('#rec-table tbody tr').forEach(function (tr) {
+      tr.querySelectorAll('.att-btn').forEach(function (b) { applyBtn(b, b.dataset.status === 'มา'); });
+    });
+  };
+
+  document.getElementById('rec-save').onclick = async function () {
+    const rows = document.querySelectorAll('#rec-table tbody tr');
+    if (!rows.length) return;
+    const records = [];
+    rows.forEach(function (tr) {
+      const active = tr.querySelector('.att-btn.active');
+      records.push({ citizen_id: tr.dataset.cid, status: active ? active.dataset.status : 'มา' });
+    });
+    try {
+      const r = await attApi('attendance.save', {
+        date: getRecDate(), records: records, recorded_by: document.getElementById('rec-by').value.trim() || 'admin',
+      }, { loadingMsg: 'กำลังบันทึก...' });
+      const res = document.getElementById('rec-result');
+      res.className = 'alert alert-success mt-2';
+      res.textContent = '✅ บันทึกการเช็คชื่อวันที่ ' + Utils.fmtDateThai(r.date) + ' สำเร็จ — บันทึกใหม่ ' + r.inserted + ' คน, อัปเดต ' + r.updated + ' คน';
+      res.classList.remove('hidden');
+      Toast.show('บันทึกการเช็คชื่อสำเร็จ', 'success');
+      loadRecStudents();
+    } catch (e) { /* Toast แสดงแล้ว */ }
+  };
+
+  /* ════ ภาพรวม ════ */
+  async function loadDashboard() {
+    const date = document.getElementById('d-date').value || Utils.todayYmd();
+    try {
+      const d = await attApi('attendance.dashboard', { date: date }, { loadingMsg: 'กำลังโหลดภาพรวม...' });
+      lastDash = d;
+      document.getElementById('d-present').textContent = Utils.fmtInt(d.counts['มา']);
+      document.getElementById('d-absent').textContent = Utils.fmtInt(d.counts['ขาด']);
+      document.getElementById('d-leave').textContent = Utils.fmtInt(d.counts['ลา']);
+      document.getElementById('d-late').textContent = Utils.fmtInt(d.counts['สาย']);
+      document.getElementById('d-rate').textContent = Utils.fmtNumber(d.present_rate, 1) + '%';
+      document.getElementById('d-notchecked').textContent = Utils.fmtInt(d.not_checked);
+
+      drawChart(d.counts);
+      fillGrades(d.by_grade);
+
+      if (!d.absent_list.length) {
+        document.getElementById('d-absent-list').innerHTML = d.checked_count
+          ? '<div class="alert alert-success">🎉 มาเรียนครบทุกคน</div>'
+          : '<div class="text-muted">ยังไม่มีการเช็คชื่อในวันนี้</div>';
+      } else {
+        const rows = d.absent_list.map(function (a) {
+          const m = metaOf[a.status] || {};
+          return '<tr><td>' + Utils.esc(a.name) + '</td><td>' + Utils.esc(a.grade) + '/' + Utils.esc(a.room) + '</td>' +
+            '<td><span class="badge" style="background:' + (m.bg || '#eee') + ';color:' + (m.color || '#333') + '">' + Utils.esc(a.status) + '</span></td></tr>';
+        }).join('');
+        document.getElementById('d-absent-list').innerHTML =
+          '<div class="text-muted" style="margin-bottom:6px">ไม่มา ' + d.absent_list.length + ' คน</div>' +
+          '<div class="table-wrap"><table><thead><tr><th>ชื่อ</th><th>ชั้น</th><th>สถานะ</th></tr></thead><tbody>' + rows + '</tbody></table></div>';
+      }
+    } catch (e) { /* Toast แสดงแล้ว */ }
+  }
+
+  function drawChart(counts) {
+    const ctx = document.getElementById('d-chart').getContext('2d');
+    if (chart) chart.destroy();
+    chart = new Chart(ctx, {
+      type: 'bar',
+      data: {
+        labels: STATUSES.map(function (s) { return s.label; }),
+        datasets: [{
+          label: 'จำนวน',
+          data: STATUSES.map(function (s) { return counts[s.label] || 0; }),
+          backgroundColor: STATUSES.map(function (s) { return s.color; }),
+          borderRadius: 8,
+        }],
+      },
+      options: {
+        plugins: { legend: { display: false } },
+        scales: { y: { beginAtZero: true, ticks: { font: { family: 'Sarabun' }, precision: 0 } }, x: { ticks: { font: { family: 'Sarabun' } } } },
+      },
+    });
+  }
+
+  document.getElementById('d-go').onclick = loadDashboard;
+
+  document.getElementById('d-pdf').onclick = async function () {
+    if (!lastDash) { Toast.show('ยังไม่มีข้อมูล', 'warning'); return; }
+    try {
+      Loading.show('กำลังสร้าง PDF...');
+      const d = lastDash;
+      const doc = await PDF.newDoc('p');
+      let y = PDF.header(doc, schoolName, 'สรุปการมาเรียน วันที่ ' + Utils.fmtDateThai(d.date));
+      doc.setFontSize(12);
+      doc.text('เช็คแล้ว ' + d.checked_count + ' คน · ยังไม่เช็ค ' + d.not_checked + ' คน · อัตรามาเรียน ' + d.present_rate + '%', 14, y + 4);
+
+      doc.autoTable({
+        startY: y + 10,
+        head: [['สถานะ', 'จำนวน']],
+        body: STATUSES.map(function (s) { return [s.label, String(d.counts[s.label] || 0)]; }),
+        styles: { font: 'Sarabun', fontSize: 11, halign: 'center' },
+        headStyles: { font: 'Sarabun', fontStyle: 'bold', fillColor: [79, 195, 247] },
+        columnStyles: { 0: { halign: 'left' } },
+      });
+
+      const absBody = d.absent_list.map(function (a) { return [a.name, a.grade + '/' + a.room, a.status]; });
+      doc.autoTable({
+        startY: doc.lastAutoTable.finalY + 8,
+        head: [['ชื่อ (ไม่มา)', 'ชั้น', 'สถานะ']],
+        body: absBody.length ? absBody : [['— มาครบทุกคน —', '', '']],
+        styles: { font: 'Sarabun', fontSize: 11 },
+        headStyles: { font: 'Sarabun', fontStyle: 'bold', fillColor: [239, 83, 80] },
+        columnStyles: { 1: { halign: 'center' }, 2: { halign: 'center' } },
+      });
+      doc.save('attendance_' + d.date + '.pdf');
+    } catch (e) {
+      Toast.show('สร้าง PDF ไม่สำเร็จ: ' + e.message, 'danger');
+    } finally { Loading.hide(); }
+  };
+
+  /* ════ ประวัติ ════ */
+  document.getElementById('h-go').onclick = async function () {
+    const host = document.getElementById('h-result');
+    try {
+      const d = await attApi('attendance.history', {
+        date_from: document.getElementById('h-from').value || undefined,
+        date_to: document.getElementById('h-to').value || undefined,
+        grade: document.getElementById('h-grade').value || undefined,
+        status: document.getElementById('h-status').value || undefined,
+        limit: 400,
+      }, { loadingMsg: 'กำลังค้นหา...' });
+
+      if (!d.records.length) { host.innerHTML = '<div class="text-muted">ไม่พบรายการ</div>'; return; }
+      const rows = d.records.map(function (a) {
+        const m = metaOf[a.status] || {};
+        return '<tr><td>' + Utils.fmtDateThai(a.date) + '</td><td>' + Utils.esc(a.name) + '</td>' +
+          '<td>' + Utils.esc(a.grade) + '/' + Utils.esc(a.room) + '</td>' +
+          '<td><span class="badge" style="background:' + (m.bg || '#eee') + ';color:' + (m.color || '#333') + '">' + Utils.esc(a.status) + '</span></td>' +
+          '<td>' + Utils.esc(a.recorded_by) + '</td></tr>';
+      }).join('');
+      host.innerHTML = '<div class="text-muted mt-2" style="margin-bottom:6px">พบ ' + d.records.length + ' รายการ</div>' +
+        '<div class="table-wrap"><table><thead><tr><th>วันที่</th><th>ชื่อ</th><th>ชั้น</th><th>สถานะ</th><th>ผู้บันทึก</th></tr></thead><tbody>' + rows + '</tbody></table></div>';
+    } catch (e) { host.innerHTML = '<div class="alert alert-danger">' + Utils.esc(e.message) + '</div>'; }
+  };
+
+  /* ════ เริ่มต้น — ต้องผ่าน PIN ก่อน ════ */
+  document.getElementById('rec-date').value = Utils.todayYmd();
+  document.getElementById('d-date').value = Utils.todayYmd();
+  Auth.requirePin('attendance').then(async function () {
+    try {
+      const cfg = await api('settings.get', {}, { silent: true, loading: false });
+      if (cfg.settings && cfg.settings.school_name) schoolName = cfg.settings.school_name;
+    } catch (e) { /* ใช้ค่า default */ }
+    loadRecClasses();
+  }).catch(function () {
+    document.querySelector('.container').innerHTML =
+      '<div class="card"><div class="alert alert-warning">ต้องกรอก PIN เพื่อเข้าใช้การเช็คชื่อ</div>' +
+      '<a class="btn btn-primary" href="index.html">‹ กลับหน้าหลัก</a> ' +
+      '<button class="btn btn-secondary" onclick="location.reload()">ลองอีกครั้ง</button></div>';
+  });
+
+})();

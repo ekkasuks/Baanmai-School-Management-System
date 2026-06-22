@@ -39,6 +39,7 @@ function handle(req) {
     bank: BankAPI,
     behavior: BehaviorAPI,
     health: HealthAPI,
+    attendance: AttendanceAPI,
   };
 
   const mod = router[moduleName];
