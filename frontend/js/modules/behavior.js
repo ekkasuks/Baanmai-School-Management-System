@@ -36,8 +36,9 @@
       currentYm = sel.value;
       selRec = null;
       document.getElementById('rec-panel').classList.add('hidden');
-      document.getElementById('rec-search').value = '';
-      document.getElementById('rec-results').innerHTML = '';
+      // ถ้าเลือกชั้นไว้แล้ว โหลดรายชื่อ+คะแนนของเดือนใหม่
+      if (document.getElementById('rec-class').value) loadRecStudents();
+      else document.getElementById('rec-results').innerHTML = '';
       reloadActiveTab();
     });
   }
@@ -58,9 +59,19 @@
       document.getElementById('tab-' + t.dataset.tab).classList.remove('hidden');
       if (t.dataset.tab === 'dashboard') loadDashboard();
       else if (t.dataset.tab === 'master') loadMaster();
-      else if (t.dataset.tab === 'record') ensureItems();
+      else if (t.dataset.tab === 'record') { ensureItems(); loadRecClasses(); }
     });
   });
+
+  /* ── เติม dropdown ชั้น/ห้อง ── */
+  function fillClassSelect(sel, classes) {
+    const opts = ['<option value="">— เลือกชั้น/ห้อง —</option>'];
+    classes.forEach(function (c) {
+      const label = c.grade + (c.room ? '/' + c.room : '') + ' (' + c.count + ' คน)';
+      opts.push('<option value="' + Utils.esc(c.grade + '|' + c.room) + '">' + Utils.esc(label) + '</option>');
+    });
+    sel.innerHTML = opts.join('');
+  }
 
   /* ── เติม dropdown ชั้น (จาก dashboard.by_grade) ── */
   function fillGrades(byGrade) {
@@ -165,16 +176,30 @@
     });
   }
 
-  const recSearch = document.getElementById('rec-search');
-  recSearch.addEventListener('input', Utils.debounce(async function () {
-    const q = recSearch.value.trim();
-    const host = document.getElementById('rec-results');
-    if (q.length < 1) { host.innerHTML = ''; return; }
+  let recClassesLoaded = false;
+  async function loadRecClasses() {
+    if (recClassesLoaded) return;
     try {
-      const d = await api('behavior.search', { q: q, year_month: currentYm }, { silent: true, loading: false });
+      const d = await api('behavior.classes', {}, { silent: true, loading: false });
+      fillClassSelect(document.getElementById('rec-class'), d.classes);
+      recClassesLoaded = true;
+    } catch (e) { /* ignore */ }
+  }
+
+  async function loadRecStudents() {
+    const sel = document.getElementById('rec-class');
+    const host = document.getElementById('rec-results');
+    selRec = null;
+    document.getElementById('rec-panel').classList.add('hidden');
+    if (!sel.value) { host.innerHTML = 'เลือกชั้นเพื่อแสดงรายชื่อนักเรียน'; host.className = 'text-muted'; return; }
+    const parts = sel.value.split('|');
+    try {
+      host.className = '';
+      const d = await api('behavior.by_class', { grade: parts[0], room: parts[1], year_month: currentYm }, { loadingMsg: 'กำลังโหลดรายชื่อ...' });
       renderResults(host, d.results, pickRecStudent);
     } catch (e) { host.innerHTML = '<div class="alert alert-danger">' + Utils.esc(e.message) + '</div>'; }
-  }, 350));
+  }
+  document.getElementById('rec-class').addEventListener('change', loadRecStudents);
 
   async function pickRecStudent(r) {
     selRec = r;

@@ -114,6 +114,42 @@ const StudentsAPI = {
   },
 };
 
+/** เรียงชั้น: อ.2 < อ.3 < ป.1 < ... < ป.6 (mirror frontend Utils.gradeSortKey) */
+function gradeSortKey(g) {
+  g = String(g || '');
+  if (g.indexOf('อ.') === 0) return parseInt(g.slice(2), 10) || 0;
+  if (g.indexOf('ป.') === 0) return 10 + (parseInt(g.slice(2), 10) || 0);
+  if (g.indexOf('ม.') === 0) return 20 + (parseInt(g.slice(2), 10) || 0);
+  return 99;
+}
+
+/** รายชื่อชั้น/ห้อง (distinct) ของนักเรียน active เรียงตามชั้น→ห้อง — ใช้ใน dropdown เลือกชั้น */
+function listClasses() {
+  const map = {};
+  readAll('STUDENTS').forEach(function (s) {
+    if (s.status === 'inactive') return;
+    const grade = s.grade || '-';
+    const room = (s.room === undefined || s.room === null) ? '' : String(s.room);
+    const key = grade + '|' + room;
+    if (!map[key]) map[key] = { grade: grade, room: room, count: 0 };
+    map[key].count++;
+  });
+  return Object.keys(map).map(function (k) { return map[k]; }).sort(function (a, b) {
+    const d = gradeSortKey(a.grade) - gradeSortKey(b.grade);
+    return d !== 0 ? d : (parseInt(a.room, 10) || 0) - (parseInt(b.room, 10) || 0);
+  });
+}
+
+/** กรองนักเรียน active ตามชั้น (+ห้อง ถ้าระบุ) */
+function studentsInClass(grade, room) {
+  return readAll('STUDENTS').filter(function (s) {
+    if (s.status === 'inactive') return false;
+    if (String(s.grade) !== String(grade)) return false;
+    if (room !== undefined && room !== null && room !== '' && String(s.room) !== String(room)) return false;
+    return true;
+  });
+}
+
 /**
  * map 1 แถว DMC (object key = หัวคอลัมน์ไทย) → STUDENTS
  * ดู docs/dmc-field-map.md

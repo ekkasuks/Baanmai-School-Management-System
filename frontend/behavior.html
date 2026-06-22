@@ -74,11 +74,11 @@
   <!-- ── บันทึก ── -->
   <section class="tab-pane hidden" id="tab-record">
     <div class="card">
-      <h3 class="card-title">🔎 ค้นหานักเรียน</h3>
+      <h3 class="card-title">🏫 เลือกชั้นเรียน</h3>
       <div class="form-group">
-        <input class="form-control" id="rec-search" placeholder="พิมพ์ชื่อ / รหัสนักเรียน / เลขบัตร">
+        <select class="form-control" id="rec-class"><option value="">— เลือกชั้น/ห้อง —</option></select>
       </div>
-      <div id="rec-results"></div>
+      <div id="rec-results" class="text-muted">เลือกชั้นเพื่อแสดงรายชื่อนักเรียน</div>
     </div>
 
     <div class="card hidden" id="rec-panel">

@@ -74,6 +74,26 @@ const BehaviorAPI = {
     return { ok: true };
   },
 
+  /** รายชื่อชั้น/ห้อง สำหรับ dropdown เลือกชั้น */
+  classes: function () {
+    return { classes: listClasses() };
+  },
+
+  /** นักเรียนในชั้น/ห้อง + คะแนนของเดือนที่ระบุ (สำหรับเลือกบันทึก) */
+  by_class: function (params) {
+    if (!params.grade) apiError('VALIDATION', 'กรุณาเลือกชั้นเรียน');
+    const ym = params.year_month || yearMonth();
+    const ms = monthScores(ym);
+    const results = studentsInClass(params.grade, params.room).map(function (s) {
+      return {
+        citizen_id: s.citizen_id, student_code: s.student_code, name: studentName(s),
+        grade: s.grade, room: s.room, score: ms.start + (ms.sums[String(s.citizen_id)] || 0),
+      };
+    });
+    results.sort(function (a, b) { return String(a.name).localeCompare(String(b.name), 'th'); });
+    return { results: results };
+  },
+
   /** ค้นหานักเรียน + คะแนนเดือนปัจจุบัน (สำหรับเลือกบันทึก) */
   search: function (params) {
     const q = String(params.q || '').trim().toLowerCase();

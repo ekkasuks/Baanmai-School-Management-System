@@ -72,6 +72,28 @@ const BankAPI = {
     };
   },
 
+  /** รายชื่อชั้น/ห้อง สำหรับ dropdown เลือกชั้น */
+  classes: function (params, ctx) {
+    requirePin(ctx, 'bank');
+    return { classes: listClasses() };
+  },
+
+  /** นักเรียนในชั้น/ห้อง + ยอดเงิน (สำหรับเลือกทำรายการ) */
+  by_class: function (params, ctx) {
+    requirePin(ctx, 'bank');
+    if (!params.grade) apiError('VALIDATION', 'กรุณาเลือกชั้นเรียน');
+    const balIndex = buildIndex('BANK_BALANCE', 'citizen_id');
+    const results = studentsInClass(params.grade, params.room).map(function (s) {
+      const row = balIndex[String(s.citizen_id)];
+      return {
+        citizen_id: s.citizen_id, student_code: s.student_code, name: studentName(s),
+        grade: s.grade, room: s.room, balance: row ? Number(row.balance) || 0 : 0,
+      };
+    });
+    results.sort(function (a, b) { return String(a.name).localeCompare(String(b.name), 'th'); });
+    return { results: results };
+  },
+
   /** ค้นหานักเรียน + ยอดเงิน (สำหรับเลือกทำรายการ) */
   search: function (params, ctx) {
     requirePin(ctx, 'bank');

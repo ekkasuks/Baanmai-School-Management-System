@@ -31,8 +31,19 @@
       document.querySelectorAll('.tab-pane').forEach(function (p) { p.classList.add('hidden'); });
       document.getElementById('tab-' + t.dataset.tab).classList.remove('hidden');
       if (t.dataset.tab === 'dashboard') loadDashboard();
+      else if (t.dataset.tab === 'txn') loadTxnClasses();
     });
   });
+
+  /* ── เติม dropdown ชั้น/ห้อง ── */
+  function fillClassSelect(sel, classes) {
+    const opts = ['<option value="">— เลือกชั้น/ห้อง —</option>'];
+    classes.forEach(function (c) {
+      const label = c.grade + (c.room ? '/' + c.room : '') + ' (' + c.count + ' คน)';
+      opts.push('<option value="' + Utils.esc(c.grade + '|' + c.room) + '">' + Utils.esc(label) + '</option>');
+    });
+    sel.innerHTML = opts.join('');
+  }
 
   /* ── render รายการผลค้นหานักเรียน ── */
   function renderResults(host, results, onPick) {
@@ -94,16 +105,28 @@
   }
 
   /* ════ ฝาก/ถอน ════ */
-  const txnSearch = document.getElementById('txn-search');
-  txnSearch.addEventListener('input', Utils.debounce(async function () {
-    const q = txnSearch.value.trim();
-    const host = document.getElementById('txn-results');
-    if (q.length < 1) { host.innerHTML = ''; return; }
+  let txnClassesLoaded = false;
+  async function loadTxnClasses() {
+    if (txnClassesLoaded) return;
     try {
-      const d = await bankApi('bank.search', { q: q }, { silent: true, loading: false });
+      const d = await bankApi('bank.classes', {}, { silent: true, loading: false });
+      fillClassSelect(document.getElementById('txn-class'), d.classes);
+      txnClassesLoaded = true;
+    } catch (e) { /* Toast แสดงแล้ว */ }
+  }
+
+  document.getElementById('txn-class').addEventListener('change', async function () {
+    const host = document.getElementById('txn-results');
+    document.getElementById('txn-panel').classList.add('hidden');
+    selTxn = null;
+    if (!this.value) { host.innerHTML = 'เลือกชั้นเพื่อแสดงรายชื่อนักเรียน'; host.className = 'text-muted'; return; }
+    const parts = this.value.split('|');
+    try {
+      host.className = '';
+      const d = await bankApi('bank.by_class', { grade: parts[0], room: parts[1] }, { loadingMsg: 'กำลังโหลดรายชื่อ...' });
       renderResults(host, d.results, pickTxnStudent);
     } catch (e) { host.innerHTML = '<div class="alert alert-danger">' + Utils.esc(e.message) + '</div>'; }
-  }, 350));
+  });
 
   function pickTxnStudent(r) {
     selTxn = r;

@@ -34,8 +34,10 @@
 | `students.list` / `students.get` / `students.update` / `students.stats` | — | ทะเบียนนักเรียน |
 | `auth.verify_pin` / `auth.check` | — | ตรวจ PIN → ออก token |
 | `bank.deposit` / `bank.withdraw` / `bank.history` / `bank.passbook` / `bank.dashboard` | 127 | ธนาคาร |
+| `bank.classes` / `bank.by_class` | 127 | เลือกชั้น → รายชื่อนักเรียน+ยอดเงิน (แทนการพิมพ์ค้นหา) |
 | `behavior.master_list` / `behavior.master_save` / `behavior.master_delete` | — | จัดการรายการพฤติกรรม (add/deduct) |
-| `behavior.search` / `behavior.record` / `behavior.student_score` | — | ค้นหา · บันทึก · คะแนน+ประวัติรายคน (รายเดือน) |
+| `behavior.classes` / `behavior.by_class` | — | เลือกชั้น → รายชื่อนักเรียน+คะแนน (แทนการพิมพ์ค้นหา) |
+| `behavior.record` / `behavior.student_score` | — | บันทึก · คะแนน+ประวัติรายคน (รายเดือน) |
 | `behavior.history` / `behavior.ranking` / `behavior.dashboard` | — | ประวัติ · อันดับรายเดือน · ภาพรวม (รับ `year_month`) |
 | `health.record` / `health.list` / `health.dashboard` | — | ตรวจสุขภาพ |
 | `attendance.record` / `attendance.list` / `attendance.dashboard` | ✓ | เช็คชื่อ |
