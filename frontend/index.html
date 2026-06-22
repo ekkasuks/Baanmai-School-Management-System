@@ -14,6 +14,7 @@
   <span class="logo">🏫</span>
   <div>
     <div class="title" id="school-name">โรงเรียนบ้านใหม่</div>
+    <div style="font-size:13px;opacity:.95;font-weight:600;letter-spacing:.3px">Baanmai School Management System</div>
     <div style="font-size:13px;opacity:.9" id="school-meta">ระบบบริหารงานนักเรียน</div>
   </div>
 </header>
@@ -38,7 +39,8 @@
   </div>
 
   <div class="text-center text-muted" style="font-size:13px;margin-top:28px">
-    Baanmai SMS · v<span id="ver"></span> · <span id="api-status"></span>
+    <div>ผู้พัฒนา ครูเอกศักดิ์ ปรีติประสงค์ · V1.0</div>
+    <div style="margin-top:4px"><span id="api-status"></span></div>
   </div>
 </main>
 
@@ -47,17 +49,16 @@
 <script src="js/api.js"></script>
 <script src="js/utils.js"></script>
 <script>
-document.getElementById('ver').textContent = window.APP_VERSION;
 document.getElementById('stat-date').textContent = Utils.fmtDateThai(new Date());
 
-// เมนู — ระบุ ready=false สำหรับโมดูลที่ยังไม่สร้าง (จะทยอยเปิดทีละ Module)
+// เมนู — เช็คการมาเรียนอยู่แรก (ใช้บ่อยสุด) · ตั้งค่าระบบอยู่สุดท้าย
 const MENUS = [
-  { href: 'settings.html',   icon: 'gear-fill',          name: 'ตั้งค่าระบบ',     desc: 'ข้อมูลโรงเรียน · นำเข้า DMC · สำรองข้อมูล', ready: true },
-  { href: 'students.html',   icon: 'people-fill',        name: 'ข้อมูลนักเรียน',  desc: 'ทะเบียน · ค้นหา · แก้ไข',  ready: true },
+  { href: 'attendance.html', icon: 'calendar-check-fill',name: 'เช็คการมาเรียน',  desc: 'มา·ขาด·ลา·สาย · PIN',     ready: true },
   { href: 'bank.html',       icon: 'piggy-bank-fill',    name: 'ธนาคารโรงเรียน',  desc: 'ฝาก / ถอน · PIN',          ready: true },
   { href: 'behavior.html',   icon: 'star-fill',          name: 'พฤติกรรม',        desc: 'เริ่มต้น 20 คะแนน · รายเดือน', ready: true },
   { href: 'health.html',     icon: 'heart-pulse-fill',   name: 'ตรวจสุขภาพ',      desc: 'ผม · เล็บ · ฟัน · รายชั้น', ready: true },
-  { href: 'attendance.html', icon: 'calendar-check-fill',name: 'เช็คการมาเรียน',  desc: 'มา·ขาด·ลา·สาย · PIN',     ready: true },
+  { href: 'students.html',   icon: 'people-fill',        name: 'ข้อมูลนักเรียน',  desc: 'ทะเบียน · ค้นหา · แก้ไข',  ready: true },
+  { href: 'settings.html',   icon: 'gear-fill',          name: 'ตั้งค่าระบบ',     desc: 'ข้อมูลโรงเรียน · นำเข้า DMC · สำรองข้อมูล', ready: true },
 ];
 document.getElementById('menu-grid').innerHTML = MENUS.map(function (m) {
   const badge = m.ready ? '' : '<div class="badge badge-fail" style="margin-top:4px">เร็วๆ นี้</div>';
