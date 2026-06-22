@@ -38,6 +38,7 @@ function handle(req) {
     students: StudentsAPI,
     bank: BankAPI,
     behavior: BehaviorAPI,
+    health: HealthAPI,
   };
 
   const mod = router[moduleName];

@@ -39,6 +39,7 @@
 | `behavior.classes` / `behavior.by_class` | — | เลือกชั้น → รายชื่อนักเรียน+คะแนน (แทนการพิมพ์ค้นหา) |
 | `behavior.record` / `behavior.student_score` | — | บันทึก · คะแนน+ประวัติรายคน (รายเดือน) |
 | `behavior.history` / `behavior.ranking` / `behavior.dashboard` | — | ประวัติ · อันดับรายเดือน · ภาพรวม (รับ `year_month`) |
-| `health.record` / `health.list` / `health.dashboard` | — | ตรวจสุขภาพ |
+| `health.classes` / `health.by_class` | — | เลือกชั้น → รายชื่อ+ผลตรวจของวันนั้น (pre-fill) |
+| `health.save` / `health.history` / `health.dashboard` | — | บันทึกรายชั้น (upsert date+citizen_id) · ประวัติ · ภาพรวมรายวัน |
 | `attendance.record` / `attendance.list` / `attendance.dashboard` | ✓ | เช็คชื่อ |
 | `dashboard.summary` | — | Dashboard หลัก |

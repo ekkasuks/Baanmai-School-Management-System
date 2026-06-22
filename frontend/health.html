@@ -1,0 +1,132 @@
+<!doctype html>
+<html lang="th">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ตรวจสุขภาพ — โรงเรียนบ้านใหม่</title>
+<link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet">
+<link rel="stylesheet" href="css/style.css">
+<style>
+  /* ปุ่ม toggle ผ่าน/ไม่ผ่าน ในตารางตรวจ */
+  .hc-toggle { border:2px solid var(--border); background:#fff; border-radius:10px; padding:4px 0; width:100%;
+    font-family:inherit; font-size:15px; font-weight:700; cursor:pointer; transition:all .12s; color:var(--muted); }
+  .hc-toggle.pass { background:#E8F5E9; border-color:#A5D6A7; color:var(--green-dark); }
+  .hc-toggle.fail { background:#FFEBEE; border-color:#EF9A9A; color:#C62828; }
+  .hc-table td, .hc-table th { padding:7px 6px; text-align:center; }
+  .hc-table th:first-child, .hc-table td:first-child { text-align:left; white-space:nowrap; }
+  .hc-table td { vertical-align:middle; }
+</style>
+</head>
+<body>
+
+<header class="app-header">
+  <a href="index.html" class="back">‹</a>
+  <span class="logo">🩺</span>
+  <div>
+    <div class="title">ตรวจสุขภาพ</div>
+    <div style="font-size:13px;opacity:.9">ผม · เล็บ · แก้วน้ำ · แปรงสีฟัน · ยาสีฟัน</div>
+  </div>
+</header>
+
+<main class="container">
+
+  <div class="tabs">
+    <button class="tab active" data-tab="record">📝 บันทึกผลตรวจ</button>
+    <button class="tab" data-tab="dashboard">📊 ภาพรวม</button>
+    <button class="tab" data-tab="history">📜 ประวัติ</button>
+  </div>
+
+  <!-- ── บันทึกผลตรวจ (รายชั้น) ── -->
+  <section class="tab-pane" id="tab-record">
+    <div class="card">
+      <h3 class="card-title">📝 ตรวจสุขภาพรายชั้น</h3>
+      <div class="form-row">
+        <div class="form-group">
+          <label>วันที่ตรวจ</label>
+          <input class="form-control" id="rec-date" type="date">
+        </div>
+        <div class="form-group">
+          <label>ชั้นเรียน</label>
+          <select class="form-control" id="rec-class"><option value="">— เลือกชั้น/ห้อง —</option></select>
+        </div>
+      </div>
+      <div class="form-group">
+        <label>ผู้บันทึก</label>
+        <input class="form-control" id="rec-by" placeholder="ชื่อครูผู้ตรวจ" style="max-width:320px">
+      </div>
+      <div class="alert alert-info" style="font-size:14px">💡 ค่าเริ่มต้นทุกช่องคือ <strong>ผ่าน</strong> (สีเขียว) — แตะช่องเพื่อสลับเป็น <strong>ไม่ผ่าน</strong> (สีแดง)</div>
+      <div id="rec-table" class="text-muted">เลือกชั้นเพื่อแสดงรายชื่อนักเรียน</div>
+      <div id="rec-actions" class="hidden mt-2">
+        <button class="btn btn-success" id="rec-save"><i class="bi bi-check2-circle"></i> บันทึกผลตรวจทั้งห้อง</button>
+        <button class="btn btn-secondary" id="rec-allpass"><i class="bi bi-check-all"></i> ตั้งทุกคนเป็นผ่าน</button>
+      </div>
+      <div id="rec-result" class="alert alert-success hidden mt-2"></div>
+    </div>
+  </section>
+
+  <!-- ── ภาพรวม ── -->
+  <section class="tab-pane hidden" id="tab-dashboard">
+    <div class="card" style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">
+      <label style="margin:0">📅 วันที่</label>
+      <input class="form-control" id="d-date" type="date" style="max-width:200px">
+      <button class="btn btn-primary" id="d-go"><i class="bi bi-arrow-repeat"></i> แสดงผล</button>
+      <button class="btn btn-danger" id="d-pdf"><i class="bi bi-filetype-pdf"></i> Export PDF</button>
+    </div>
+    <div class="card">
+      <h3 class="card-title">📊 ภาพรวมผลตรวจ</h3>
+      <div class="stat-grid">
+        <div class="stat"><div class="label">ตรวจแล้ว</div><div class="value" id="d-checked">-</div></div>
+        <div class="stat"><div class="label">ยังไม่ตรวจ</div><div class="value pink" id="d-notchecked">-</div></div>
+        <div class="stat"><div class="label">ผ่านโดยรวม</div><div class="value green" id="d-rate">-</div></div>
+        <div class="stat"><div class="label">นักเรียนทั้งหมด</div><div class="value" id="d-total">-</div></div>
+      </div>
+    </div>
+    <div class="card">
+      <h3 class="card-title">🧼 ผลตรวจรายข้อ</h3>
+      <canvas id="d-chart" height="140"></canvas>
+    </div>
+    <div class="card">
+      <h3 class="card-title">⚠️ รายชื่อที่ไม่ผ่าน</h3>
+      <div id="d-fail" class="text-muted">กำลังโหลด...</div>
+    </div>
+  </section>
+
+  <!-- ── ประวัติ ── -->
+  <section class="tab-pane hidden" id="tab-history">
+    <div class="card">
+      <h3 class="card-title">📜 ประวัติผลตรวจ</h3>
+      <div class="form-row">
+        <div class="form-group"><label>ตั้งแต่วันที่</label><input class="form-control" id="h-from" type="date"></div>
+        <div class="form-group"><label>ถึงวันที่</label><input class="form-control" id="h-to" type="date"></div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>ชั้น</label>
+          <select class="form-control" id="h-grade"><option value="">ทุกชั้น</option></select>
+        </div>
+        <div class="form-group">
+          <label>ตัวกรอง</label>
+          <select class="form-control" id="h-fail">
+            <option value="">ทั้งหมด</option>
+            <option value="1">เฉพาะที่ไม่ผ่าน</option>
+          </select>
+        </div>
+      </div>
+      <button class="btn btn-primary" id="h-go"><i class="bi bi-search"></i> ค้นหา</button>
+      <div id="h-result" class="mt-2 text-muted">กดค้นหาเพื่อดูรายการ</div>
+    </div>
+  </section>
+
+</main>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/jspdf-autotable@3.8.2/dist/jspdf.plugin.autotable.min.js"></script>
+<script src="js/config.js"></script>
+<script src="js/auth.js"></script>
+<script src="js/api.js"></script>
+<script src="js/utils.js"></script>
+<script src="js/pdf.js"></script>
+<script src="js/modules/health.js"></script>
+</body>
+</html>
