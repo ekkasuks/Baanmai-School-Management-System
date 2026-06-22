@@ -2,7 +2,8 @@
  * Authentication — ตรวจ PIN + ออก session token
  *
  * PIN เก็บเป็น SHA-256 hash ใน SETTINGS (key: pin_bank, pin_attendance)
- * Token เก็บใน CacheService — กรอกวันละ 1 ครั้ง (หมดอายุเที่ยงคืน)
+ * Token เก็บใน CacheService — หมดอายุเที่ยงคืน หรือ 6 ชม. (เพดาน CacheService)
+ * ถ้า token หมดอายุ frontend จะ re-prompt PIN ให้อัตโนมัติ
  */
 
 const PIN_MODULES = ['bank', 'attendance'];
@@ -24,7 +25,8 @@ const AuthAPI = {
       apiError('PIN_INVALID', 'PIN ไม่ถูกต้อง');
     }
 
-    const ttl = secondsUntilMidnight();
+    // CacheService จำกัด TTL สูงสุด 21600 วินาที (6 ชม.) — ส่งมากกว่านี้จะ throw
+    const ttl = Math.min(secondsUntilMidnight(), 21600);
     const token = Utilities.getUuid();
     CacheService.getScriptCache().put(
       'token:' + token,

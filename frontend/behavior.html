@@ -1,0 +1,205 @@
+<!doctype html>
+<html lang="th">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>พฤติกรรมนักเรียน — โรงเรียนบ้านใหม่</title>
+<link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet">
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+<header class="app-header">
+  <a href="index.html" class="back">‹</a>
+  <span class="logo">⭐</span>
+  <div>
+    <div class="title">พฤติกรรมนักเรียน</div>
+    <div style="font-size:13px;opacity:.9">เริ่มต้น 20 คะแนน · รีเซ็ตทุกเดือน</div>
+  </div>
+</header>
+
+<main class="container">
+
+  <!-- เลือกเดือน -->
+  <div class="card" style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">
+    <label style="margin:0">📅 เดือน</label>
+    <select class="form-control" id="month-select" style="max-width:220px"></select>
+    <span class="text-muted" id="month-note" style="font-size:14px"></span>
+  </div>
+
+  <div class="tabs">
+    <button class="tab active" data-tab="dashboard">📊 ภาพรวม</button>
+    <button class="tab" data-tab="record">📝 บันทึก</button>
+    <button class="tab" data-tab="ranking">🏆 อันดับ</button>
+    <button class="tab" data-tab="history">📜 ประวัติ</button>
+    <button class="tab" data-tab="master">⚙️ รายการพฤติกรรม</button>
+  </div>
+
+  <!-- ── Dashboard ── -->
+  <section class="tab-pane" id="tab-dashboard">
+    <div class="card">
+      <h3 class="card-title">📊 ภาพรวมพฤติกรรม</h3>
+      <div class="stat-grid">
+        <div class="stat"><div class="label">คะแนนเฉลี่ย</div><div class="value pink" id="d-avg">-</div></div>
+        <div class="stat"><div class="label">จำนวนนักเรียน</div><div class="value" id="d-count">-</div></div>
+        <div class="stat"><div class="label">บันทึกเดือนนี้</div><div class="value green" id="d-records">-</div></div>
+        <div class="stat"><div class="label">คะแนนเริ่มต้น</div><div class="value" id="d-start">-</div></div>
+      </div>
+    </div>
+    <div class="card">
+      <h3 class="card-title">🎯 การกระจายคะแนน</h3>
+      <div class="stat-grid">
+        <div class="stat" style="background:#E8F5E9"><div class="label">ดีมาก (20+)</div><div class="value green" id="d-excellent">-</div></div>
+        <div class="stat" style="background:#E1F5FE"><div class="label">ดี (15-19)</div><div class="value" id="d-good">-</div></div>
+        <div class="stat" style="background:#FFF8E1"><div class="label">ควรปรับปรุง (10-14)</div><div class="value" id="d-fair" style="color:#EF6C00">-</div></div>
+        <div class="stat" style="background:#FFEBEE"><div class="label">ต้องดูแล (&lt;10)</div><div class="value" id="d-watch" style="color:#C62828">-</div></div>
+      </div>
+    </div>
+    <div class="card">
+      <h3 class="card-title">📈 คะแนนเฉลี่ยรายชั้น</h3>
+      <canvas id="d-chart" height="140"></canvas>
+    </div>
+    <div class="form-row">
+      <div class="card">
+        <h3 class="card-title">🏆 คะแนนสูงสุด</h3>
+        <div id="d-top" class="text-muted">กำลังโหลด...</div>
+      </div>
+      <div class="card">
+        <h3 class="card-title">⚠️ ควรดูแลเป็นพิเศษ</h3>
+        <div id="d-bottom" class="text-muted">กำลังโหลด...</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ── บันทึก ── -->
+  <section class="tab-pane hidden" id="tab-record">
+    <div class="card">
+      <h3 class="card-title">🔎 ค้นหานักเรียน</h3>
+      <div class="form-group">
+        <input class="form-control" id="rec-search" placeholder="พิมพ์ชื่อ / รหัสนักเรียน / เลขบัตร">
+      </div>
+      <div id="rec-results"></div>
+    </div>
+
+    <div class="card hidden" id="rec-panel">
+      <h3 class="card-title">📝 บันทึกพฤติกรรม</h3>
+      <div class="alert alert-info" id="rec-student"></div>
+      <div class="stat" style="max-width:260px;margin-bottom:14px">
+        <div class="label">คะแนนเดือนนี้</div><div class="value pink" id="rec-score">-</div>
+      </div>
+      <div class="form-group">
+        <label>เลือกรายการพฤติกรรม</label>
+        <div id="rec-items" class="flex" style="flex-wrap:wrap;gap:8px"></div>
+      </div>
+      <div class="form-group">
+        <label>ผู้บันทึก</label>
+        <input class="form-control" id="rec-by" placeholder="ชื่อครูผู้บันทึก">
+      </div>
+      <div class="form-group">
+        <label>หมายเหตุ (ไม่บังคับ)</label>
+        <input class="form-control" id="rec-note" placeholder="เช่น ช่วยเก็บขยะหน้าห้อง">
+      </div>
+      <div id="rec-result" class="alert alert-success hidden mt-2"></div>
+
+      <h3 class="card-title" style="margin-top:18px">รายการเดือนนี้</h3>
+      <div id="rec-logs" class="text-muted">ยังไม่มีรายการ</div>
+    </div>
+  </section>
+
+  <!-- ── อันดับ ── -->
+  <section class="tab-pane hidden" id="tab-ranking">
+    <div class="card">
+      <div class="flex" style="justify-content:space-between;flex-wrap:wrap;gap:8px">
+        <h3 class="card-title" style="margin:0">🏆 อันดับคะแนนพฤติกรรม</h3>
+        <button class="btn btn-danger" id="rk-pdf"><i class="bi bi-filetype-pdf"></i> Export PDF</button>
+      </div>
+      <div class="form-row mt-2">
+        <div class="form-group">
+          <label>ชั้น</label>
+          <select class="form-control" id="rk-grade"><option value="">ทุกชั้น</option></select>
+        </div>
+        <div class="form-group" style="display:flex;align-items:flex-end">
+          <button class="btn btn-primary" id="rk-go"><i class="bi bi-arrow-repeat"></i> แสดงอันดับ</button>
+        </div>
+      </div>
+      <div id="rk-result" class="text-muted">เลือกเงื่อนไขแล้วกดแสดงอันดับ</div>
+    </div>
+  </section>
+
+  <!-- ── ประวัติ ── -->
+  <section class="tab-pane hidden" id="tab-history">
+    <div class="card">
+      <h3 class="card-title">📜 ประวัติการบันทึก</h3>
+      <div class="form-row">
+        <div class="form-group">
+          <label>ค้นหา (ชื่อ/รหัส)</label>
+          <input class="form-control" id="h-search" placeholder="เว้นว่าง = ทั้งหมด">
+        </div>
+        <div class="form-group">
+          <label>ประเภท</label>
+          <select class="form-control" id="h-type">
+            <option value="">ทั้งหมด</option>
+            <option value="add">เพิ่มคะแนน</option>
+            <option value="deduct">หักคะแนน</option>
+          </select>
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>ชั้น</label>
+          <select class="form-control" id="h-grade"><option value="">ทุกชั้น</option></select>
+        </div>
+        <div class="form-group" style="display:flex;align-items:flex-end">
+          <button class="btn btn-primary" id="h-go"><i class="bi bi-search"></i> ค้นหา</button>
+        </div>
+      </div>
+      <div id="h-result" class="mt-2 text-muted">กดค้นหาเพื่อดูรายการ</div>
+    </div>
+  </section>
+
+  <!-- ── รายการพฤติกรรม (Master) ── -->
+  <section class="tab-pane hidden" id="tab-master">
+    <div class="card">
+      <h3 class="card-title">➕ เพิ่ม/แก้ไขรายการพฤติกรรม</h3>
+      <form id="m-form">
+        <input type="hidden" id="m-id">
+        <div class="form-row">
+          <div class="form-group">
+            <label>ประเภท</label>
+            <select class="form-control" id="m-type">
+              <option value="add">เพิ่มคะแนน (+)</option>
+              <option value="deduct">หักคะแนน (−)</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>คะแนน</label>
+            <input class="form-control" id="m-points" type="number" min="1" step="1" placeholder="เช่น 2">
+          </div>
+        </div>
+        <div class="form-group">
+          <label>ชื่อรายการ</label>
+          <input class="form-control" id="m-name" placeholder="เช่น ช่วยงานครู">
+        </div>
+        <button class="btn btn-success" type="submit"><i class="bi bi-check-circle"></i> บันทึกรายการ</button>
+        <button class="btn btn-secondary hidden" type="button" id="m-cancel">ยกเลิกแก้ไข</button>
+      </form>
+    </div>
+    <div class="card">
+      <h3 class="card-title">📋 รายการพฤติกรรมทั้งหมด</h3>
+      <div id="m-list" class="text-muted">กำลังโหลด...</div>
+    </div>
+  </section>
+
+</main>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/jspdf-autotable@3.8.2/dist/jspdf.plugin.autotable.min.js"></script>
+<script src="js/config.js"></script>
+<script src="js/auth.js"></script>
+<script src="js/api.js"></script>
+<script src="js/utils.js"></script>
+<script src="js/pdf.js"></script>
+<script src="js/modules/behavior.js"></script>
+</body>
+</html>

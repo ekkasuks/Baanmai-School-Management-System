@@ -55,7 +55,7 @@ const MENUS = [
   { href: 'settings.html',   icon: 'gear-fill',          name: 'ตั้งค่าระบบ',     desc: 'ข้อมูลโรงเรียน · นำเข้า DMC · สำรองข้อมูล', ready: true },
   { href: 'students.html',   icon: 'people-fill',        name: 'ข้อมูลนักเรียน',  desc: 'ทะเบียน · ค้นหา · แก้ไข',  ready: false },
   { href: 'bank.html',       icon: 'piggy-bank-fill',    name: 'ธนาคารโรงเรียน',  desc: 'ฝาก / ถอน · PIN',          ready: true },
-  { href: 'behavior.html',   icon: 'star-fill',          name: 'พฤติกรรม',        desc: 'เริ่มต้น 20 คะแนน',        ready: false },
+  { href: 'behavior.html',   icon: 'star-fill',          name: 'พฤติกรรม',        desc: 'เริ่มต้น 20 คะแนน · รายเดือน', ready: true },
   { href: 'health.html',     icon: 'heart-pulse-fill',   name: 'ตรวจสุขภาพ',      desc: 'ผม · เล็บ · ฟัน',          ready: false },
   { href: 'attendance.html', icon: 'calendar-check-fill',name: 'เช็คการมาเรียน',  desc: 'มา·ขาด·ลา·สาย · PIN',     ready: false },
 ];
@@ -82,6 +82,10 @@ async function loadDashboard() {
     document.getElementById('stat-total').textContent = Utils.fmtInt(st.total);
     document.getElementById('stat-gender').textContent = st.male + ' / ' + st.female;
   } catch (e) { /* ยังไม่ได้ import */ }
+  try {
+    const bh = await api('behavior.dashboard', {}, { silent: true, loading: false });
+    document.getElementById('stat-behavior').textContent = Utils.fmtNumber(bh.avg_score, 1);
+  } catch (e) { /* ยังไม่มีข้อมูลพฤติกรรม */ }
 }
 loadDashboard();
 </script>
