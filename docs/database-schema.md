@@ -154,6 +154,24 @@
 
 ---
 
+## 7c. SCHOLARSHIP — ทุนการศึกษา
+
+| Column | Type | หมายเหตุ |
+|---|---|---|
+| scholarship_id | text | **PK** (SCH-xxxxxxxx) |
+| date | date | วันที่ได้รับทุน |
+| year | text | ปีการศึกษา (พ.ศ. จาก SETTINGS.current_year) — ใช้สรุปรายปี |
+| citizen_id | text(13) | FK → STUDENTS |
+| name | text | ชื่อทุน |
+| amount | number | จำนวนเงิน |
+| note | text | |
+| recorded_by | text | |
+| created_at | datetime | |
+
+> บันทึกได้หลายทุนต่อคน · สรุปตามปีการศึกษา + รายชั้น · แสดงในโปรไฟล์นักเรียนด้วย
+
+---
+
 ## 8. ATTENDANCE — เช็คการมาเรียน
 
 | Column | Type | หมายเหตุ |

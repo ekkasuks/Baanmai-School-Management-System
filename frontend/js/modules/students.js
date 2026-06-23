@@ -87,6 +87,20 @@
       // summary
       document.getElementById('p-bank').textContent = Utils.fmtMoney(d.bank.balance);
       document.getElementById('p-behavior').textContent = Utils.fmtInt(d.behavior.score);
+
+      // ทุนการศึกษาปีนี้
+      if (d.scholarship) {
+        document.getElementById('p-scholarship').innerHTML = Utils.fmtMoney(d.scholarship.year_total) +
+          (d.scholarship.year_count ? '<div style="font-size:12px;color:var(--muted);font-weight:400">' + d.scholarship.year_count + ' ทุน · ปี ' + d.scholarship.year + '</div>' : '');
+      } else { document.getElementById('p-scholarship').textContent = '-'; }
+
+      // การเจริญเติบโต (BMI/แปลผล WHO)
+      if (d.growth && d.growth.bmi) {
+        document.getElementById('p-growth').innerHTML = 'BMI ' + d.growth.bmi +
+          (d.growth.bmi_label ? '<div style="font-size:13px;font-weight:400;color:var(--muted)">' + Utils.esc(d.growth.bmi_label) + ' · ' + Utils.fmtDateThai(d.growth.date) + '</div>' : '');
+      } else {
+        document.getElementById('p-growth').innerHTML = '<span class="text-muted" style="font-size:14px">ยังไม่วัด</span>';
+      }
       if (d.health) {
         const fails = Object.keys(HEALTH_LABELS).filter(function (k) { return d.health[k] === 'ไม่ผ่าน'; });
         document.getElementById('p-health').innerHTML = Utils.fmtDateThai(d.health.date) + '<br>' +
@@ -124,6 +138,20 @@
         }).join('');
         document.getElementById('p-bhv-list').innerHTML =
           '<div class="table-wrap"><table><thead><tr><th>วันที่</th><th>รายการ</th><th style="text-align:right">+/−</th></tr></thead><tbody>' + rows + '</tbody></table></div>';
+      }
+
+      // ทุนการศึกษาล่าสุด
+      const sl = d.scholarship && d.scholarship.recent ? d.scholarship.recent : [];
+      if (!sl.length) {
+        document.getElementById('p-sch-list').innerHTML = '<div class="text-muted">ยังไม่มีข้อมูลการรับทุน</div>';
+      } else {
+        const rows = sl.map(function (r) {
+          return '<tr><td>' + Utils.fmtDateThai(r.date) + '</td><td>' + Utils.esc(r.name) + '</td>' +
+            '<td style="text-align:center">' + Utils.esc(r.year) + '</td>' +
+            '<td style="text-align:right;font-weight:700;color:var(--green-dark)">' + Utils.fmtMoney(r.amount) + '</td></tr>';
+        }).join('');
+        document.getElementById('p-sch-list').innerHTML =
+          '<div class="table-wrap"><table><thead><tr><th>วันที่</th><th>ชื่อทุน</th><th style="text-align:center">ปี</th><th style="text-align:right">จำนวน</th></tr></thead><tbody>' + rows + '</tbody></table></div>';
       }
       document.getElementById('profile-panel').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
     } catch (e) { /* Toast แสดงแล้ว */ }

@@ -46,6 +46,11 @@ const SHEETS = {
     headers: ['growth_id', 'date', 'citizen_id', 'weight', 'height',
               'bmi', 'zscore', 'bmi_label', 'note', 'recorded_by', 'created_at'],
   },
+  SCHOLARSHIP: {
+    name: 'SCHOLARSHIP',
+    headers: ['scholarship_id', 'date', 'year', 'citizen_id', 'name',
+              'amount', 'note', 'recorded_by', 'created_at'],
+  },
   ATTENDANCE: {
     name: 'ATTENDANCE',
     headers: ['att_id', 'date', 'citizen_id', 'status', 'note', 'recorded_by', 'created_at'],
@@ -144,6 +149,13 @@ function updateRow(key, rowIndex, partialObject) {
     if (partialObject[h] !== undefined) current[i] = partialObject[h];
   });
   sh.getRange(rowIndex, 1, 1, headers.length).setValues([current]);
+  invalidateCache(key);
+}
+
+/** ลบแถวตามเลขแถว (1-based) */
+function deleteRow(key, rowIndex) {
+  const sh = getSheet(key);
+  sh.deleteRow(rowIndex);
   invalidateCache(key);
 }
 

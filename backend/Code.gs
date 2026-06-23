@@ -40,6 +40,7 @@ function handle(req) {
     behavior: BehaviorAPI,
     health: HealthAPI,
     growth: GrowthAPI,
+    scholarship: ScholarshipAPI,
     attendance: AttendanceAPI,
     dashboard: DashboardAPI,
   };

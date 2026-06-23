@@ -100,12 +100,39 @@ const StudentsAPI = {
       if (attCounts[a.status] !== undefined) attCounts[a.status]++;
     });
 
+    // การเจริญเติบโต — ผลล่าสุด (แปลผลตามเกณฑ์ WHO)
+    let latestGrowth = null;
+    readAll('GROWTH').forEach(function (g) {
+      if (String(g.citizen_id) !== cid) return;
+      if (!latestGrowth || toYmd(g.date) > toYmd(latestGrowth.date)) latestGrowth = g;
+    });
+    let growth = null;
+    if (latestGrowth) {
+      const gbmi = Number(latestGrowth.bmi) || 0;
+      const ev = growthEval(gbmi, student, toYmd(latestGrowth.date));
+      growth = {
+        date: toYmd(latestGrowth.date), weight: Number(latestGrowth.weight) || 0,
+        height: Number(latestGrowth.height) || 0, bmi: gbmi, zscore: ev.z, bmi_label: ev.label,
+      };
+    }
+
+    // ทุนการศึกษา — รวมปีปัจจุบัน + รายการล่าสุด
+    const curYear = String(SettingsAPI.get_raw('current_year') || '');
+    const schAll = readAll('SCHOLARSHIP')
+      .filter(function (r) { return String(r.citizen_id) === cid; })
+      .map(function (r) { return { date: toYmd(r.date), year: String(r.year), name: r.name, amount: Number(r.amount) || 0 }; })
+      .sort(function (a, b) { return b.date.localeCompare(a.date); });
+    let schYearTotal = 0, schYearCount = 0;
+    schAll.forEach(function (r) { if (r.year === curYear) { schYearTotal += r.amount; schYearCount++; } });
+
     return {
       student: student,
       bank: { balance: balance },
       behavior: { year_month: ym, score: behaviorScore, recent: recentBehavior },
       health: health,
       attendance: { year_month: ym, counts: attCounts },
+      growth: growth,
+      scholarship: { year: curYear, year_total: Math.round(schYearTotal * 100) / 100, year_count: schYearCount, recent: schAll.slice(0, 5) },
     };
   },
 
