@@ -1,6 +1,6 @@
 # Database Schema — Google Sheets
 
-> Step 2: ออกแบบฐานข้อมูล — Spreadsheet ชื่อ **BaanmaiSMS_DB** มี **10 sheets** ตาม spec
+> Step 2: ออกแบบฐานข้อมูล — Spreadsheet ชื่อ **BaanmaiSMS_DB** (เริ่ม 10 sheets · เพิ่ม GROWTH เป็น **11 sheets**)
 
 ชนิดข้อมูล: ทุกค่าเก็บเป็น text/number ใน cell · วันที่ใช้รูปแบบ `YYYY-MM-DD` (เวลา ISO `YYYY-MM-DDTHH:mm:ss`, timezone Asia/Bangkok)
 
@@ -129,6 +129,28 @@
 | created_at | datetime | |
 
 > Unique: (date, citizen_id) — กันบันทึกซ้ำในวันเดียว
+
+---
+
+## 7b. GROWTH — การเจริญเติบโต (น้ำหนัก/ส่วนสูง/BMI)
+
+| Column | Type | หมายเหตุ |
+|---|---|---|
+| growth_id | text | **PK** (GRW-xxxxxxxx) |
+| date | date | วันที่ชั่ง/วัด |
+| citizen_id | text(13) | FK → STUDENTS |
+| weight | number | กก. |
+| height | number | ซม. |
+| bmi | number | คำนวณ = weight / (height_m)^2 |
+| zscore | number | BMI-for-age z-score (WHO) — คำนวณจากเพศ+อายุ |
+| bmi_label | text | แปลผล: ผอมมาก/ผอม/สมส่วน/น้ำหนักเกิน/อ้วน |
+| note | text | |
+| recorded_by | text | |
+| created_at | datetime | |
+
+> เก็บได้หลายครั้งต่อคน (ติดตามแนวโน้ม) · Unique = (date, citizen_id) กันซ้ำในวันเดียว
+> **แปลผลด้วยเกณฑ์ WHO BMI-for-age z-score** (WHO 2006 อายุ 0-5 + WHO 2007 อายุ 5-19) อิงเพศ+อายุ
+> ค่า LMS เก็บใน `backend/GrowthData.gs` (+ `frontend/js/growth-lms.js`) — สร้างจากไฟล์ทางการ WHO
 
 ---
 

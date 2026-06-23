@@ -41,6 +41,11 @@ const SHEETS = {
     headers: ['check_id', 'date', 'citizen_id', 'hair', 'nails',
               'cup', 'toothbrush', 'toothpaste', 'note', 'recorded_by', 'created_at'],
   },
+  GROWTH: {
+    name: 'GROWTH',
+    headers: ['growth_id', 'date', 'citizen_id', 'weight', 'height',
+              'bmi', 'zscore', 'bmi_label', 'note', 'recorded_by', 'created_at'],
+  },
   ATTENDANCE: {
     name: 'ATTENDANCE',
     headers: ['att_id', 'date', 'citizen_id', 'status', 'note', 'recorded_by', 'created_at'],

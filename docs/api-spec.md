@@ -42,6 +42,8 @@
 | `behavior.history` / `behavior.ranking` / `behavior.dashboard` | — | ประวัติ · อันดับรายเดือน · ภาพรวม (รับ `year_month`) |
 | `health.classes` / `health.by_class` | — | เลือกชั้น → รายชื่อ+ผลตรวจของวันนั้น (pre-fill) |
 | `health.save` / `health.history` / `health.dashboard` | — | บันทึกรายชั้น (upsert date+citizen_id) · ประวัติ · ภาพรวมรายวัน |
+| `growth.classes` / `growth.by_class` / `growth.save` | — | การเจริญเติบโต: เลือกชั้น · บันทึกน้ำหนัก/ส่วนสูง (คำนวณ BMI + แปลผล WHO BMI-for-age z-score · upsert date+citizen_id) |
+| `growth.dashboard` / `growth.student` / `growth.search` | — | ภาพรวม BMI (ค่าล่าสุด/รายชั้น) · ประวัติรายบุคคล (กราฟแนวโน้ม) |
 | `attendance.classes` / `attendance.by_class` | 127 | เลือกชั้น → รายชื่อ+สถานะของวันนั้น (pre-fill) |
 | `attendance.save` / `attendance.history` / `attendance.dashboard` | 127 | บันทึกรายชั้น (upsert date+citizen_id) · ประวัติ · ภาพรวมรายวัน |
 | `dashboard.summary` | — | Dashboard หลัก (รวมตัวเลขทุกโมดูล อ่าน sheet ตรง ไม่ผ่าน PIN) |

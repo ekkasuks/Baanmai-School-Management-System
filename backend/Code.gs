@@ -39,6 +39,7 @@ function handle(req) {
     bank: BankAPI,
     behavior: BehaviorAPI,
     health: HealthAPI,
+    growth: GrowthAPI,
     attendance: AttendanceAPI,
     dashboard: DashboardAPI,
   };
