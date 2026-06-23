@@ -38,15 +38,20 @@ const GrowthAPI = {
       });
       const latest = recs.length ? recs[recs.length - 1] : null;
       const onDate = date ? recs.filter(function (r) { return toYmd(r.date) === date; }).pop() : null;
+      let latestOut = null;
+      if (latest) {
+        const bmi = Number(latest.bmi) || 0;
+        const ev = growthEval(bmi, s, toYmd(latest.date));
+        latestOut = {
+          date: toYmd(latest.date), weight: Number(latest.weight) || 0, height: Number(latest.height) || 0,
+          bmi: bmi, zscore: ev.z, bmi_label: ev.label,
+        };
+      }
       return {
         citizen_id: s.citizen_id, student_code: s.student_code, name: studentName(s),
         grade: s.grade, room: s.room,
         gender: s.gender, birth_date: s.birth_date,   // ให้ frontend คำนวณ z-score สดได้
-        latest: latest ? {
-          date: toYmd(latest.date), weight: Number(latest.weight) || 0, height: Number(latest.height) || 0,
-          bmi: Number(latest.bmi) || 0, zscore: latest.zscore === '' || latest.zscore == null ? null : Number(latest.zscore),
-          bmi_label: latest.bmi_label || '',
-        } : null,
+        latest: latestOut,
         on_date: onDate ? { weight: Number(onDate.weight) || 0, height: Number(onDate.height) || 0 } : null,
       };
     });
@@ -127,11 +132,12 @@ const GrowthAPI = {
     const records = readAll('GROWTH')
       .filter(function (g) { return String(g.citizen_id) === cid; })
       .map(function (g) {
+        const bmi = Number(g.bmi) || 0;
+        const ev = growthEval(bmi, s, toYmd(g.date));
         return {
           growth_id: g.growth_id, date: toYmd(g.date),
           weight: Number(g.weight) || 0, height: Number(g.height) || 0,
-          bmi: Number(g.bmi) || 0, zscore: g.zscore === '' || g.zscore == null ? null : Number(g.zscore),
-          bmi_label: g.bmi_label || '',
+          bmi: bmi, zscore: ev.z, bmi_label: ev.label,
           note: g.note, recorded_by: g.recorded_by,
         };
       })
@@ -172,7 +178,7 @@ const GrowthAPI = {
       const cid = String(g.citizen_id);
       const d = toYmd(g.date);
       if (!latest[cid] || d > latest[cid].date) {
-        latest[cid] = { date: d, bmi: Number(g.bmi) || 0, label: g.bmi_label || '' };
+        latest[cid] = { date: d, bmi: Number(g.bmi) || 0 };
       }
     });
 
@@ -188,7 +194,8 @@ const GrowthAPI = {
       if (g && g.bmi > 0) {
         measured++; bmiSum += g.bmi;
         gradeMap[grade].measured++; gradeMap[grade].bmi_sum += g.bmi;
-        if (dist[g.label] !== undefined) dist[g.label]++;
+        const label = growthEval(g.bmi, s, g.date).label;
+        if (dist[label] !== undefined) dist[label]++;
       }
     });
 
@@ -217,17 +224,41 @@ function computeBmi(weight, height) {
   return Math.round((w / (h * h)) * 10) / 10;
 }
 
-/** อายุเป็นเดือน (completed) ณ วันที่วัด — birthDate = 'DD/MM/พ.ศ.' */
+/**
+ * อายุเป็นเดือน (completed) ณ วันที่วัด
+ * รองรับ birth_date หลายรูปแบบ: 'DD/MM/พ.ศ.', ISO 'YYYY-MM-DD...' (ที่ Sheets แปลงมา ปีเป็น พ.ศ.), Date
+ * ปี >= 2400 ถือเป็น พ.ศ. → ลบ 543
+ */
 function ageMonthsAt(birthDate, atYmd) {
-  const m = String(birthDate || '').match(/(\d{1,2})\/(\d{1,2})\/(\d{4})/);
-  if (!m) return null;
-  const by = parseInt(m[3], 10) - 543, bm = parseInt(m[2], 10), bd = parseInt(m[1], 10);
-  const p = String(atYmd).split('-');
-  const ay = parseInt(p[0], 10), am = parseInt(p[1], 10), ad = parseInt(p[2], 10);
+  if (!birthDate) return null;
+  let by, bm, bd;
+  if (Object.prototype.toString.call(birthDate) === '[object Date]') {
+    by = birthDate.getFullYear(); bm = birthDate.getMonth() + 1; bd = birthDate.getDate();
+  } else {
+    const s = String(birthDate);
+    let m = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})/);          // DD/MM/YYYY
+    if (m) { bd = +m[1]; bm = +m[2]; by = +m[3]; }
+    else {
+      m = s.match(/^(\d{4})-(\d{1,2})-(\d{1,2})/);              // YYYY-MM-DD (ISO ที่ถูก coerce)
+      if (m) { by = +m[1]; bm = +m[2]; bd = +m[3]; }
+      else { const d = new Date(s); if (isNaN(d.getTime())) return null; by = d.getFullYear(); bm = d.getMonth() + 1; bd = d.getDate(); }
+    }
+  }
+  if (by >= 2400) by -= 543;   // พ.ศ. → ค.ศ.
+  const p = String(toYmd(atYmd)).split('-');
+  const ay = +p[0], am = +p[1], ad = +p[2];
   if (!by || !ay) return null;
   let months = (ay - by) * 12 + (am - bm);
   if (ad < bd) months -= 1;
   return months >= 0 ? months : null;
+}
+
+/** ประเมิน z-score + ป้ายแปลผล จาก BMI + ข้อมูลนักเรียน ณ วันที่วัด */
+function growthEval(bmi, student, atYmd) {
+  if (!(bmi > 0) || !student) return { z: null, label: '' };
+  const ageM = ageMonthsAt(student.birth_date, atYmd);
+  const z = whoZ(bmi, sexCode(student.gender), ageM);
+  return { z: z, label: whoLabel(z, ageM) };
 }
 
 /** เพศ → รหัสตาราง WHO (1=ชาย, 2=หญิง) */

@@ -14,11 +14,19 @@
     return Math.round((w / (h * h)) * 10) / 10;
   }
   function ageMonthsAt(birthDate, atYmd) {
-    const m = String(birthDate || '').match(/(\d{1,2})\/(\d{1,2})\/(\d{4})/);
-    if (!m) return null;
-    const by = parseInt(m[3], 10) - 543, bm = parseInt(m[2], 10), bd = parseInt(m[1], 10);
+    if (!birthDate) return null;
+    let by, bm, bd;
+    const s = String(birthDate);
+    let m = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})/);          // DD/MM/YYYY
+    if (m) { bd = +m[1]; bm = +m[2]; by = +m[3]; }
+    else {
+      m = s.match(/^(\d{4})-(\d{1,2})-(\d{1,2})/);              // YYYY-MM-DD (ISO ที่ถูก coerce)
+      if (m) { by = +m[1]; bm = +m[2]; bd = +m[3]; }
+      else { const d = new Date(s); if (isNaN(d.getTime())) return null; by = d.getFullYear(); bm = d.getMonth() + 1; bd = d.getDate(); }
+    }
+    if (by >= 2400) by -= 543;   // พ.ศ. → ค.ศ.
     const p = String(atYmd).split('-');
-    const ay = parseInt(p[0], 10), am = parseInt(p[1], 10), ad = parseInt(p[2], 10);
+    const ay = +p[0], am = +p[1], ad = +p[2];
     if (!by || !ay) return null;
     let months = (ay - by) * 12 + (am - bm);
     if (ad < bd) months -= 1;
