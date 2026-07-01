@@ -38,7 +38,8 @@
       t.classList.add('active');
       document.querySelectorAll('.tab-pane').forEach(function (p) { p.classList.add('hidden'); });
       document.getElementById('tab-' + t.dataset.tab).classList.remove('hidden');
-      if (t.dataset.tab === 'record') loadRecClasses();
+      if (t.dataset.tab === 'summary') loadSummary();
+      else if (t.dataset.tab === 'record') loadRecClasses();
       else if (t.dataset.tab === 'dashboard') loadDashboard();
     });
   });
@@ -71,6 +72,110 @@
       btn.classList.remove('active');
     }
   }
+
+  /* ════ สรุปรายวัน ════ */
+  let lastSummary = null;
+
+  function getSumDate() {
+    return document.getElementById('s-date').value || Utils.todayYmd();
+  }
+
+  async function loadSummary() {
+    const host = document.getElementById('s-result');
+    try {
+      const d = await attApi('attendance.daily_summary', { date: getSumDate() }, { loadingMsg: 'กำลังโหลดสรุป...' });
+      lastSummary = d;
+      renderSummary(d);
+    } catch (e) { host.innerHTML = '<div class="alert alert-danger">' + Utils.esc(e.message) + '</div>'; }
+  }
+
+  function renderSummary(d) {
+    const host = document.getElementById('s-result');
+    const note = document.getElementById('s-summary-note');
+    note.innerHTML = '📅 ' + Utils.fmtDateThai(d.date) +
+      ' · เช็คชื่อแล้ว ' + d.totals.classes_checked + '/' + d.class_count + ' ชั้น';
+
+    if (!d.rows.length) { host.innerHTML = '<div class="text-muted">ยังไม่มีข้อมูลนักเรียน</div>'; return; }
+
+    // แถวข้อมูลรายชั้น — ชั้นที่ยังไม่เช็คใส่ '-' ในคอลัมน์มาเรียน/ไม่มา
+    const body = d.rows.map(function (c) {
+      const on = c.checked > 0;
+      const v = function (x) { return on ? Utils.fmtInt(x) : '-'; };
+      return '<tr class="' + (on ? '' : 'unchecked') + '">' +
+        '<td>' + Utils.esc(c.grade) + (c.room ? '/' + Utils.esc(c.room) : '') + '</td>' +
+        '<td>' + Utils.fmtInt(c.male) + '</td><td>' + Utils.fmtInt(c.female) + '</td><td>' + Utils.fmtInt(c.total) + '</td>' +
+        '<td class="grp-a">' + v(c.male_present) + '</td><td class="grp-a">' + v(c.female_present) + '</td><td class="grp-a">' + v(c.present) + '</td>' +
+        '<td class="grp-b">' + v(c.absent) + '</td><td class="grp-b">' + v(c.leave) + '</td><td class="grp-b">' + v(c.late) + '</td><td class="grp-b">' + v(c.not_present) + '</td>' +
+        '</tr>';
+    }).join('');
+
+    const t = d.totals;
+    const foot = '<tr><td>รวมทั้งหมด</td>' +
+      '<td>' + Utils.fmtInt(t.male) + '</td><td>' + Utils.fmtInt(t.female) + '</td><td>' + Utils.fmtInt(t.total) + '</td>' +
+      '<td>' + Utils.fmtInt(t.male_present) + '</td><td>' + Utils.fmtInt(t.female_present) + '</td><td>' + Utils.fmtInt(t.present) + '</td>' +
+      '<td>' + Utils.fmtInt(t.absent) + '</td><td>' + Utils.fmtInt(t.leave) + '</td><td>' + Utils.fmtInt(t.late) + '</td><td>' + Utils.fmtInt(t.not_present) + '</td></tr>';
+
+    host.innerHTML =
+      '<div class="table-wrap"><table class="sum-table">' +
+      '<thead>' +
+      '<tr><th rowspan="2">ชั้น</th><th colspan="3">จำนวนนักเรียน</th><th colspan="3">มาเรียน</th><th colspan="4">ไม่มาเรียน</th></tr>' +
+      '<tr><th>ชาย</th><th>หญิง</th><th>รวม</th><th>ชาย</th><th>หญิง</th><th>รวม</th><th>ขาด</th><th>ลา</th><th>สาย</th><th>รวม</th></tr>' +
+      '</thead>' +
+      '<tbody>' + body + '</tbody>' +
+      '<tfoot>' + foot + '</tfoot>' +
+      '</table></div>' +
+      '<div class="text-muted" style="font-size:13px;margin-top:8px">หมายเหตุ: เครื่องหมาย “-” หมายถึงชั้นที่ยังไม่ได้เช็คชื่อในวันนี้</div>';
+  }
+
+  document.getElementById('s-go').onclick = loadSummary;
+  document.getElementById('s-date').addEventListener('change', loadSummary);
+
+  document.getElementById('s-pdf').onclick = async function () {
+    if (!lastSummary) { Toast.show('ยังไม่มีข้อมูล', 'warning'); return; }
+    try {
+      Loading.show('กำลังสร้าง PDF...');
+      const d = lastSummary;
+      const doc = await PDF.newDoc('l');
+      let y = PDF.header(doc, schoolName, 'สรุปการมาเรียนรายวัน · ' + Utils.fmtDateThai(d.date));
+      doc.setFontSize(11);
+      doc.text('เช็คชื่อแล้ว ' + d.totals.classes_checked + '/' + d.class_count + ' ชั้น', 14, y + 4);
+
+      const dash = function (c, x) { return c.checked > 0 ? String(x) : '-'; };
+      const body = d.rows.map(function (c) {
+        return [
+          c.grade + (c.room ? '/' + c.room : ''),
+          c.male, c.female, c.total,
+          dash(c, c.male_present), dash(c, c.female_present), dash(c, c.present),
+          dash(c, c.absent), dash(c, c.leave), dash(c, c.late), dash(c, c.not_present),
+        ];
+      });
+      const t = d.totals;
+      body.push(['รวมทั้งหมด', t.male, t.female, t.total, t.male_present, t.female_present, t.present,
+        t.absent, t.leave, t.late, t.not_present]);
+
+      doc.autoTable({
+        startY: y + 10,
+        head: [
+          [{ content: 'ชั้น', rowSpan: 2 }, { content: 'จำนวนนักเรียน', colSpan: 3 },
+            { content: 'มาเรียน', colSpan: 3 }, { content: 'ไม่มาเรียน', colSpan: 4 }],
+          ['ชาย', 'หญิง', 'รวม', 'ชาย', 'หญิง', 'รวม', 'ขาด', 'ลา', 'สาย', 'รวม'],
+        ],
+        body: body,
+        styles: { font: 'Sarabun', fontSize: 10, halign: 'center' },
+        headStyles: { font: 'Sarabun', fontStyle: 'bold', fillColor: [79, 195, 247], halign: 'center' },
+        columnStyles: { 0: { halign: 'left' } },
+        didParseCell: function (data) {
+          if (data.section === 'body' && data.row.index === body.length - 1) {
+            data.cell.styles.fontStyle = 'bold';
+            data.cell.styles.fillColor = [235, 245, 251];
+          }
+        },
+      });
+      doc.save('attendance_summary_' + d.date + '.pdf');
+    } catch (e) {
+      Toast.show('สร้าง PDF ไม่สำเร็จ: ' + e.message, 'danger');
+    } finally { Loading.hide(); }
+  };
 
   /* ════ เช็คชื่อ ════ */
   let recClassesLoaded = false;
@@ -276,6 +381,7 @@
   };
 
   /* ════ เริ่มต้น — ต้องผ่าน PIN ก่อน ════ */
+  document.getElementById('s-date').value = Utils.todayYmd();
   document.getElementById('rec-date').value = Utils.todayYmd();
   document.getElementById('d-date').value = Utils.todayYmd();
   Auth.requirePin('attendance').then(async function () {
@@ -283,7 +389,7 @@
       const cfg = await api('settings.get', {}, { silent: true, loading: false });
       if (cfg.settings && cfg.settings.school_name) schoolName = cfg.settings.school_name;
     } catch (e) { /* ใช้ค่า default */ }
-    loadRecClasses();
+    loadSummary();
   }).catch(function () {
     document.querySelector('.container').innerHTML =
       '<div class="card"><div class="alert alert-warning">ต้องกรอก PIN เพื่อเข้าใช้การเช็คชื่อ</div>' +

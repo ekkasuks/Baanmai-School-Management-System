@@ -175,4 +175,73 @@ const AttendanceAPI = {
       absent_list: absentList,
     };
   },
+
+  /**
+   * สรุปการมาเรียนรายวัน แยกตามชั้น/ห้อง — หน้าแรกของโมดูล
+   * แต่ละแถว: จำนวนนักเรียน (ช/ญ/รวม) · มา (ช/ญ/รวม) · ไม่มา (ขาด/ลา/สาย/รวม)
+   * ชั้นที่ยังไม่เช็คชื่อ → checked=0 (frontend แสดง '-')
+   */
+  daily_summary: function (params, ctx) {
+    requirePin(ctx, 'attendance');
+    const date = (params && params.date) ? toYmd(params.date) : today();
+
+    // สถานะการเช็คชื่อของวันนี้ index ด้วย citizen_id
+    const statusByCid = {};
+    readAll('ATTENDANCE').forEach(function (a) {
+      if (toYmd(a.date) === date) statusByCid[String(a.citizen_id)] = a.status;
+    });
+
+    // จัดกลุ่มนักเรียน active ตามชั้น|ห้อง
+    const classMap = {};
+    readAll('STUDENTS').forEach(function (s) {
+      if (s.status === 'inactive') return;
+      const grade = s.grade || '-';
+      const room = (s.room === undefined || s.room === null) ? '' : String(s.room);
+      const key = grade + '|' + room;
+      if (!classMap[key]) {
+        classMap[key] = {
+          grade: grade, room: room,
+          male: 0, female: 0, total: 0,
+          male_present: 0, female_present: 0, present: 0,
+          absent: 0, leave: 0, late: 0, not_present: 0,
+          checked: 0,
+        };
+      }
+      const c = classMap[key];
+      const male = s.gender === 'ช', female = s.gender === 'ญ';
+      if (male) c.male++; else if (female) c.female++;
+      c.total++;
+
+      const st = statusByCid[String(s.citizen_id)];
+      if (st === undefined) return;
+      c.checked++;
+      if (st === 'มา') {
+        c.present++;
+        if (male) c.male_present++; else if (female) c.female_present++;
+      } else if (st === 'ขาด') { c.absent++; c.not_present++; }
+      else if (st === 'ลา') { c.leave++; c.not_present++; }
+      else if (st === 'สาย') { c.late++; c.not_present++; }
+    });
+
+    const rows = Object.keys(classMap).map(function (k) { return classMap[k]; })
+      .sort(function (a, b) {
+        const d = gradeSortKey(a.grade) - gradeSortKey(b.grade);
+        return d !== 0 ? d : (parseInt(a.room, 10) || 0) - (parseInt(b.room, 10) || 0);
+      });
+
+    const totals = {
+      male: 0, female: 0, total: 0, male_present: 0, female_present: 0,
+      present: 0, absent: 0, leave: 0, late: 0, not_present: 0, classes_checked: 0,
+    };
+    rows.forEach(function (c) {
+      totals.male += c.male; totals.female += c.female; totals.total += c.total;
+      totals.male_present += c.male_present; totals.female_present += c.female_present;
+      totals.present += c.present;
+      totals.absent += c.absent; totals.leave += c.leave; totals.late += c.late;
+      totals.not_present += c.not_present;
+      if (c.checked > 0) totals.classes_checked++;
+    });
+
+    return { date: date, rows: rows, totals: totals, class_count: rows.length };
+  },
 };

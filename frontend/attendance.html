@@ -12,6 +12,11 @@
     font-family:inherit; font-size:14px; font-weight:700; cursor:pointer; color:var(--muted); transition:all .12s; }
   .att-table td, .att-table th { padding:8px 8px; vertical-align:middle; }
   .att-table th:first-child, .att-table td:first-child { text-align:left; white-space:nowrap; }
+  .sum-table th, .sum-table td { text-align:center; padding:7px 9px; white-space:nowrap; }
+  .sum-table th:first-child, .sum-table td:first-child { text-align:left; }
+  .sum-table tbody tr.unchecked { color:var(--muted); }
+  .sum-table tfoot td { font-weight:700; border-top:2px solid var(--border); background:#FAFEFF; }
+  .sum-table .grp-a { background:#E8F5E9; } .sum-table .grp-b { background:#FFF3E0; }
 </style>
 </head>
 <body>
@@ -28,13 +33,29 @@
 <main class="container">
 
   <div class="tabs">
-    <button class="tab active" data-tab="record">📝 เช็คชื่อ</button>
+    <button class="tab active" data-tab="summary">📅 สรุปรายวัน</button>
+    <button class="tab" data-tab="record">📝 เช็คชื่อ</button>
     <button class="tab" data-tab="dashboard">📊 ภาพรวม</button>
     <button class="tab" data-tab="history">📜 ประวัติ</button>
   </div>
 
+  <!-- ── สรุปรายวัน ── -->
+  <section class="tab-pane" id="tab-summary">
+    <div class="card" style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">
+      <label style="margin:0">📅 วันที่</label>
+      <input class="form-control" id="s-date" type="date" style="max-width:200px">
+      <button class="btn btn-primary" id="s-go"><i class="bi bi-arrow-repeat"></i> แสดงผล</button>
+      <button class="btn btn-danger" id="s-pdf"><i class="bi bi-filetype-pdf"></i> Export PDF</button>
+    </div>
+    <div class="card">
+      <h3 class="card-title">📅 สถิติการมาเรียนประจำวัน</h3>
+      <div id="s-summary-note" class="text-muted" style="font-size:14px;margin-bottom:8px"></div>
+      <div id="s-result" class="text-muted">กำลังโหลด...</div>
+    </div>
+  </section>
+
   <!-- ── เช็คชื่อ (รายชั้น) ── -->
-  <section class="tab-pane" id="tab-record">
+  <section class="tab-pane hidden" id="tab-record">
     <div class="card">
       <h3 class="card-title">📝 เช็คชื่อรายชั้น</h3>
       <div class="form-row">
