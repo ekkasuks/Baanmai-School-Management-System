@@ -117,7 +117,7 @@
       document.getElementById('d-watch').textContent = Utils.fmtInt(d.distribution.watch);
 
       renderMini('d-top', d.top, 'var(--green-dark)');
-      renderMini('d-bottom', d.bottom, 'var(--red)');
+      renderMini('d-bottom', d.bottom, 'var(--red)', '🎉 ไม่มีนักเรียนที่ถูกหักคะแนน — ทุกคนคะแนนเต็ม');
 
       fillGrades(d.by_grade);
       const byGrade = d.by_grade.slice().sort(function (a, b) {
@@ -127,8 +127,8 @@
     } catch (e) { /* Toast แสดงแล้ว */ }
   }
 
-  function renderMini(id, list, color) {
-    if (!list || !list.length) { document.getElementById(id).innerHTML = '<div class="text-muted">ยังไม่มีข้อมูล</div>'; return; }
+  function renderMini(id, list, color, emptyMsg) {
+    if (!list || !list.length) { document.getElementById(id).innerHTML = '<div class="text-muted">' + (emptyMsg || 'ยังไม่มีข้อมูล') + '</div>'; return; }
     const rows = list.map(function (r, i) {
       return '<tr><td>' + (i + 1) + '</td><td>' + Utils.esc(r.name) + '</td><td>' +
         Utils.esc(r.grade) + '/' + Utils.esc(r.room) + '</td>' +

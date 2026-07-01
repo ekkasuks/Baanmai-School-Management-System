@@ -294,7 +294,9 @@ const BehaviorAPI = {
 
     const sorted = enriched.slice().sort(function (a, b) { return b.score - a.score; });
     const top = sorted.slice(0, 5);
-    const bottom = sorted.slice().reverse().slice(0, 5);
+    // "ควรดูแลเป็นพิเศษ" — เฉพาะนักเรียนที่ถูกหักคะแนนจริง (ต่ำกว่าคะแนนเริ่มต้น) เท่านั้น
+    // นักเรียนที่ยังคงคะแนนเต็ม (= start) ไม่ถือว่าต้องดูแล จึงไม่ขึ้นรายชื่อ
+    const bottom = sorted.slice().reverse().filter(function (e) { return e.score < ms.start; }).slice(0, 5);
 
     // จำนวนการบันทึกในเดือนนี้
     let recordCount = 0;
