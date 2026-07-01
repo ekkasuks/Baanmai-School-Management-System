@@ -25,6 +25,7 @@
     <button class="tab" data-tab="txn">💵 ฝาก/ถอน</button>
     <button class="tab" data-tab="history">📜 ประวัติ</button>
     <button class="tab" data-tab="passbook">📒 สมุดบัญชี</button>
+    <button class="tab" data-tab="habit">🏆 นิสัยออม</button>
   </div>
 
   <!-- ── Dashboard ── -->
@@ -129,6 +130,32 @@
         <div class="label">ยอดคงเหลือปัจจุบัน</div><div class="value green" id="pb-balance">-</div>
       </div>
       <div id="pb-table"></div>
+    </div>
+  </section>
+
+  <!-- ── นิสัยออม ── -->
+  <section class="tab-pane hidden" id="tab-habit">
+    <div class="card">
+      <h3 class="card-title">🏆 อันดับนิสัยการออม (ความถี่การฝากเงิน)</h3>
+      <div class="form-row">
+        <div class="form-group">
+          <label>เดือน</label>
+          <select class="form-control" id="hb-month"></select>
+        </div>
+        <div class="form-group">
+          <label>ชั้น</label>
+          <select class="form-control" id="hb-grade"><option value="">ทุกชั้น</option></select>
+        </div>
+        <div class="form-group" style="display:flex;align-items:flex-end">
+          <button class="btn btn-primary" id="hb-go"><i class="bi bi-arrow-repeat"></i> แสดงอันดับ</button>
+        </div>
+      </div>
+      <div id="hb-winner"></div>
+      <div id="hb-result" class="text-muted">เลือกเดือนแล้วกดแสดงอันดับ</div>
+    </div>
+    <div class="card">
+      <h3 class="card-title">📈 จำนวนครั้งที่ฝากเงินรายเดือน (ย้อนหลัง 6 เดือน)</h3>
+      <canvas id="hb-chart" height="140"></canvas>
     </div>
   </section>
 

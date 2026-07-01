@@ -198,9 +198,86 @@ const BankAPI = {
       transactions: txns,
     };
   },
+
+  /**
+   * สถิตินิสัยการออม — ความถี่การฝากเงิน (จำนวนครั้ง) รายเดือน + จัดอันดับ
+   * รางวัลมอบให้นักเรียนที่ฝากบ่อยที่สุด (ไม่ใช่ยอดเงินสูงสุด)
+   */
+  saving_habit: function (params, ctx) {
+    requirePin(ctx, 'bank');
+    const p = params || {};
+    const ym = p.year_month || yearMonth();
+    const months = lastMonths(ym, 6);
+
+    const students = readAll('STUDENTS').filter(function (s) {
+      return s.status === 'active' || !s.status;
+    });
+
+    const monthlyTrend = {};
+    months.forEach(function (m) { monthlyTrend[m] = { year_month: m, deposit_count: 0, deposit_total: 0 }; });
+
+    const countByStudent = {};
+    const amountByStudent = {};
+    readAll('BANK_TRANSACTIONS').forEach(function (t) {
+      if (t.type !== 'deposit') return;
+      const tYm = toYm(t.date);
+      const amt = Number(t.amount) || 0;
+      if (monthlyTrend[tYm]) {
+        monthlyTrend[tYm].deposit_count++;
+        monthlyTrend[tYm].deposit_total += amt;
+      }
+      if (tYm === ym) {
+        const cid = String(t.citizen_id);
+        countByStudent[cid] = (countByStudent[cid] || 0) + 1;
+        amountByStudent[cid] = (amountByStudent[cid] || 0) + amt;
+      }
+    });
+
+    let list = students.map(function (s) {
+      const cid = String(s.citizen_id);
+      return {
+        citizen_id: s.citizen_id, student_code: s.student_code, name: studentName(s),
+        grade: s.grade, room: s.room,
+        deposit_count: countByStudent[cid] || 0,
+        deposit_total: Math.round((amountByStudent[cid] || 0) * 100) / 100,
+      };
+    });
+    if (p.grade) list = list.filter(function (e) { return e.grade === p.grade; });
+
+    // เรียงตามจำนวนครั้งที่ฝากมากสุดก่อน (นิสัยการออม) แล้วค่อยยอดเงินรวม
+    list.sort(function (a, b) {
+      if (b.deposit_count !== a.deposit_count) return b.deposit_count - a.deposit_count;
+      if (b.deposit_total !== a.deposit_total) return b.deposit_total - a.deposit_total;
+      return String(a.name).localeCompare(String(b.name), 'th');
+    });
+    list.forEach(function (e, i) { e.rank = i + 1; });
+
+    return {
+      year_month: ym,
+      ranking: list,
+      monthly_trend: months.map(function (m) {
+        const o = monthlyTrend[m];
+        o.deposit_total = Math.round(o.deposit_total * 100) / 100;
+        return o;
+      }),
+    };
+  },
 };
 
 /* ── helpers ── */
+
+/** คืน array 'YYYY-MM' ย้อนหลัง n เดือนจนถึง ym (เรียงเก่า→ใหม่) */
+function lastMonths(ym, n) {
+  const parts = String(ym).split('-');
+  const y = parseInt(parts[0], 10), m = parseInt(parts[1], 10);
+  const list = [];
+  for (let i = n - 1; i >= 0; i--) {
+    let mm = m - i, yy = y;
+    while (mm <= 0) { mm += 12; yy -= 1; }
+    list.push(yy + '-' + String(mm).padStart(2, '0'));
+  }
+  return list;
+}
 
 /** ชื่อเต็มนักเรียน (backend ไม่มี Utils) */
 function studentName(s) {

@@ -6,8 +6,19 @@
 
   let schoolName = 'โรงเรียนบ้านใหม่';
   let chart = null;
+  let hbChart = null;
+  let habitMonthsBuilt = false;
   let selTxn = null;   // นักเรียนที่เลือกในแท็บฝาก/ถอน
   let selPb = null;    // ข้อมูลสมุดบัญชีที่กำลังเปิด
+
+  const TH_MONTHS = ['ม.ค.', 'ก.พ.', 'มี.ค.', 'เม.ย.', 'พ.ค.', 'มิ.ย.', 'ก.ค.', 'ส.ค.', 'ก.ย.', 'ต.ค.', 'พ.ย.', 'ธ.ค.'];
+
+  /* ── ป้ายเดือนภาษาไทยจาก YYYY-MM ── */
+  function ymLabel(ym) {
+    const p = String(ym).split('-');
+    const mi = parseInt(p[1], 10) - 1;
+    return (TH_MONTHS[mi] || '?') + ' ' + (parseInt(p[0], 10) + 543);
+  }
 
   /* ── เรียก API ของ bank พร้อม retry เมื่อ PIN หมดอายุ ── */
   async function bankApi(action, params, opts) {
@@ -32,6 +43,7 @@
       document.getElementById('tab-' + t.dataset.tab).classList.remove('hidden');
       if (t.dataset.tab === 'dashboard') loadDashboard();
       else if (t.dataset.tab === 'txn') loadTxnClasses();
+      else if (t.dataset.tab === 'habit') { ensureHabitMonths(); loadSavingHabit(); }
     });
   });
 
@@ -88,6 +100,11 @@
         return Utils.gradeSortKey(a.grade) - Utils.gradeSortKey(b.grade);
       });
       drawChart(byGrade.map(function (g) { return g.grade; }), byGrade.map(function (g) { return g.avg; }));
+
+      // เติม dropdown ชั้นของแท็บนิสัยออม
+      const hbGrade = document.getElementById('hb-grade');
+      const curGrade = hbGrade.value;
+      hbGrade.innerHTML = '<option value="">ทุกชั้น</option>' + Utils.options(byGrade.map(function (g) { return g.grade; }), curGrade);
     } catch (e) { /* Toast แสดงแล้ว */ }
   }
 
@@ -198,6 +215,77 @@
         '<div class="table-wrap"><table><thead><tr><th>วันที่</th><th>ชื่อ</th><th>ประเภท</th><th style="text-align:right">จำนวน</th><th style="text-align:right">คงเหลือ</th><th>ผู้บันทึก</th></tr></thead><tbody>' + rows + '</tbody></table></div>';
     } catch (e) { host.innerHTML = '<div class="alert alert-danger">' + Utils.esc(e.message) + '</div>'; }
   };
+
+  /* ════ นิสัยออม — ความถี่การฝากเงินรายเดือน + จัดอันดับ ════ */
+  function ensureHabitMonths() {
+    if (habitMonthsBuilt) return;
+    const sel = document.getElementById('hb-month');
+    const d = new Date();
+    const opts = [];
+    for (let i = 0; i < 12; i++) {
+      const ym = d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0');
+      opts.push('<option value="' + ym + '">' + ymLabel(ym) + (i === 0 ? ' (เดือนนี้)' : '') + '</option>');
+      d.setMonth(d.getMonth() - 1);
+    }
+    sel.innerHTML = opts.join('');
+    habitMonthsBuilt = true;
+  }
+  document.getElementById('hb-go').onclick = loadSavingHabit;
+
+  async function loadSavingHabit() {
+    const host = document.getElementById('hb-result');
+    const winnerHost = document.getElementById('hb-winner');
+    try {
+      const d = await bankApi('bank.saving_habit', {
+        year_month: document.getElementById('hb-month').value || undefined,
+        grade: document.getElementById('hb-grade').value || undefined,
+      }, { loadingMsg: 'กำลังจัดอันดับ...' });
+
+      if (!d.ranking.length) {
+        host.innerHTML = '<div class="text-muted">ไม่มีข้อมูล</div>';
+        winnerHost.innerHTML = '';
+      } else {
+        const top = d.ranking[0];
+        winnerHost.innerHTML = top.deposit_count > 0
+          ? '<div class="alert alert-success mt-2">🏆 รางวัลนิสัยการออมดีเด่นประจำเดือน ' + ymLabel(d.year_month) + ' — ' +
+            '<strong>' + Utils.esc(top.name) + '</strong> ชั้น ' + Utils.esc(top.grade) + '/' + Utils.esc(top.room) +
+            ' ฝากเงิน <strong>' + top.deposit_count + ' ครั้ง</strong></div>'
+          : '';
+
+        const rows = d.ranking.map(function (r) {
+          const medal = r.rank <= 3 ? ['🥇', '🥈', '🥉'][r.rank - 1] : r.rank;
+          return '<tr><td style="text-align:center">' + medal + '</td><td>' + Utils.esc(r.name) + '</td>' +
+            '<td>' + Utils.esc(r.grade) + '/' + Utils.esc(r.room) + '</td>' +
+            '<td style="text-align:right;font-weight:700;color:var(--green-dark)">' + r.deposit_count + ' ครั้ง</td>' +
+            '<td style="text-align:right">' + Utils.fmtMoney(r.deposit_total) + '</td></tr>';
+        }).join('');
+        host.innerHTML = '<div class="text-muted" style="margin:6px 0">อันดับเดือน ' + ymLabel(d.year_month) + ' · ' + d.ranking.length + ' คน</div>' +
+          '<div class="table-wrap"><table><thead><tr><th style="text-align:center">อันดับ</th><th>ชื่อ</th><th>ชั้น</th>' +
+          '<th style="text-align:right">จำนวนครั้งที่ฝาก</th><th style="text-align:right">ยอดฝากรวม</th></tr></thead><tbody>' + rows + '</tbody></table></div>';
+      }
+
+      drawHabitChart(d.monthly_trend);
+    } catch (e) { host.innerHTML = '<div class="alert alert-danger">' + Utils.esc(e.message) + '</div>'; }
+  }
+
+  function drawHabitChart(trend) {
+    const ctx = document.getElementById('hb-chart').getContext('2d');
+    if (hbChart) hbChart.destroy();
+    hbChart = new Chart(ctx, {
+      type: 'bar',
+      data: {
+        labels: trend.map(function (m) { return ymLabel(m.year_month); }),
+        datasets: [{ label: 'จำนวนครั้งที่ฝาก', data: trend.map(function (m) { return m.deposit_count; }), backgroundColor: '#66BB6A', borderRadius: 8 }],
+      },
+      options: {
+        plugins: { legend: { display: false } },
+        scales: {
+          y: { beginAtZero: true, ticks: { precision: 0, font: { family: 'Sarabun' } } },
+          x: { ticks: { font: { family: 'Sarabun' } } },
+        },
+      },
+    });
+  }
 
   /* ════ สมุดบัญชี ════ */
   const pbSearch = document.getElementById('pb-search');
