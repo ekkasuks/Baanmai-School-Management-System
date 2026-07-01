@@ -43,8 +43,10 @@
   function renderList() {
     const q = document.getElementById('f-search').value.trim().toLowerCase();
     const grade = document.getElementById('f-grade').value;
+    const status = document.getElementById('f-status').value;
     let list = allStudents.slice();
     if (grade) list = list.filter(function (s) { return s.grade === grade; });
+    if (status) list = list.filter(function (s) { return (status === 'inactive') === (s.status === 'inactive'); });
     if (q) list = list.filter(function (s) {
       return (Utils.fullName(s) + ' ' + s.student_code + ' ' + s.citizen_id).toLowerCase().indexOf(q) >= 0;
     });
@@ -74,6 +76,7 @@
 
   document.getElementById('f-search').addEventListener('input', Utils.debounce(renderList, 250));
   document.getElementById('f-grade').addEventListener('change', renderList);
+  document.getElementById('f-status').addEventListener('change', renderList);
 
   /* ════ โปรไฟล์รายบุคคล ════ */
   async function openProfile(cid) {
@@ -125,6 +128,11 @@
       document.getElementById('p-info').innerHTML = info.map(function (r) {
         return '<div><div class="k">' + Utils.esc(r[0]) + '</div><div class="v">' + Utils.esc(String(r[1])) + '</div></div>';
       }).join('');
+
+      // ปุ่มลบ/กู้คืน ตามสถานะปัจจุบัน
+      const isInactive = s.status === 'inactive';
+      document.getElementById('p-delete').classList.toggle('hidden', isInactive);
+      document.getElementById('p-restore').classList.toggle('hidden', !isInactive);
 
       // recent behavior
       const bl = d.behavior.recent;
@@ -182,6 +190,58 @@
       if (idx >= 0) EDIT_FIELDS.forEach(function (k) { allStudents[idx][k] = fields[k]; });
       renderList();
       openProfile(editingCid);
+    } catch (err) { /* Toast แสดงแล้ว */ }
+  });
+
+  /* ════ ลบ / กู้คืน ════ */
+  async function setStudentStatus(action, status, confirmMsg) {
+    if (!editingCid) return;
+    if (confirmMsg && !confirm(confirmMsg)) return;
+    try {
+      await api('students.' + action, { citizen_id: editingCid, recorded_by: 'admin' }, { loadingMsg: 'กำลังบันทึก...' });
+      Toast.show(action === 'remove' ? 'ลบนักเรียนสำเร็จ' : 'กู้คืนสถานะสำเร็จ', 'success');
+      const idx = allStudents.findIndex(function (x) { return String(x.citizen_id) === String(editingCid); });
+      if (idx >= 0) allStudents[idx].status = status;
+      renderList();
+      openProfile(editingCid);
+    } catch (err) { /* Toast แสดงแล้ว */ }
+  }
+  document.getElementById('p-delete').onclick = function () {
+    setStudentStatus('remove', 'inactive', 'ยืนยันลบนักเรียนคนนี้? (ระบบจะตั้งสถานะเป็น "พ้นสภาพ" — ประวัติข้อมูลเดิมยังคงอยู่ และกู้คืนได้ภายหลัง)');
+  };
+  document.getElementById('p-restore').onclick = function () {
+    setStudentStatus('restore', 'active', 'ยืนยันกู้คืนสถานะนักเรียนคนนี้เป็น "กำลังศึกษา"?');
+  };
+
+  /* ════ เพิ่มนักเรียนใหม่ ════ */
+  const CREATE_FIELDS = ['citizen_id', 'student_code', 'prefix', 'first_name', 'last_name', 'gender',
+    'grade', 'room', 'birth_date', 'blood_type', 'religion', 'nationality', 'guardian_name',
+    'guardian_phone', 'address', 'weight_init', 'height_init'];
+
+  document.getElementById('btn-add-student').onclick = function () {
+    document.getElementById('create-form').reset();
+    document.getElementById('create-modal').classList.add('show');
+  };
+  document.getElementById('create-cancel').onclick = function () { document.getElementById('create-modal').classList.remove('show'); };
+
+  document.getElementById('create-form').addEventListener('submit', async function (e) {
+    e.preventDefault();
+    const form = e.target;
+    const fields = {};
+    CREATE_FIELDS.forEach(function (k) { fields[k] = form[k].value; });
+    try {
+      const d = await api('students.create', { fields: fields, recorded_by: 'admin' }, { loadingMsg: 'กำลังบันทึก...' });
+      Toast.show('เพิ่มนักเรียนใหม่สำเร็จ', 'success');
+      document.getElementById('create-modal').classList.remove('show');
+      allStudents.push(d.student);
+      if (d.student.grade) {
+        const grades = [];
+        allStudents.forEach(function (s) { if (s.grade && grades.indexOf(s.grade) < 0) grades.push(s.grade); });
+        grades.sort(function (a, b) { return Utils.gradeSortKey(a) - Utils.gradeSortKey(b); });
+        document.getElementById('f-grade').innerHTML = '<option value="">ทุกชั้น</option>' + Utils.options(grades, document.getElementById('f-grade').value);
+      }
+      renderList();
+      openProfile(d.student.citizen_id);
     } catch (err) { /* Toast แสดงแล้ว */ }
   });
 

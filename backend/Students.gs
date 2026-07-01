@@ -53,6 +53,50 @@ const StudentsAPI = {
   },
 
   /**
+   * เพิ่มนักเรียนใหม่ — citizen_id ต้องไม่ซ้ำ (13 หลัก)
+   * params = { fields:{citizen_id, student_code, prefix, first_name, last_name, gender, grade, room, ...}, recorded_by }
+   */
+  create: function (params) {
+    const fields = params.fields || {};
+    const cid = String(fields.citizen_id || '').trim();
+    if (!/^\d{13}$/.test(cid)) apiError('VALIDATION', 'เลขบัตรประชาชนต้องเป็นตัวเลข 13 หลัก');
+    if (!String(fields.first_name || '').trim()) apiError('VALIDATION', 'กรุณากรอกชื่อ');
+    if (!String(fields.grade || '').trim()) apiError('VALIDATION', 'กรุณาเลือกชั้นเรียน');
+    if (findRowIndex('STUDENTS', 'citizen_id', cid) > 0) apiError('VALIDATION', 'มีเลขบัตรประชาชนนี้ในระบบแล้ว');
+
+    const allowed = ['student_code', 'prefix', 'first_name', 'last_name', 'gender',
+                     'grade', 'room', 'birth_date', 'blood_type', 'religion', 'nationality',
+                     'guardian_relation', 'guardian_name', 'guardian_phone', 'address',
+                     'weight_init', 'height_init'];
+    const row = { citizen_id: cid, status: 'active', created_at: now(), updated_at: now() };
+    allowed.forEach(function (k) { row[k] = fields[k] !== undefined ? fields[k] : ''; });
+
+    appendRows('STUDENTS', [row]);
+    audit('students', 'CREATE', cid, { fields: Object.keys(fields) }, params.recorded_by);
+    return { student: row };
+  },
+
+  /** ลบนักเรียน (soft delete) — ตั้ง status=inactive เพื่อรักษาประวัติข้ามโมดูล (ธนาคาร/พฤติกรรม/สุขภาพ ฯลฯ) */
+  remove: function (params) {
+    if (!params.citizen_id) apiError('VALIDATION', 'ไม่ได้ระบุ citizen_id');
+    const rowIdx = findRowIndex('STUDENTS', 'citizen_id', params.citizen_id);
+    if (rowIdx < 0) apiError('NOT_FOUND', 'ไม่พบนักเรียน');
+    updateRow('STUDENTS', rowIdx, { status: 'inactive', updated_at: now() });
+    audit('students', 'DELETE', params.citizen_id, {}, params.recorded_by);
+    return { ok: true };
+  },
+
+  /** กู้คืนนักเรียนที่ถูกลบ — ตั้ง status=active */
+  restore: function (params) {
+    if (!params.citizen_id) apiError('VALIDATION', 'ไม่ได้ระบุ citizen_id');
+    const rowIdx = findRowIndex('STUDENTS', 'citizen_id', params.citizen_id);
+    if (rowIdx < 0) apiError('NOT_FOUND', 'ไม่พบนักเรียน');
+    updateRow('STUDENTS', rowIdx, { status: 'active', updated_at: now() });
+    audit('students', 'RESTORE', params.citizen_id, {}, params.recorded_by);
+    return { ok: true };
+  },
+
+  /**
    * โปรไฟล์รายบุคคล — รวมข้อมูลข้ามโมดูล (ธนาคาร/พฤติกรรม/สุขภาพ/มาเรียน)
    * params = { citizen_id }
    */
