@@ -109,7 +109,32 @@ function readAll(key) {
 }
 
 function invalidateCache(key) {
-  CacheService.getScriptCache().remove(`sheet:${key}`);
+  const cache = CacheService.getScriptCache();
+  cache.remove(`sheet:${key}`);
+  // bump เวอร์ชันข้อมูล → cache ผลลัพธ์ที่คำนวณแล้ว (dashboard/summary) ที่อิงชีตนี้จะถือว่าเก่าทันที
+  cache.put(`ver:${key}`, String(Date.now()) + Math.random().toString(36).slice(2, 6), 21600);
+}
+
+/** เวอร์ชันข้อมูลรวมของชีตที่ระบุ — เปลี่ยนทุกครั้งที่มีการเขียนชีตใดชีตหนึ่ง */
+function dataVersion(keys) {
+  const vkeys = keys.map(function (k) { return 'ver:' + k; });
+  const map = CacheService.getScriptCache().getAll(vkeys);
+  return vkeys.map(function (vk) { return map[vk] || '0'; }).join('|');
+}
+
+/**
+ * cache ผลลัพธ์ที่คำนวณแล้ว (เช่น dashboard/summary) — เรียก fn เฉพาะเมื่อ cache พลาด
+ * cache key ผูกกับ dataVersion ของ sheets ที่พึ่งพา → เขียนข้อมูลใหม่แล้วคำนวณใหม่อัตโนมัติ
+ * ttl เป็นเพดานความเก่าสูงสุด (วินาที) เผื่อกรณี version key หมดอายุ
+ */
+function cachedResult(baseKey, sheets, ttlSeconds, fn) {
+  const cache = CacheService.getScriptCache();
+  const ckey = 'calc:' + baseKey + ':' + dataVersion(sheets);
+  const hit = cache.get(ckey);
+  if (hit) return JSON.parse(hit);
+  const result = fn();
+  try { cache.put(ckey, JSON.stringify(result), ttlSeconds); } catch (e) { /* > 100kb: ข้าม cache */ }
+  return result;
 }
 
 /** เพิ่มหลายแถว (array of objects) แบบ batch ครั้งเดียว */

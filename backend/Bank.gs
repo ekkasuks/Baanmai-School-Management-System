@@ -10,6 +10,7 @@ const BankAPI = {
   /** Dashboard — ยอดรวม, Top 10, ค่าเฉลี่ยรายชั้น, ฝาก/ถอนวันนี้ */
   dashboard: function (params, ctx) {
     requirePin(ctx, 'bank');
+    return cachedResult('bank.dash', ['STUDENTS', 'BANK_BALANCE', 'BANK_TRANSACTIONS'], 90, function () {
 
     const students = readAll('STUDENTS').filter(function (s) {
       return s.status === 'active' || !s.status;
@@ -70,6 +71,7 @@ const BankAPI = {
       top10: top10,
       by_grade: byGrade,
     };
+    });
   },
 
   /** รายชื่อชั้น/ห้อง สำหรับ dropdown เลือกชั้น */
@@ -207,6 +209,7 @@ const BankAPI = {
     requirePin(ctx, 'bank');
     const p = params || {};
     const ym = p.year_month || yearMonth();
+    return cachedResult('bank.habit:' + ym + ':' + (p.grade || ''), ['STUDENTS', 'BANK_TRANSACTIONS'], 90, function () {
     const months = lastMonths(ym, 6);
 
     const students = readAll('STUDENTS').filter(function (s) {
@@ -261,6 +264,7 @@ const BankAPI = {
         return o;
       }),
     };
+    });
   },
 };
 

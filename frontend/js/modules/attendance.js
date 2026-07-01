@@ -8,6 +8,17 @@
   let chart = null;
   let lastDash = null;
 
+  /* ── cache ผลลัพธ์ในหน่วยความจำ — ตัดการยิงซ้ำตอนสลับแท็บ (ล้างเมื่อบันทึกเช็คชื่อ) ── */
+  let dashCache = {};
+  async function cachedCall(key, fn, ttlMs) {
+    const c = dashCache[key];
+    if (c && Date.now() - c.ts < (ttlMs || 60000)) return c.data;
+    const data = await fn();
+    dashCache[key] = { data: data, ts: Date.now() };
+    return data;
+  }
+  function clearDashCache() { dashCache = {}; }
+
   const STATUSES = [
     { label: 'มา', color: '#2E7D32', bg: '#E8F5E9', border: '#A5D6A7' },
     { label: 'ขาด', color: '#C62828', bg: '#FFEBEE', border: '#EF9A9A' },
@@ -83,7 +94,10 @@
   async function loadSummary() {
     const host = document.getElementById('s-result');
     try {
-      const d = await attApi('attendance.daily_summary', { date: getSumDate() }, { loadingMsg: 'กำลังโหลดสรุป...' });
+      const date = getSumDate();
+      const d = await cachedCall('summary:' + date, function () {
+        return attApi('attendance.daily_summary', { date: date }, { loadingMsg: 'กำลังโหลดสรุป...' });
+      });
       lastSummary = d;
       renderSummary(d);
     } catch (e) { host.innerHTML = '<div class="alert alert-danger">' + Utils.esc(e.message) + '</div>'; }
@@ -260,6 +274,7 @@
       res.className = 'alert alert-success mt-2';
       res.textContent = '✅ บันทึกการเช็คชื่อวันที่ ' + Utils.fmtDateThai(r.date) + ' สำเร็จ — บันทึกใหม่ ' + r.inserted + ' คน, อัปเดต ' + r.updated + ' คน';
       res.classList.remove('hidden');
+      clearDashCache();  // สถานะเปลี่ยน → สรุปรายวัน/ภาพรวม ต้องโหลดใหม่
       Toast.show('บันทึกการเช็คชื่อสำเร็จ', 'success');
       loadRecStudents();
     } catch (e) { /* Toast แสดงแล้ว */ }
@@ -269,7 +284,9 @@
   async function loadDashboard() {
     const date = document.getElementById('d-date').value || Utils.todayYmd();
     try {
-      const d = await attApi('attendance.dashboard', { date: date }, { loadingMsg: 'กำลังโหลดภาพรวม...' });
+      const d = await cachedCall('dash:' + date, function () {
+        return attApi('attendance.dashboard', { date: date }, { loadingMsg: 'กำลังโหลดภาพรวม...' });
+      });
       lastDash = d;
       document.getElementById('d-present').textContent = Utils.fmtInt(d.counts['มา']);
       document.getElementById('d-absent').textContent = Utils.fmtInt(d.counts['ขาด']);

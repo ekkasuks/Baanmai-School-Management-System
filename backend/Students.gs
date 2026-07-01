@@ -182,6 +182,7 @@ const StudentsAPI = {
 
   /** สถิติสรุป — ใช้ใน Dashboard ข้อมูลนักเรียน + Dashboard หลัก */
   stats: function () {
+    return cachedResult('st.stats', ['STUDENTS'], 120, function () {
     const rows = readAll('STUDENTS').filter(function (r) { return r.status !== 'inactive'; });
     const byGrade = {};
     let male = 0, female = 0;
@@ -192,6 +193,7 @@ const StudentsAPI = {
       else if (r.gender === 'ญ') female++;
     });
     return { total: rows.length, male: male, female: female, by_grade: byGrade };
+    });
   },
 
   /**

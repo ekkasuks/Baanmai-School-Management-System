@@ -8,6 +8,17 @@
   let chart = null;
   let editingCid = null;
 
+  /* ── cache ผลลัพธ์ภาพรวมในหน่วยความจำ — ล้างเมื่อเพิ่ม/แก้ไข/ลบนักเรียน ── */
+  let dashCache = {};
+  async function cachedCall(key, fn, ttlMs) {
+    const c = dashCache[key];
+    if (c && Date.now() - c.ts < (ttlMs || 60000)) return c.data;
+    const data = await fn();
+    dashCache[key] = { data: data, ts: Date.now() };
+    return data;
+  }
+  function clearDashCache() { dashCache = {}; }
+
   const HEALTH_LABELS = { hair: 'ผม', nails: 'เล็บ', cup: 'แก้วน้ำ', toothbrush: 'แปรงสีฟัน', toothpaste: 'ยาสีฟัน' };
   const EDIT_FIELDS = ['prefix', 'first_name', 'last_name', 'gender', 'grade', 'room', 'birth_date',
     'blood_type', 'religion', 'nationality', 'guardian_name', 'guardian_phone', 'address',
@@ -183,6 +194,7 @@
     EDIT_FIELDS.forEach(function (k) { fields[k] = form[k].value; });
     try {
       await api('students.update', { citizen_id: editingCid, fields: fields, recorded_by: 'admin' }, { loadingMsg: 'กำลังบันทึก...' });
+      clearDashCache();
       Toast.show('บันทึกข้อมูลนักเรียนสำเร็จ', 'success');
       document.getElementById('edit-modal').classList.remove('show');
       // อัปเดต cache ในหน่วยความจำ
@@ -199,6 +211,7 @@
     if (confirmMsg && !confirm(confirmMsg)) return;
     try {
       await api('students.' + action, { citizen_id: editingCid, recorded_by: 'admin' }, { loadingMsg: 'กำลังบันทึก...' });
+      clearDashCache();
       Toast.show(action === 'remove' ? 'ลบนักเรียนสำเร็จ' : 'กู้คืนสถานะสำเร็จ', 'success');
       const idx = allStudents.findIndex(function (x) { return String(x.citizen_id) === String(editingCid); });
       if (idx >= 0) allStudents[idx].status = status;
@@ -231,6 +244,7 @@
     CREATE_FIELDS.forEach(function (k) { fields[k] = form[k].value; });
     try {
       const d = await api('students.create', { fields: fields, recorded_by: 'admin' }, { loadingMsg: 'กำลังบันทึก...' });
+      clearDashCache();
       Toast.show('เพิ่มนักเรียนใหม่สำเร็จ', 'success');
       document.getElementById('create-modal').classList.remove('show');
       allStudents.push(d.student);
@@ -248,7 +262,9 @@
   /* ════ ภาพรวม ════ */
   async function loadDashboard() {
     try {
-      const st = await api('students.stats', {}, { loadingMsg: 'กำลังโหลด...' });
+      const st = await cachedCall('stats', function () {
+        return api('students.stats', {}, { loadingMsg: 'กำลังโหลด...' });
+      });
       document.getElementById('d-total').textContent = Utils.fmtInt(st.total);
       document.getElementById('d-male').textContent = Utils.fmtInt(st.male);
       document.getElementById('d-female').textContent = Utils.fmtInt(st.female);

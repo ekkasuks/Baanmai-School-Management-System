@@ -134,6 +134,7 @@ const AttendanceAPI = {
   dashboard: function (params, ctx) {
     requirePin(ctx, 'attendance');
     const date = (params && params.date) ? toYmd(params.date) : today();
+    return cachedResult('att.dash:' + date, ['STUDENTS', 'ATTENDANCE'], 90, function () {
     const stIndex = buildIndex('STUDENTS', 'citizen_id');
     const records = readAll('ATTENDANCE').filter(function (a) { return toYmd(a.date) === date; });
     const totalStudents = readAll('STUDENTS').filter(function (s) { return s.status !== 'inactive'; }).length;
@@ -174,6 +175,7 @@ const AttendanceAPI = {
       by_grade: byGrade,
       absent_list: absentList,
     };
+    });
   },
 
   /**
@@ -184,6 +186,7 @@ const AttendanceAPI = {
   daily_summary: function (params, ctx) {
     requirePin(ctx, 'attendance');
     const date = (params && params.date) ? toYmd(params.date) : today();
+    return cachedResult('att.summary:' + date, ['STUDENTS', 'ATTENDANCE'], 90, function () {
 
     // สถานะการเช็คชื่อของวันนี้ index ด้วย citizen_id
     const statusByCid = {};
@@ -243,5 +246,6 @@ const AttendanceAPI = {
     });
 
     return { date: date, rows: rows, totals: totals, class_count: rows.length };
+    });
   },
 };

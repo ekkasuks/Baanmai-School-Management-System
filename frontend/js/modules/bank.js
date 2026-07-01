@@ -11,6 +11,17 @@
   let selTxn = null;   // นักเรียนที่เลือกในแท็บฝาก/ถอน
   let selPb = null;    // ข้อมูลสมุดบัญชีที่กำลังเปิด
 
+  /* ── cache ผลลัพธ์ในหน่วยความจำ — ตัดการยิงซ้ำตอนสลับแท็บ (ล้างเมื่อฝาก/ถอน) ── */
+  let dashCache = {};
+  async function cachedCall(key, fn, ttlMs) {
+    const c = dashCache[key];
+    if (c && Date.now() - c.ts < (ttlMs || 60000)) return c.data;
+    const data = await fn();
+    dashCache[key] = { data: data, ts: Date.now() };
+    return data;
+  }
+  function clearDashCache() { dashCache = {}; }
+
   const TH_MONTHS = ['ม.ค.', 'ก.พ.', 'มี.ค.', 'เม.ย.', 'พ.ค.', 'มิ.ย.', 'ก.ค.', 'ส.ค.', 'ก.ย.', 'ต.ค.', 'พ.ย.', 'ธ.ค.'];
 
   /* ── ป้ายเดือนภาษาไทยจาก YYYY-MM ── */
@@ -76,7 +87,9 @@
   /* ════ Dashboard ════ */
   async function loadDashboard() {
     try {
-      const d = await bankApi('bank.dashboard', {}, { loadingMsg: 'กำลังโหลดภาพรวม...' });
+      const d = await cachedCall('dash', function () {
+        return bankApi('bank.dashboard', {}, { loadingMsg: 'กำลังโหลดภาพรวม...' });
+      });
       document.getElementById('d-total').textContent = Utils.fmtMoney(d.total_balance);
       document.getElementById('d-dep').textContent = Utils.fmtMoney(d.today_deposit) + ' (' + d.today_deposit_count + ')';
       document.getElementById('d-wd').textContent = Utils.fmtMoney(d.today_withdraw) + ' (' + d.today_withdraw_count + ')';
@@ -170,6 +183,7 @@
         citizen_id: selTxn.citizen_id, amount: amount, note: note, recorded_by: by || 'admin',
       }, { loadingMsg: 'กำลังบันทึก...' });
 
+      clearDashCache();  // ยอดเปลี่ยน → ภาพรวม/นิสัยออม ต้องโหลดใหม่
       selTxn.balance = r.balance_after;
       document.getElementById('txn-balance').textContent = Utils.fmtMoney(r.balance_after);
       const res = document.getElementById('txn-result');
@@ -236,10 +250,13 @@
     const host = document.getElementById('hb-result');
     const winnerHost = document.getElementById('hb-winner');
     try {
-      const d = await bankApi('bank.saving_habit', {
-        year_month: document.getElementById('hb-month').value || undefined,
-        grade: document.getElementById('hb-grade').value || undefined,
-      }, { loadingMsg: 'กำลังจัดอันดับ...' });
+      const ym = document.getElementById('hb-month').value || '';
+      const grade = document.getElementById('hb-grade').value || '';
+      const d = await cachedCall('habit:' + ym + ':' + grade, function () {
+        return bankApi('bank.saving_habit', {
+          year_month: ym || undefined, grade: grade || undefined,
+        }, { loadingMsg: 'กำลังจัดอันดับ...' });
+      });
 
       if (!d.ranking.length) {
         host.innerHTML = '<div class="text-muted">ไม่มีข้อมูล</div>';
