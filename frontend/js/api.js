@@ -53,21 +53,34 @@ async function api(action, params, opts) {
   if (opts.loading !== false) Loading.show(opts.loadingMsg);
 
   const body = { action: action, token: Auth.getToken(action), params: params };
+  const MAX_ATTEMPTS = 3;
 
   try {
-    const res = await fetch(window.API_URL, {
-      method: 'POST',
-      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-      body: JSON.stringify(body),
-      redirect: 'follow',
-    });
-    const json = await res.json();
-    if (!json.ok) {
-      const err = new Error((json.error && json.error.message) || 'เกิดข้อผิดพลาด');
-      err.code = json.error && json.error.code;
-      throw err;
+    for (let attempt = 1; ; attempt++) {
+      try {
+        const res = await fetch(window.API_URL, {
+          method: 'POST',
+          headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+          body: JSON.stringify(body),
+          redirect: 'follow',
+        });
+        const json = await res.json();
+        if (!json.ok) {
+          const err = new Error((json.error && json.error.message) || 'เกิดข้อผิดพลาด');
+          err.code = json.error && json.error.code;
+          throw err;
+        }
+        return json.data;
+      } catch (e) {
+        // 'METHOD' = POST ไปตกที่ doGet เพราะ redirect ของ Apps Script สะดุดชั่วคราว
+        // กรณีนี้ doPost ไม่ได้ทำงาน (คนละ entry point) → คำสั่งจริงยังไม่ประมวลผล จึง retry ได้ปลอดภัย ไม่บันทึกซ้ำ
+        if (e.code === 'METHOD' && attempt < MAX_ATTEMPTS) {
+          await new Promise(function (r) { setTimeout(r, attempt * 400); });
+          continue;
+        }
+        throw e;
+      }
     }
-    return json.data;
   } catch (e) {
     if (!opts.silent) Toast.show(e.message || 'เชื่อมต่อไม่ได้', 'danger');
     throw e;
