@@ -53,9 +53,13 @@ function isTokenValid(token, requireModule) {
   } catch (e) { return false; }
 }
 
-/** เรียกที่ต้น method ที่ต้องใช้ PIN — โยน error ถ้า token ไม่ผ่าน */
+/**
+ * เรียกที่ต้น method ที่ต้องใช้ PIN — โยน error ถ้า token ไม่ผ่าน
+ * PIN ใช้ร่วมกันทุกโมดูล: token ที่ยืนยันแล้ว (จากโมดูลใดก็ได้) ใช้ได้กับทุกโมดูลที่ต้อง PIN
+ * → ผู้ใช้กรอก PIN แค่ครั้งเดียวต่อวัน (moduleName คงไว้เพื่อความเข้ากันได้ของ caller)
+ */
 function requirePin(ctx, moduleName) {
-  if (!isTokenValid(ctx.token, moduleName)) {
+  if (!isTokenValid(ctx.token)) {
     apiError('TOKEN_EXPIRED', 'กรุณากรอก PIN ใหม่');
   }
 }

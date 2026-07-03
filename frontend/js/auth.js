@@ -1,9 +1,11 @@
 /**
- * PIN session — เก็บ token ใน localStorage แยกตาม module
- * โมดูลที่ต้อง PIN: bank, attendance · กรอกวันละ 1 ครั้ง (หมดอายุเที่ยงคืน)
+ * PIN session — เก็บ token ร่วมกัน 1 ค่า (ทุกโมดูลใช้ token เดียวกัน)
+ * โมดูลที่ต้อง PIN: bank, attendance · กรอก PIN แค่ครั้งเดียวต่อวัน (หมดอายุเที่ยงคืน)
+ * ปลดล็อกโมดูลใดก็ได้ครั้งเดียว → เข้าโมดูลอื่นที่ต้อง PIN ได้เลยโดยไม่ถามซ้ำ
  */
 
 const PIN_MODULES = ['bank', 'attendance'];
+const TOKEN_KEY = 'baanmai_token';
 
 function actionToModule(action) {
   if (!action) return null;
@@ -11,36 +13,38 @@ function actionToModule(action) {
   return PIN_MODULES.indexOf(prefix) >= 0 ? prefix : null;
 }
 
+/** อ่าน token ร่วม — คืน null ถ้าไม่มีหรือหมดอายุ (ลบทิ้งให้ด้วย) */
+function readSharedToken() {
+  const raw = localStorage.getItem(TOKEN_KEY);
+  if (!raw) return null;
+  try {
+    const data = JSON.parse(raw);
+    if (new Date(data.expires_at).getTime() <= Date.now()) {
+      localStorage.removeItem(TOKEN_KEY);
+      return null;
+    }
+    return data.token;
+  } catch (e) { return null; }
+}
+
 const Auth = {
 
   getToken: function (action) {
-    const mod = actionToModule(action);
-    if (!mod) return null;
-    const raw = localStorage.getItem('baanmai_token_' + mod);
-    if (!raw) return null;
-    try {
-      const data = JSON.parse(raw);
-      if (new Date(data.expires_at).getTime() <= Date.now()) {
-        localStorage.removeItem('baanmai_token_' + mod);
-        return null;
-      }
-      return data.token;
-    } catch (e) { return null; }
+    // ส่ง token เฉพาะ action ของโมดูลที่ต้อง PIN
+    if (!actionToModule(action)) return null;
+    return readSharedToken();
   },
 
   setToken: function (mod, token, ttlSec) {
     const midnight = new Date(); midnight.setHours(24, 0, 0, 0);
     const byTtl = Date.now() + (ttlSec || 43200) * 1000;
     const expires_at = new Date(Math.min(midnight.getTime(), byTtl)).toISOString();
-    localStorage.setItem('baanmai_token_' + mod, JSON.stringify({ token: token, expires_at: expires_at }));
+    localStorage.setItem(TOKEN_KEY, JSON.stringify({ token: token, expires_at: expires_at }));
   },
 
-  clear: function (mod) {
-    if (mod) localStorage.removeItem('baanmai_token_' + mod);
-    else PIN_MODULES.forEach(function (m) { localStorage.removeItem('baanmai_token_' + m); });
-  },
+  clear: function () { localStorage.removeItem(TOKEN_KEY); },
 
-  hasValid: function (mod) { return !!this.getToken(mod + '.x'); },
+  hasValid: function () { return !!readSharedToken(); },
 
   /** เปิด modal กรอก PIN ถ้ายังไม่มี token — คืน Promise */
   requirePin: function (mod) {
