@@ -8,16 +8,8 @@
   let chart = null;
   let editingCid = null;
 
-  /* ── cache ผลลัพธ์ภาพรวมในหน่วยความจำ — ล้างเมื่อเพิ่ม/แก้ไข/ลบนักเรียน ── */
-  let dashCache = {};
-  async function cachedCall(key, fn, ttlMs) {
-    const c = dashCache[key];
-    if (c && Date.now() - c.ts < (ttlMs || 60000)) return c.data;
-    const data = await fn();
-    dashCache[key] = { data: data, ts: Date.now() };
-    return data;
-  }
-  function clearDashCache() { dashCache = {}; }
+  /* ── ล้าง cache SWR ของโมดูลนี้ — เรียกเมื่อเครื่องตัวเองเพิ่ม/แก้ไข/ลบนักเรียน ── */
+  function clearDashCache() { Store.invalidate('students:'); }
 
   const HEALTH_LABELS = { hair: 'ผม', nails: 'เล็บ', cup: 'แก้วน้ำ', toothbrush: 'แปรงสีฟัน', toothpaste: 'ยาสีฟัน' };
   const EDIT_FIELDS = ['prefix', 'first_name', 'last_name', 'gender', 'grade', 'room', 'birth_date',
@@ -36,16 +28,22 @@
   });
 
   /* ════ โหลดรายชื่อทั้งหมด ════ */
+  function applyStudentList(d) {
+    allStudents = d.students || [];
+    // เติม dropdown ชั้น (คงค่าที่เลือกไว้)
+    const grades = [];
+    allStudents.forEach(function (s) { if (s.grade && grades.indexOf(s.grade) < 0) grades.push(s.grade); });
+    grades.sort(function (a, b) { return Utils.gradeSortKey(a) - Utils.gradeSortKey(b); });
+    const sel = document.getElementById('f-grade');
+    sel.innerHTML = '<option value="">ทุกชั้น</option>' + Utils.options(grades, sel.value);
+    renderList();
+  }
+
   async function loadAll() {
     try {
-      const d = await api('students.list', {}, { loadingMsg: 'กำลังโหลดรายชื่อ...' });
-      allStudents = d.students || [];
-      // เติม dropdown ชั้น
-      const grades = [];
-      allStudents.forEach(function (s) { if (s.grade && grades.indexOf(s.grade) < 0) grades.push(s.grade); });
-      grades.sort(function (a, b) { return Utils.gradeSortKey(a) - Utils.gradeSortKey(b); });
-      document.getElementById('f-grade').innerHTML = '<option value="">ทุกชั้น</option>' + Utils.options(grades, '');
-      renderList();
+      await Store.swr('students:list',
+        function (had) { return api('students.list', {}, { loadingMsg: 'กำลังโหลดรายชื่อ...', loading: !had, silent: had }); },
+        applyStudentList);
     } catch (e) {
       document.getElementById('list-result').innerHTML = '<div class="alert alert-warning">ยังไม่มีข้อมูลนักเรียน — นำเข้า DMC ที่เมนูตั้งค่าระบบก่อน</div>';
     }
@@ -260,23 +258,26 @@
   });
 
   /* ════ ภาพรวม ════ */
+  function paintStats(st) {
+    document.getElementById('d-total').textContent = Utils.fmtInt(st.total);
+    document.getElementById('d-male').textContent = Utils.fmtInt(st.male);
+    document.getElementById('d-female').textContent = Utils.fmtInt(st.female);
+
+    // รวมรายชั้น (ยุบห้อง) จาก by_grade ที่เป็น grade/room
+    const gradeTotals = {};
+    Object.keys(st.by_grade || {}).forEach(function (key) {
+      const grade = key.split('/')[0];
+      gradeTotals[grade] = (gradeTotals[grade] || 0) + st.by_grade[key];
+    });
+    const grades = Object.keys(gradeTotals).sort(function (a, b) { return Utils.gradeSortKey(a) - Utils.gradeSortKey(b); });
+    drawChart(grades, grades.map(function (g) { return gradeTotals[g]; }));
+  }
+
   async function loadDashboard() {
     try {
-      const st = await cachedCall('stats', function () {
-        return api('students.stats', {}, { loadingMsg: 'กำลังโหลด...' });
-      });
-      document.getElementById('d-total').textContent = Utils.fmtInt(st.total);
-      document.getElementById('d-male').textContent = Utils.fmtInt(st.male);
-      document.getElementById('d-female').textContent = Utils.fmtInt(st.female);
-
-      // รวมรายชั้น (ยุบห้อง) จาก by_grade ที่เป็น grade/room
-      const gradeTotals = {};
-      Object.keys(st.by_grade || {}).forEach(function (key) {
-        const grade = key.split('/')[0];
-        gradeTotals[grade] = (gradeTotals[grade] || 0) + st.by_grade[key];
-      });
-      const grades = Object.keys(gradeTotals).sort(function (a, b) { return Utils.gradeSortKey(a) - Utils.gradeSortKey(b); });
-      drawChart(grades, grades.map(function (g) { return gradeTotals[g]; }));
+      await Store.swr('students:stats',
+        function (had) { return api('students.stats', {}, { loadingMsg: 'กำลังโหลด...', loading: !had, silent: had }); },
+        paintStats);
     } catch (e) { /* Toast แสดงแล้ว */ }
   }
 

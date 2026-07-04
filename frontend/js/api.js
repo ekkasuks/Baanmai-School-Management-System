@@ -37,6 +37,15 @@ const Toast = {
 };
 
 /**
+ * action ที่ "เขียนข้อมูล" — ห้าม retry อัตโนมัติเมื่อเจอ error ชั่วคราว (เช่น 404 ตอน redirect)
+ * เพราะ doPost อาจทำงานไปแล้วแต่เราอ่านผลไม่ได้ → retry จะบันทึกซ้ำ
+ * (ยกเว้น error code 'METHOD' ที่การันตีว่า doPost ไม่ได้ทำงาน — retry ได้เสมอ)
+ */
+function isWriteAction(action) {
+  return /\.(deposit|withdraw|save|record|create|update|remove|restore|delete|master_save|master_delete|import_dmc)$/.test(String(action));
+}
+
+/**
  * เรียก API
  * @param {string} action  เช่น "settings.get"
  * @param {object} params
@@ -54,9 +63,11 @@ async function api(action, params, opts) {
 
   const body = { action: action, token: Auth.getToken(action), params: params };
   const MAX_ATTEMPTS = 3;
+  const canRetryTransient = !isWriteAction(action);  // เขียนข้อมูล = ไม่ retry error ชั่วคราว (กันบันทึกซ้ำ)
 
   try {
     for (let attempt = 1; ; attempt++) {
+      let transient = false;   // error จาก redirect ของ Apps Script สะดุด (404 / ไม่ใช่ JSON / เครือข่าย)
       try {
         const res = await fetch(window.API_URL, {
           method: 'POST',
@@ -64,7 +75,10 @@ async function api(action, params, opts) {
           body: JSON.stringify(body),
           redirect: 'follow',
         });
-        const json = await res.json();
+        if (!res.ok) { transient = true; throw new Error('เชื่อมต่อเซิร์ฟเวอร์ไม่สำเร็จ (HTTP ' + res.status + ')'); }
+        let json;
+        try { json = await res.json(); }
+        catch (pe) { transient = true; throw new Error('เซิร์ฟเวอร์ตอบกลับไม่สมบูรณ์'); }
         if (!json.ok) {
           const err = new Error((json.error && json.error.message) || 'เกิดข้อผิดพลาด');
           err.code = json.error && json.error.code;
@@ -72,9 +86,12 @@ async function api(action, params, opts) {
         }
         return json.data;
       } catch (e) {
-        // 'METHOD' = POST ไปตกที่ doGet เพราะ redirect ของ Apps Script สะดุดชั่วคราว
-        // กรณีนี้ doPost ไม่ได้ทำงาน (คนละ entry point) → คำสั่งจริงยังไม่ประมวลผล จึง retry ได้ปลอดภัย ไม่บันทึกซ้ำ
-        if (e.code === 'METHOD' && attempt < MAX_ATTEMPTS) {
+        // 'METHOD' = POST ไปตกที่ doGet → doPost ไม่ได้ทำงาน → retry ได้เสมอ (แม้เป็นการเขียน)
+        // error ชั่วคราวอื่น (404 redirect / ไม่ใช่ JSON / เครือข่ายหลุด) → retry เฉพาะการ"อ่าน"
+        const isMethod = e.code === 'METHOD';
+        const isNetwork = (e instanceof TypeError);   // fetch เครือข่ายล้มเหลว
+        const retriable = isMethod || ((transient || isNetwork) && canRetryTransient);
+        if (retriable && attempt < MAX_ATTEMPTS) {
           await new Promise(function (r) { setTimeout(r, attempt * 400); });
           continue;
         }

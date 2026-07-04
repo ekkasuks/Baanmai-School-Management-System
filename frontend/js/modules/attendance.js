@@ -8,16 +8,8 @@
   let chart = null;
   let lastDash = null;
 
-  /* ── cache ผลลัพธ์ในหน่วยความจำ — ตัดการยิงซ้ำตอนสลับแท็บ (ล้างเมื่อบันทึกเช็คชื่อ) ── */
-  let dashCache = {};
-  async function cachedCall(key, fn, ttlMs) {
-    const c = dashCache[key];
-    if (c && Date.now() - c.ts < (ttlMs || 60000)) return c.data;
-    const data = await fn();
-    dashCache[key] = { data: data, ts: Date.now() };
-    return data;
-  }
-  function clearDashCache() { dashCache = {}; }
+  /* ── ล้าง cache SWR ของเช็คชื่อ — เรียกเมื่อเครื่องตัวเองบันทึกเช็คชื่อ ── */
+  function clearDashCache() { Store.invalidate('attendance:'); }
 
   const STATUSES = [
     { label: 'มา', color: '#2E7D32', bg: '#E8F5E9', border: '#A5D6A7' },
@@ -93,13 +85,11 @@
 
   async function loadSummary() {
     const host = document.getElementById('s-result');
+    const date = getSumDate();
     try {
-      const date = getSumDate();
-      const d = await cachedCall('summary:' + date, function () {
-        return attApi('attendance.daily_summary', { date: date }, { loadingMsg: 'กำลังโหลดสรุป...' });
-      });
-      lastSummary = d;
-      renderSummary(d);
+      await Store.swr('attendance:summary:' + date,
+        function (had) { return attApi('attendance.daily_summary', { date: date }, { loadingMsg: 'กำลังโหลดสรุป...', loading: !had, silent: had }); },
+        function (d) { lastSummary = d; renderSummary(d); });
     } catch (e) { host.innerHTML = '<div class="alert alert-danger">' + Utils.esc(e.message) + '</div>'; }
   }
 
@@ -284,9 +274,13 @@
   async function loadDashboard() {
     const date = document.getElementById('d-date').value || Utils.todayYmd();
     try {
-      const d = await cachedCall('dash:' + date, function () {
-        return attApi('attendance.dashboard', { date: date }, { loadingMsg: 'กำลังโหลดภาพรวม...' });
-      });
+      await Store.swr('attendance:dash:' + date,
+        function (had) { return attApi('attendance.dashboard', { date: date }, { loadingMsg: 'กำลังโหลดภาพรวม...', loading: !had, silent: had }); },
+        paintDashboard);
+    } catch (e) { /* Toast แสดงแล้ว */ }
+  }
+
+  function paintDashboard(d) {
       lastDash = d;
       document.getElementById('d-present').textContent = Utils.fmtInt(d.counts['มา']);
       document.getElementById('d-absent').textContent = Utils.fmtInt(d.counts['ขาด']);
@@ -312,7 +306,6 @@
           '<div class="text-muted" style="margin-bottom:6px">ไม่มา ' + d.absent_list.length + ' คน</div>' +
           '<div class="table-wrap"><table><thead><tr><th>ชื่อ</th><th>ชั้น</th><th>สถานะ</th></tr></thead><tbody>' + rows + '</tbody></table></div>';
       }
-    } catch (e) { /* Toast แสดงแล้ว */ }
   }
 
   function drawChart(counts) {

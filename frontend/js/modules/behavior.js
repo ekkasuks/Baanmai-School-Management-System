@@ -11,16 +11,8 @@
   let masterItems = [];   // รายการพฤติกรรม active (cache สำหรับปุ่มบันทึก)
   let lastRanking = null; // ผลอันดับล่าสุด (สำหรับ PDF)
 
-  /* ── cache ผลลัพธ์ในหน่วยความจำ — ตัดการยิงซ้ำตอนสลับแท็บ (ล้างเมื่อบันทึกคะแนน) ── */
-  let dashCache = {};
-  async function cachedCall(key, fn, ttlMs) {
-    const c = dashCache[key];
-    if (c && Date.now() - c.ts < (ttlMs || 60000)) return c.data;
-    const data = await fn();
-    dashCache[key] = { data: data, ts: Date.now() };
-    return data;
-  }
-  function clearDashCache() { dashCache = {}; }
+  /* ── ล้าง cache SWR ของพฤติกรรม — เรียกเมื่อเครื่องตัวเองบันทึกคะแนน ── */
+  function clearDashCache() { Store.invalidate('behavior:'); }
 
   const TH_MONTHS = ['ม.ค.','ก.พ.','มี.ค.','เม.ย.','พ.ค.','มิ.ย.','ก.ค.','ส.ค.','ก.ย.','ต.ค.','พ.ย.','ธ.ค.'];
 
@@ -114,10 +106,15 @@
 
   /* ════ Dashboard ════ */
   async function loadDashboard() {
+    const ym = currentYm;
     try {
-      const d = await cachedCall('dash:' + currentYm, function () {
-        return api('behavior.dashboard', { year_month: currentYm }, { loadingMsg: 'กำลังโหลดภาพรวม...' });
-      });
+      await Store.swr('behavior:dash:' + ym,
+        function (had) { return api('behavior.dashboard', { year_month: ym }, { loadingMsg: 'กำลังโหลดภาพรวม...', loading: !had, silent: had }); },
+        paintDashboard);
+    } catch (e) { /* Toast แสดงแล้ว */ }
+  }
+
+  function paintDashboard(d) {
       document.getElementById('month-note').textContent = 'ข้อมูลเดือน ' + ymLabel(d.year_month);
       document.getElementById('d-avg').textContent = Utils.fmtNumber(d.avg_score, 1);
       document.getElementById('d-count').textContent = Utils.fmtInt(d.student_count);
@@ -137,7 +134,6 @@
         return Utils.gradeSortKey(a.grade) - Utils.gradeSortKey(b.grade);
       });
       drawChart(byGrade.map(function (g) { return g.grade; }), byGrade.map(function (g) { return g.avg; }));
-    } catch (e) { /* Toast แสดงแล้ว */ }
   }
 
   function renderMini(id, list, color, emptyMsg) {
@@ -285,25 +281,31 @@
   /* ════ อันดับ ════ */
   async function loadRanking() {
     const host = document.getElementById('rk-result');
+    const ym = currentYm;
+    const grade = document.getElementById('rk-grade').value || '';
     try {
-      const grade = document.getElementById('rk-grade').value || '';
-      const d = await cachedCall('rank:' + currentYm + ':' + grade, function () {
-        return api('behavior.ranking', {
-          year_month: currentYm, grade: grade || undefined,
-        }, { loadingMsg: 'กำลังจัดอันดับ...' });
-      });
-      lastRanking = d;
-      if (!d.ranking.length) { host.innerHTML = '<div class="text-muted">ไม่มีข้อมูล</div>'; return; }
-      const rows = d.ranking.map(function (r) {
-        const medal = r.rank <= 3 ? ['🥇', '🥈', '🥉'][r.rank - 1] : r.rank;
-        const color = r.score >= 20 ? 'var(--green-dark)' : r.score < 10 ? 'var(--red)' : 'var(--ink)';
-        return '<tr><td style="text-align:center">' + medal + '</td><td>' + Utils.esc(r.name) + '</td>' +
-          '<td>' + Utils.esc(r.grade) + '/' + Utils.esc(r.room) + '</td>' +
-          '<td style="text-align:right;font-weight:700;color:' + color + '">' + Utils.fmtInt(r.score) + '</td></tr>';
-      }).join('');
-      host.innerHTML = '<div class="text-muted" style="margin:6px 0">อันดับเดือน ' + ymLabel(d.year_month) + ' · ' + d.ranking.length + ' คน</div>' +
-        '<div class="table-wrap"><table><thead><tr><th style="text-align:center">อันดับ</th><th>ชื่อ</th><th>ชั้น</th><th style="text-align:right">คะแนน</th></tr></thead><tbody>' + rows + '</tbody></table></div>';
+      await Store.swr('behavior:rank:' + ym + ':' + grade,
+        function (had) {
+          return api('behavior.ranking', { year_month: ym, grade: grade || undefined },
+            { loadingMsg: 'กำลังจัดอันดับ...', loading: !had, silent: had });
+        },
+        paintRanking);
     } catch (e) { host.innerHTML = '<div class="alert alert-danger">' + Utils.esc(e.message) + '</div>'; }
+  }
+
+  function paintRanking(d) {
+    const host = document.getElementById('rk-result');
+    lastRanking = d;
+    if (!d.ranking.length) { host.innerHTML = '<div class="text-muted">ไม่มีข้อมูล</div>'; return; }
+    const rows = d.ranking.map(function (r) {
+      const medal = r.rank <= 3 ? ['🥇', '🥈', '🥉'][r.rank - 1] : r.rank;
+      const color = r.score >= 20 ? 'var(--green-dark)' : r.score < 10 ? 'var(--red)' : 'var(--ink)';
+      return '<tr><td style="text-align:center">' + medal + '</td><td>' + Utils.esc(r.name) + '</td>' +
+        '<td>' + Utils.esc(r.grade) + '/' + Utils.esc(r.room) + '</td>' +
+        '<td style="text-align:right;font-weight:700;color:' + color + '">' + Utils.fmtInt(r.score) + '</td></tr>';
+    }).join('');
+    host.innerHTML = '<div class="text-muted" style="margin:6px 0">อันดับเดือน ' + ymLabel(d.year_month) + ' · ' + d.ranking.length + ' คน</div>' +
+      '<div class="table-wrap"><table><thead><tr><th style="text-align:center">อันดับ</th><th>ชื่อ</th><th>ชั้น</th><th style="text-align:right">คะแนน</th></tr></thead><tbody>' + rows + '</tbody></table></div>';
   }
   document.getElementById('rk-go').onclick = loadRanking;
 

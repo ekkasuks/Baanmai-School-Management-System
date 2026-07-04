@@ -11,16 +11,8 @@
   let selTxn = null;   // นักเรียนที่เลือกในแท็บฝาก/ถอน
   let selPb = null;    // ข้อมูลสมุดบัญชีที่กำลังเปิด
 
-  /* ── cache ผลลัพธ์ในหน่วยความจำ — ตัดการยิงซ้ำตอนสลับแท็บ (ล้างเมื่อฝาก/ถอน) ── */
-  let dashCache = {};
-  async function cachedCall(key, fn, ttlMs) {
-    const c = dashCache[key];
-    if (c && Date.now() - c.ts < (ttlMs || 60000)) return c.data;
-    const data = await fn();
-    dashCache[key] = { data: data, ts: Date.now() };
-    return data;
-  }
-  function clearDashCache() { dashCache = {}; }
+  /* ── ล้าง cache SWR ของธนาคาร — เรียกเมื่อเครื่องตัวเองฝาก/ถอน ── */
+  function clearDashCache() { Store.invalidate('bank:'); }
 
   const TH_MONTHS = ['ม.ค.', 'ก.พ.', 'มี.ค.', 'เม.ย.', 'พ.ค.', 'มิ.ย.', 'ก.ค.', 'ส.ค.', 'ก.ย.', 'ต.ค.', 'พ.ย.', 'ธ.ค.'];
 
@@ -87,9 +79,13 @@
   /* ════ Dashboard ════ */
   async function loadDashboard() {
     try {
-      const d = await cachedCall('dash', function () {
-        return bankApi('bank.dashboard', {}, { loadingMsg: 'กำลังโหลดภาพรวม...' });
-      });
+      await Store.swr('bank:dash',
+        function (had) { return bankApi('bank.dashboard', {}, { loadingMsg: 'กำลังโหลดภาพรวม...', loading: !had, silent: had }); },
+        paintDashboard);
+    } catch (e) { /* Toast แสดงแล้ว */ }
+  }
+
+  function paintDashboard(d) {
       document.getElementById('d-total').textContent = Utils.fmtMoney(d.total_balance);
       document.getElementById('d-dep').textContent = Utils.fmtMoney(d.today_deposit) + ' (' + d.today_deposit_count + ')';
       document.getElementById('d-wd').textContent = Utils.fmtMoney(d.today_withdraw) + ' (' + d.today_withdraw_count + ')';
@@ -118,7 +114,6 @@
       const hbGrade = document.getElementById('hb-grade');
       const curGrade = hbGrade.value;
       hbGrade.innerHTML = '<option value="">ทุกชั้น</option>' + Utils.options(byGrade.map(function (g) { return g.grade; }), curGrade);
-    } catch (e) { /* Toast แสดงแล้ว */ }
   }
 
   function drawChart(labels, data) {
@@ -169,6 +164,18 @@
     document.getElementById('txn-amount').value = '';
     document.getElementById('txn-note').value = '';
     document.getElementById('txn-panel').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    // safeguard: ดึงยอดคงเหลือสด ๆ (ไม่ผ่าน cache) กันทำรายการบนยอดเก่าจากครูคนอื่น
+    refreshSelBalance(r.citizen_id);
+  }
+
+  async function refreshSelBalance(cid) {
+    try {
+      const b = await bankApi('bank.balance', { citizen_id: cid }, { silent: true, loading: false });
+      if (selTxn && String(selTxn.citizen_id) === String(b.citizen_id)) {
+        selTxn.balance = b.balance;
+        document.getElementById('txn-balance').textContent = Utils.fmtMoney(b.balance);
+      }
+    } catch (e) { /* ใช้ยอดจากรายชื่อไปก่อน — server ตรวจตอนบันทึกอยู่แล้ว */ }
   }
 
   async function doTxn(type) {
@@ -248,16 +255,22 @@
 
   async function loadSavingHabit() {
     const host = document.getElementById('hb-result');
-    const winnerHost = document.getElementById('hb-winner');
     try {
       const ym = document.getElementById('hb-month').value || '';
       const grade = document.getElementById('hb-grade').value || '';
-      const d = await cachedCall('habit:' + ym + ':' + grade, function () {
-        return bankApi('bank.saving_habit', {
-          year_month: ym || undefined, grade: grade || undefined,
-        }, { loadingMsg: 'กำลังจัดอันดับ...' });
-      });
+      await Store.swr('bank:habit:' + ym + ':' + grade,
+        function (had) {
+          return bankApi('bank.saving_habit', {
+            year_month: ym || undefined, grade: grade || undefined,
+          }, { loadingMsg: 'กำลังจัดอันดับ...', loading: !had, silent: had });
+        },
+        paintSavingHabit);
+    } catch (e) { host.innerHTML = '<div class="alert alert-danger">' + Utils.esc(e.message) + '</div>'; }
+  }
 
+  function paintSavingHabit(d) {
+      const host = document.getElementById('hb-result');
+      const winnerHost = document.getElementById('hb-winner');
       if (!d.ranking.length) {
         host.innerHTML = '<div class="text-muted">ไม่มีข้อมูล</div>';
         winnerHost.innerHTML = '';
@@ -282,7 +295,6 @@
       }
 
       drawHabitChart(d.monthly_trend);
-    } catch (e) { host.innerHTML = '<div class="alert alert-danger">' + Utils.esc(e.message) + '</div>'; }
   }
 
   function drawHabitChart(trend) {

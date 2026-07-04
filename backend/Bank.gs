@@ -122,6 +122,15 @@ const BankAPI = {
     return { results: results };
   },
 
+  /** ยอดคงเหลือปัจจุบันของนักเรียน 1 คน (สด — ใช้ก่อนทำรายการฝาก/ถอน กันทำบนยอดเก่า) */
+  balance: function (params, ctx) {
+    requirePin(ctx, 'bank');
+    const cid = params.citizen_id;
+    if (!cid) apiError('VALIDATION', 'กรุณาระบุนักเรียน');
+    const row = buildIndex('BANK_BALANCE', 'citizen_id')[String(cid)];
+    return { citizen_id: cid, balance: row ? Number(row.balance) || 0 : 0 };
+  },
+
   /** ฝากเงิน */
   deposit: function (params, ctx) {
     requirePin(ctx, 'bank');
