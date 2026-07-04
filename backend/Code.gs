@@ -42,6 +42,7 @@ function handle(req) {
     growth: GrowthAPI,
     scholarship: ScholarshipAPI,
     attendance: AttendanceAPI,
+    milk: MilkAPI,
     dashboard: DashboardAPI,
   };
 

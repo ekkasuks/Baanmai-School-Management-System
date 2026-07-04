@@ -55,6 +55,12 @@ const SHEETS = {
     name: 'ATTENDANCE',
     headers: ['att_id', 'date', 'citizen_id', 'status', 'note', 'recorded_by', 'created_at'],
   },
+  MILK_LOG: {
+    name: 'MILK_LOG',
+    // type: 'clear' (นักเรียนรับนมค้างแล้ว) | 'reset_all' (ล้างทั้งโรงเรียน)
+    // date = วัน "เคลียร์ถึง" (through-date); วันไม่มาที่ date > watermark = ยังค้าง
+    headers: ['milk_id', 'date', 'citizen_id', 'boxes', 'type', 'note', 'recorded_by', 'created_at'],
+  },
   USERS: {
     name: 'USERS',
     headers: ['user_id', 'name', 'role', 'active', 'created_at'],

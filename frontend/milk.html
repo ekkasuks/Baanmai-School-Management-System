@@ -1,0 +1,102 @@
+<!doctype html>
+<html lang="th">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>นมโรงเรียน — โรงเรียนบ้านใหม่</title>
+<link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet">
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+<header class="app-header">
+  <a href="index.html" class="back">‹</a>
+  <span class="logo">🥛</span>
+  <div>
+    <div class="title">นมโรงเรียน</div>
+    <div style="font-size:13px;opacity:.9">ติดตามนมค้างรับ · คนละ 1 กล่อง/วัน</div>
+  </div>
+</header>
+
+<main class="container">
+
+  <div class="tabs">
+    <button class="tab active" data-tab="dashboard">📊 ภาพรวม</button>
+    <button class="tab" data-tab="pending">📋 ค้างรับนม</button>
+    <button class="tab" data-tab="settings">⚙️ ตั้งค่า</button>
+  </div>
+
+  <!-- ── ภาพรวม ── -->
+  <section class="tab-pane" id="tab-dashboard">
+    <div class="card">
+      <h3 class="card-title">📊 นมค้างรับ ณ วันนี้</h3>
+      <div class="stat-grid">
+        <div class="stat"><div class="label">นักเรียนที่ยังไม่ได้รับนม</div><div class="value pink" id="d-students">-</div></div>
+        <div class="stat"><div class="label">จำนวนกล่องค้างรวม</div><div class="value" id="d-boxes" style="color:#EF6C00">-</div></div>
+        <div class="stat"><div class="label">วันที่</div><div class="value" id="d-date" style="font-size:18px">-</div></div>
+      </div>
+      <div class="alert alert-info" style="font-size:13px;margin-top:8px">💡 นับจากการเช็คชื่อ: วันที่นักเรียน <strong>ขาด/ลา</strong> = ยังไม่ได้รับนมวันนั้น (สะสมต่อเนื่องจนกดรับ)</div>
+    </div>
+    <div class="card">
+      <h3 class="card-title">🏫 แยกตามชั้น</h3>
+      <div id="d-byclass" class="text-muted">กำลังโหลด...</div>
+    </div>
+    <div class="card">
+      <h3 class="card-title">📈 กล่องค้างรายชั้น</h3>
+      <canvas id="d-chart" height="140"></canvas>
+    </div>
+  </section>
+
+  <!-- ── ค้างรับนม ── -->
+  <section class="tab-pane hidden" id="tab-pending">
+    <div class="card">
+      <div class="flex" style="justify-content:space-between;flex-wrap:wrap;gap:8px">
+        <h3 class="card-title" style="margin:0">📋 รายชื่อนักเรียนค้างรับนม</h3>
+        <button class="btn btn-danger" id="p-pdf"><i class="bi bi-filetype-pdf"></i> Export PDF</button>
+      </div>
+      <div class="form-row mt-2">
+        <div class="form-group">
+          <label>เรียกดูรายชั้น</label>
+          <select class="form-control" id="p-class"><option value="">ทุกชั้น</option></select>
+        </div>
+        <div class="form-group">
+          <label>ผู้บันทึก</label>
+          <input class="form-control" id="p-by" placeholder="ชื่อผู้แจกนม">
+        </div>
+      </div>
+      <div id="p-summary" class="text-muted" style="font-size:14px;margin-bottom:6px"></div>
+      <div id="p-result" class="text-muted">กำลังโหลด...</div>
+    </div>
+  </section>
+
+  <!-- ── ตั้งค่า ── -->
+  <section class="tab-pane hidden" id="tab-settings">
+    <div class="card">
+      <h3 class="card-title">⚙️ ตั้งค่านมโรงเรียน</h3>
+      <div class="alert alert-warning" style="font-size:14px">
+        ⚠️ <strong>ล้างยอดนมค้างทั้งโรงเรียน</strong> — ตั้งให้ทุกคนถือว่ารับนมครบถึงวันนี้
+        (ยอดค้างก่อนหน้าจะถูกล้างทั้งหมด) ใช้เมื่อจ่ายนมค้างครบแล้ว หรือขึ้นเทอมใหม่
+      </div>
+      <div class="form-group">
+        <label>ผู้บันทึก</label>
+        <input class="form-control" id="s-by" placeholder="ชื่อผู้ดำเนินการ" style="max-width:320px">
+      </div>
+      <button class="btn btn-danger" id="s-reset"><i class="bi bi-trash3"></i> ล้างยอดนมค้างทั้งโรงเรียน</button>
+      <div id="s-result" class="alert alert-success hidden mt-2"></div>
+    </div>
+  </section>
+
+</main>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/jspdf-autotable@3.8.2/dist/jspdf.plugin.autotable.min.js"></script>
+<script src="js/config.js"></script>
+<script src="js/auth.js"></script>
+<script src="js/api.js"></script>
+<script src="js/store.js"></script>
+<script src="js/utils.js"></script>
+<script src="js/pdf.js"></script>
+<script src="js/modules/milk.js"></script>
+</body>
+</html>
