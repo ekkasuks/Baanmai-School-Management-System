@@ -6,6 +6,9 @@
  * ถ้า token หมดอายุ frontend จะ re-prompt PIN ให้อัตโนมัติ
  */
 
+// โมดูลที่บังคับ PIN จริง = bank เท่านั้น
+// 'attendance' เลิกบังคับ PIN แล้ว (เมธอดใน AttendanceAPI ไม่เรียก requirePin) แต่คงไว้ในลิสต์นี้
+// เพื่อให้ frontend เวอร์ชันเก่าที่ยัง cache อยู่ (ยังถาม PIN) เรียก verify_pin ได้ระหว่างช่วงเปลี่ยนผ่าน
 const PIN_MODULES = ['bank', 'attendance'];
 
 const AuthAPI = {

@@ -1,5 +1,5 @@
 /**
- * Attendance module — เช็คการมาเรียน (ต้องใช้ PIN: attendance)
+ * Attendance module — เช็คการมาเรียน (ไม่ใช้ PIN)
  *
  * สถานะ: มา / ขาด / ลา / สาย
  * Unique = (date, citizen_id) — เช็คซ้ำในวันเดียวจะ "อัปเดต" ไม่เพิ่มแถว
@@ -12,7 +12,6 @@ const AttendanceAPI = {
 
   /** รายชื่อชั้น/ห้อง สำหรับ dropdown */
   classes: function (params, ctx) {
-    requirePin(ctx, 'attendance');
     return { classes: listClasses() };
   },
 
@@ -21,7 +20,6 @@ const AttendanceAPI = {
    * params = { grade, room, date? }
    */
   by_class: function (params, ctx) {
-    requirePin(ctx, 'attendance');
     if (!params.grade) apiError('VALIDATION', 'กรุณาเลือกชั้นเรียน');
     const date = params.date ? toYmd(params.date) : today();
     const attIndex = {};
@@ -46,7 +44,6 @@ const AttendanceAPI = {
    * params = { date?, records:[{citizen_id, status, note}], recorded_by }
    */
   save: function (params, ctx) {
-    requirePin(ctx, 'attendance');
     const records = params.records;
     if (!Array.isArray(records) || !records.length) apiError('VALIDATION', 'ไม่มีข้อมูลให้บันทึก');
     const date = params.date ? toYmd(params.date) : today();
@@ -99,7 +96,6 @@ const AttendanceAPI = {
 
   /** ประวัติการเช็คชื่อ — กรองตามวันที่/ชั้น/นักเรียน/สถานะ */
   history: function (params, ctx) {
-    requirePin(ctx, 'attendance');
     const p = params || {};
     const stIndex = buildIndex('STUDENTS', 'citizen_id');
     let rows = readAll('ATTENDANCE');
@@ -132,7 +128,6 @@ const AttendanceAPI = {
 
   /** Dashboard — สรุปสถานะรายวัน, รายชั้น, รายชื่อที่ไม่มา (ของวันที่ระบุ) */
   dashboard: function (params, ctx) {
-    requirePin(ctx, 'attendance');
     const date = (params && params.date) ? toYmd(params.date) : today();
     return cachedResult('att.dash:' + date, ['STUDENTS', 'ATTENDANCE'], 90, function () {
     const stIndex = buildIndex('STUDENTS', 'citizen_id');
@@ -184,7 +179,6 @@ const AttendanceAPI = {
    * ชั้นที่ยังไม่เช็คชื่อ → checked=0 (frontend แสดง '-')
    */
   daily_summary: function (params, ctx) {
-    requirePin(ctx, 'attendance');
     const date = (params && params.date) ? toYmd(params.date) : today();
     return cachedResult('att.summary:' + date, ['STUDENTS', 'ATTENDANCE'], 90, function () {
 

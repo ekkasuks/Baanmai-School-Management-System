@@ -1,5 +1,5 @@
 /**
- * Module 5 — เช็คการมาเรียน (PIN: attendance)
+ * Module 5 — เช็คการมาเรียน (ไม่ใช้ PIN)
  * เช็คชื่อรายชั้น (มา/ขาด/ลา/สาย) · ภาพรวม + PDF · ประวัติ
  */
 (function () {
@@ -20,18 +20,9 @@
   const metaOf = {};
   STATUSES.forEach(function (s) { metaOf[s.label] = s; });
 
-  /* ── เรียก API พร้อม retry เมื่อ PIN หมดอายุ ── */
-  async function attApi(action, params, opts) {
-    try {
-      return await api(action, params, opts);
-    } catch (e) {
-      if (e.code === 'TOKEN_EXPIRED') {
-        Auth.clear('attendance');
-        await Auth.requirePin('attendance');
-        return await api(action, params, opts);
-      }
-      throw e;
-    }
+  /* ── เรียก API (โมดูลนี้ไม่ใช้ PIN แล้ว) ── */
+  function attApi(action, params, opts) {
+    return api(action, params, opts);
   }
 
   /* ── Tabs ── */
@@ -390,21 +381,16 @@
     } catch (e) { host.innerHTML = '<div class="alert alert-danger">' + Utils.esc(e.message) + '</div>'; }
   };
 
-  /* ════ เริ่มต้น — ต้องผ่าน PIN ก่อน ════ */
+  /* ════ เริ่มต้น ════ */
   document.getElementById('s-date').value = Utils.todayYmd();
   document.getElementById('rec-date').value = Utils.todayYmd();
   document.getElementById('d-date').value = Utils.todayYmd();
-  Auth.requirePin('attendance').then(async function () {
+  (async function () {
     try {
       const cfg = await api('settings.get', {}, { silent: true, loading: false });
       if (cfg.settings && cfg.settings.school_name) schoolName = cfg.settings.school_name;
     } catch (e) { /* ใช้ค่า default */ }
     loadSummary();
-  }).catch(function () {
-    document.querySelector('.container').innerHTML =
-      '<div class="card"><div class="alert alert-warning">ต้องกรอก PIN เพื่อเข้าใช้การเช็คชื่อ</div>' +
-      '<a class="btn btn-primary" href="index.html">‹ กลับหน้าหลัก</a> ' +
-      '<button class="btn btn-secondary" onclick="location.reload()">ลองอีกครั้ง</button></div>';
-  });
+  })();
 
 })();

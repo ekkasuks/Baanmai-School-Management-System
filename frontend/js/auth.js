@@ -4,7 +4,7 @@
  * ปลดล็อกโมดูลใดก็ได้ครั้งเดียว → เข้าโมดูลอื่นที่ต้อง PIN ได้เลยโดยไม่ถามซ้ำ
  */
 
-const PIN_MODULES = ['bank', 'attendance'];
+const PIN_MODULES = ['bank'];
 const TOKEN_KEY = 'baanmai_token';
 
 function actionToModule(action) {
