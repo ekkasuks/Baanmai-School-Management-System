@@ -99,22 +99,22 @@
       return '<tr class="' + (on ? '' : 'unchecked') + '">' +
         '<td>' + Utils.esc(c.grade) + (c.room ? '/' + Utils.esc(c.room) : '') + '</td>' +
         '<td>' + Utils.fmtInt(c.male) + '</td><td>' + Utils.fmtInt(c.female) + '</td><td>' + Utils.fmtInt(c.total) + '</td>' +
-        '<td class="grp-a">' + v(c.male_present) + '</td><td class="grp-a">' + v(c.female_present) + '</td><td class="grp-a">' + v(c.present) + '</td>' +
         '<td class="grp-b">' + v(c.absent) + '</td><td class="grp-b">' + v(c.leave) + '</td><td class="grp-b">' + v(c.late) + '</td><td class="grp-b">' + v(c.not_present) + '</td>' +
+        '<td class="grp-a">' + v(c.male_present) + '</td><td class="grp-a">' + v(c.female_present) + '</td><td class="grp-a">' + v(c.present) + '</td>' +
         '</tr>';
     }).join('');
 
     const t = d.totals;
     const foot = '<tr><td>รวมทั้งหมด</td>' +
       '<td>' + Utils.fmtInt(t.male) + '</td><td>' + Utils.fmtInt(t.female) + '</td><td>' + Utils.fmtInt(t.total) + '</td>' +
-      '<td>' + Utils.fmtInt(t.male_present) + '</td><td>' + Utils.fmtInt(t.female_present) + '</td><td>' + Utils.fmtInt(t.present) + '</td>' +
-      '<td>' + Utils.fmtInt(t.absent) + '</td><td>' + Utils.fmtInt(t.leave) + '</td><td>' + Utils.fmtInt(t.late) + '</td><td>' + Utils.fmtInt(t.not_present) + '</td></tr>';
+      '<td>' + Utils.fmtInt(t.absent) + '</td><td>' + Utils.fmtInt(t.leave) + '</td><td>' + Utils.fmtInt(t.late) + '</td><td>' + Utils.fmtInt(t.not_present) + '</td>' +
+      '<td>' + Utils.fmtInt(t.male_present) + '</td><td>' + Utils.fmtInt(t.female_present) + '</td><td>' + Utils.fmtInt(t.present) + '</td></tr>';
 
     host.innerHTML =
       '<div class="table-wrap"><table class="sum-table">' +
       '<thead>' +
-      '<tr><th rowspan="2">ชั้น</th><th colspan="3">จำนวนนักเรียน</th><th colspan="3">มาเรียน</th><th colspan="4">ไม่มาเรียน</th></tr>' +
-      '<tr><th>ชาย</th><th>หญิง</th><th>รวม</th><th>ชาย</th><th>หญิง</th><th>รวม</th><th>ขาด</th><th>ลา</th><th>สาย</th><th>รวม</th></tr>' +
+      '<tr><th rowspan="2">ชั้น</th><th colspan="3">จำนวนนักเรียนทั้งหมด</th><th colspan="4">ไม่มาเรียน</th><th colspan="3">มาเรียน</th></tr>' +
+      '<tr><th>ชาย</th><th>หญิง</th><th>รวม</th><th>ขาด</th><th>ลา</th><th>สาย</th><th>รวม</th><th>ชาย</th><th>หญิง</th><th>รวม</th></tr>' +
       '</thead>' +
       '<tbody>' + body + '</tbody>' +
       '<tfoot>' + foot + '</tfoot>' +
@@ -140,20 +140,21 @@
         return [
           c.grade + (c.room ? '/' + c.room : ''),
           c.male, c.female, c.total,
-          dash(c, c.male_present), dash(c, c.female_present), dash(c, c.present),
           dash(c, c.absent), dash(c, c.leave), dash(c, c.late), dash(c, c.not_present),
+          dash(c, c.male_present), dash(c, c.female_present), dash(c, c.present),
         ];
       });
       const t = d.totals;
-      body.push(['รวมทั้งหมด', t.male, t.female, t.total, t.male_present, t.female_present, t.present,
-        t.absent, t.leave, t.late, t.not_present]);
+      body.push(['รวมทั้งหมด', t.male, t.female, t.total,
+        t.absent, t.leave, t.late, t.not_present,
+        t.male_present, t.female_present, t.present]);
 
       doc.autoTable({
         startY: y + 10,
         head: [
-          [{ content: 'ชั้น', rowSpan: 2 }, { content: 'จำนวนนักเรียน', colSpan: 3 },
-            { content: 'มาเรียน', colSpan: 3 }, { content: 'ไม่มาเรียน', colSpan: 4 }],
-          ['ชาย', 'หญิง', 'รวม', 'ชาย', 'หญิง', 'รวม', 'ขาด', 'ลา', 'สาย', 'รวม'],
+          [{ content: 'ชั้น', rowSpan: 2 }, { content: 'จำนวนนักเรียนทั้งหมด', colSpan: 3 },
+            { content: 'ไม่มาเรียน', colSpan: 4 }, { content: 'มาเรียน', colSpan: 3 }],
+          ['ชาย', 'หญิง', 'รวม', 'ขาด', 'ลา', 'สาย', 'รวม', 'ชาย', 'หญิง', 'รวม'],
         ],
         body: body,
         styles: { font: 'Sarabun', fontSize: 10, halign: 'center' },
