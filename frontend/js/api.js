@@ -61,9 +61,14 @@ async function api(action, params, opts) {
   }
   if (opts.loading !== false) Loading.show(opts.loadingMsg);
 
-  const body = { action: action, token: Auth.getToken(action), params: params };
+  const body = {
+    action: action,
+    token: opts.token !== undefined ? opts.token : Auth.getToken(action),
+    params: params,
+  };
   const MAX_ATTEMPTS = 3;
-  const canRetryTransient = !isWriteAction(action);  // เขียนข้อมูล = ไม่ retry error ชั่วคราว (กันบันทึกซ้ำ)
+  // เขียนข้อมูล = ไม่ retry error ชั่วคราว (กันบันทึกซ้ำ) · opts.noRetry ใช้กับ batch ที่มีคำสั่งเขียน
+  const canRetryTransient = opts.noRetry ? false : !isWriteAction(action);
 
   try {
     for (let attempt = 1; ; attempt++) {
@@ -104,4 +109,33 @@ async function api(action, params, opts) {
   } finally {
     if (opts.loading !== false) Loading.hide();
   }
+}
+
+/**
+ * apiBatch — รวมหลายคำสั่งใน request เดียว (ลด round trip ของ Apps Script)
+ *
+ * ใช้กับคำสั่งที่ "ไม่ขึ้นต่อกัน" เท่านั้น เช่น ตอนเปิดหน้าแล้วต้องดึง 2–3 อย่างพร้อมกัน
+ *   const [a, b] = await apiBatch([
+ *     { action: 'scout.years' },
+ *     { action: 'scout.dashboard' },
+ *   ], { silent: true, loading: false });
+ *   if (a.ok) console.log(a.data);
+ *
+ * @returns {Promise<Array<{ok:boolean, data:*, error:{code,message}|null}>>} เรียงตามลำดับที่ส่ง
+ */
+async function apiBatch(calls, opts) {
+  opts = opts || {};
+  if (!Array.isArray(calls) || !calls.length) return [];
+
+  // token: ใช้ตัวแรกที่หาได้จากคำสั่งในชุด (โมดูลที่ต้องใช้ PIN)
+  let token = null;
+  for (let i = 0; i < calls.length; i++) {
+    const t = Auth.getToken(calls[i].action);
+    if (t) { token = t; break; }
+  }
+  // ถ้ามีคำสั่งเขียนอยู่ในชุด → ห้าม retry อัตโนมัติ (กันบันทึกซ้ำ)
+  const hasWrite = calls.some(function (c) { return isWriteAction(c.action); });
+
+  const d = await api('batch', { calls: calls }, Object.assign({}, opts, { token: token, noRetry: hasWrite }));
+  return (d && d.results) || [];
 }

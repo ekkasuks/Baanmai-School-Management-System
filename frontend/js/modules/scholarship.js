@@ -9,9 +9,7 @@
   let classCache = null;
 
   /* ── ตัวเลือกปี ── */
-  async function buildYears() {
-    try {
-      const d = await api('scholarship.years', {}, { silent: true, loading: false });
+  function applyYears(d) {
       const years = (d.years && d.years.length) ? d.years : [d.current || String(new Date().getFullYear() + 543)];
       const sel = document.getElementById('year-select');
       sel.innerHTML = years.map(function (y) {
@@ -26,7 +24,6 @@
         document.getElementById('rec-results').innerHTML = 'เลือกชั้นเพื่อแสดงรายชื่อนักเรียน';
         reloadActiveTab();
       });
-    } catch (e) { /* ignore */ }
   }
 
   function reloadActiveTab() {
@@ -151,6 +148,7 @@
       document.getElementById('rec-name').value = '';
       document.getElementById('rec-amount').value = '';
       document.getElementById('rec-note').value = '';
+      Store.invalidate('scholarship:');   // เครื่องตัวเองบันทึก → บังคับดึงสรุปใหม่
       Toast.show('บันทึกทุนสำเร็จ', 'success');
       loadStudentList();
     } catch (e) { /* Toast แสดงแล้ว */ }
@@ -160,6 +158,7 @@
     if (!confirm('ลบรายการทุนนี้?')) return;
     try {
       await api('scholarship.delete', { scholarship_id: id, recorded_by: 'admin' }, { loadingMsg: 'กำลังลบ...' });
+      Store.invalidate('scholarship:');
       Toast.show('ลบรายการแล้ว', 'success');
       loadStudentList();
     } catch (e) { /* Toast */ }
@@ -167,8 +166,15 @@
 
   /* ════ ภาพรวม ════ */
   async function loadDashboard() {
+    const year = currentYear;
     try {
-      const d = await api('scholarship.dashboard', { year: currentYear }, { loadingMsg: 'กำลังโหลดสรุป...' });
+      await Store.swr('scholarship:dash:' + year,
+        function (had) { return api('scholarship.dashboard', { year: year }, { loadingMsg: 'กำลังโหลดสรุป...', loading: !had, silent: had }); },
+        paintDashboard);
+    } catch (e) { /* Toast แสดงแล้ว */ }
+  }
+
+  function paintDashboard(d) {
       document.getElementById('year-note').textContent = 'สรุปปีการศึกษา ' + d.year;
       document.getElementById('d-total').textContent = Utils.fmtMoney(d.total_amount);
       document.getElementById('d-count').textContent = Utils.fmtInt(d.record_count);
@@ -197,7 +203,6 @@
         document.getElementById('d-top').innerHTML =
           '<div class="table-wrap"><table><thead><tr><th>#</th><th>ชื่อ</th><th>ชั้น</th><th style="text-align:right">รวม</th><th style="text-align:center">ทุน</th></tr></thead><tbody>' + rows + '</tbody></table></div>';
       }
-    } catch (e) { /* Toast แสดงแล้ว */ }
   }
 
   /* ════ ประวัติ ════ */
@@ -224,7 +229,20 @@
   /* ════ เริ่มต้น ════ */
   document.getElementById('rec-date').value = Utils.todayYmd();
   (async function () {
-    await buildYears();
+    // ⚡ ดึง "ปีการศึกษา + รายชื่อชั้น" ใน request เดียว (สองอย่างนี้ไม่ขึ้นต่อกัน)
+    try {
+      const [yr, cls] = await apiBatch([
+        { action: 'scholarship.years' },
+        { action: 'scholarship.classes' },
+      ], { silent: true, loading: false });
+
+      if (yr && yr.ok) applyYears(yr.data);
+      if (cls && cls.ok) { classCache = cls.data.classes; ensureClasses('rec-class'); return; }  // มี cache แล้ว → ไม่ยิงซ้ำ
+    } catch (e) { /* batch ล้มเหลว → ถอยไปวิธีเดิม */ }
+
+    if (!currentYear) {
+      try { applyYears(await api('scholarship.years', {}, { silent: true, loading: false })); } catch (e) { /* ignore */ }
+    }
     ensureClasses('rec-class');
   })();
 

@@ -165,6 +165,7 @@
       res.className = 'alert alert-success mt-2';
       res.textContent = '✅ บันทึกวันที่ ' + Utils.fmtDateThai(r.date) + ' สำเร็จ — ใหม่ ' + r.inserted + ' คน, อัปเดต ' + r.updated + ' คน' + (r.skipped ? ', ข้าม ' + r.skipped : '');
       res.classList.remove('hidden');
+      Store.invalidate('growth:');
       Toast.show('บันทึกข้อมูลสำเร็จ', 'success');
       loadRecStudents();
     } catch (e) { /* Toast แสดงแล้ว */ }
@@ -173,7 +174,13 @@
   /* ════ ภาพรวม ════ */
   async function loadDashboard() {
     try {
-      const d = await api('growth.dashboard', {}, { loadingMsg: 'กำลังโหลดภาพรวม...' });
+      await Store.swr('growth:dash',
+        function (had) { return api('growth.dashboard', {}, { loadingMsg: 'กำลังโหลดภาพรวม...', loading: !had, silent: had }); },
+        paintDashboard);
+    } catch (e) { /* Toast แสดงแล้ว */ }
+  }
+
+  function paintDashboard(d) {
       document.getElementById('d-measured').textContent = Utils.fmtInt(d.measured);
       document.getElementById('d-notmeasured').textContent = Utils.fmtInt(d.not_measured);
       document.getElementById('d-avg').textContent = d.avg_bmi || '-';
@@ -193,7 +200,6 @@
         document.getElementById('d-bygrade').innerHTML =
           '<div class="table-wrap"><table><thead><tr><th>ชั้น</th><th style="text-align:right">BMI เฉลี่ย</th><th style="text-align:right">วัดแล้ว/ทั้งหมด</th></tr></thead><tbody>' + rows + '</tbody></table></div>';
       }
-    } catch (e) { /* Toast แสดงแล้ว */ }
   }
 
   function drawDist(dist) {

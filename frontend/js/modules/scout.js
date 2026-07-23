@@ -12,25 +12,24 @@
   function clearCache() { Store.invalidate('scout:'); }
 
   /* ── ปีการศึกษา ── */
-  async function buildYears() {
-    try {
-      const d = await api('scout.years', {}, { silent: true, loading: false });
-      const years = (d.years && d.years.length) ? d.years : [d.current];
-      const sel = document.getElementById('year-select');
-      sel.innerHTML = years.map(function (y) {
-        return '<option value="' + Utils.esc(y) + '"' + (String(y) === String(d.current) ? ' selected' : '') + '>' +
-          Utils.esc(y) + (String(y) === String(d.current) ? ' (ปัจจุบัน)' : '') + '</option>';
-      }).join('');
-      currentYear = sel.value;
-      sel.addEventListener('change', function () {
-        currentYear = sel.value;
-        selGroup = null; curActivity = null;
-        document.getElementById('mem-panel').classList.add('hidden');
-        document.getElementById('sc-table').innerHTML = 'เลือกกิจกรรมเพื่อกรอกคะแนน';
-        document.getElementById('sc-actions').classList.add('hidden');
-        reloadActive();
-      });
-    } catch (e) { /* ignore */ }
+  function applyYears(d) {
+    const years = (d.years && d.years.length) ? d.years : [d.current];
+    const sel = document.getElementById('year-select');
+    sel.innerHTML = years.map(function (y) {
+      return '<option value="' + Utils.esc(y) + '"' + (String(y) === String(d.current) ? ' selected' : '') + '>' +
+        Utils.esc(y) + (String(y) === String(d.current) ? ' (ปัจจุบัน)' : '') + '</option>';
+    }).join('');
+    currentYear = sel.value;
+    sel.addEventListener('change', onYearChange);
+  }
+
+  function onYearChange() {
+    currentYear = document.getElementById('year-select').value;
+    selGroup = null; curActivity = null;
+    document.getElementById('mem-panel').classList.add('hidden');
+    document.getElementById('sc-table').innerHTML = 'เลือกกิจกรรมเพื่อกรอกคะแนน';
+    document.getElementById('sc-actions').classList.add('hidden');
+    reloadActive();
   }
 
   function reloadActive() {
@@ -455,7 +454,25 @@
   /* ════════ เริ่มต้น ════════ */
   document.getElementById('act-date').value = Utils.todayYmd();
   (async function () {
-    await buildYears();
+    // ⚡ ดึง "ปีการศึกษา + แดชบอร์ด" ใน request เดียว (เดิมยิง 2 ครั้งเรียงกัน)
+    // scout.dashboard ไม่ส่ง year → backend ใช้ current_year ซึ่งตรงกับปีที่ถูกเลือกเริ่มต้นเสมอ
+    try {
+      const [yr, dash] = await apiBatch([
+        { action: 'scout.years' },
+        { action: 'scout.dashboard' },
+      ], { silent: true, loading: false });
+
+      if (yr && yr.ok) applyYears(yr.data);
+      if (dash && dash.ok) {
+        Store.set('scout:dash:' + currentYear, dash.data);   // ให้ SWR ใช้ต่อได้ทันที
+        renderDashboard(dash.data);
+        return;
+      }
+    } catch (e) { /* batch ล้มเหลว → ถอยไปวิธีเดิม */ }
+
+    if (!currentYear) {
+      try { applyYears(await api('scout.years', {}, { silent: true, loading: false })); } catch (e) { /* ignore */ }
+    }
     loadDashboard();
   })();
 

@@ -27,12 +27,8 @@ function doGet(e) {
 }
 
 /** ตารางเส้นทาง — เพิ่ม module ใหม่ที่นี่เมื่อสร้าง Module ถัดไป */
-function handle(req) {
-  const { action, token, params } = req || {};
-  if (!action) return jsonResponse(false, null, { code: 'VALIDATION', message: 'ไม่ได้ระบุ action' });
-
-  const [moduleName, methodName] = String(action).split('.');
-  const router = {
+function routerMap() {
+  return {
     auth: AuthAPI,
     settings: SettingsAPI,
     students: StudentsAPI,
@@ -46,6 +42,17 @@ function handle(req) {
     scout: ScoutAPI,
     dashboard: DashboardAPI,
   };
+}
+
+function handle(req) {
+  const { action, token, params } = req || {};
+  if (!action) return jsonResponse(false, null, { code: 'VALIDATION', message: 'ไม่ได้ระบุ action' });
+
+  // รวมหลายคำสั่งใน request เดียว — ลด round trip (Apps Script มี overhead ต่อครั้งสูง)
+  if (action === 'batch') return handleBatch(params, token);
+
+  const [moduleName, methodName] = String(action).split('.');
+  const router = routerMap();
 
   const mod = router[moduleName];
   if (!mod || typeof mod[methodName] !== 'function') {
@@ -62,6 +69,44 @@ function handle(req) {
     const message = err && err.message ? err.message : String(err);
     return jsonResponse(false, null, { code: code, message: message });
   }
+}
+
+/**
+ * batch — เรียกหลาย action ในคำขอเดียว
+ * params = { calls: [{ action, params }, ...] }  (สูงสุด 10 รายการ)
+ * คืน { results: [{ ok, data, error }, ...] } เรียงตามลำดับที่ส่งมา
+ * แต่ละรายการล้มเหลวได้อิสระ ไม่ทำให้ทั้ง batch พัง
+ */
+function handleBatch(params, token) {
+  const calls = params && params.calls;
+  if (!Array.isArray(calls) || !calls.length) {
+    return jsonResponse(false, null, { code: 'VALIDATION', message: 'batch ต้องมี calls อย่างน้อย 1 รายการ' });
+  }
+  if (calls.length > 10) {
+    return jsonResponse(false, null, { code: 'VALIDATION', message: 'batch ได้สูงสุด 10 รายการต่อครั้ง' });
+  }
+
+  const router = routerMap();
+  const results = calls.map(function (c) {
+    const act = String((c && c.action) || '');
+    const parts = act.split('.');
+    const mod = router[parts[0]];
+    if (!mod || typeof mod[parts[1]] !== 'function') {
+      return { ok: false, data: null, error: { code: 'NOT_FOUND', message: 'ไม่รู้จักคำสั่ง: ' + act } };
+    }
+    try {
+      const data = mod[parts[1]]((c && c.params) || {}, { token: token, action: act });
+      return { ok: true, data: data, error: null };
+    } catch (err) {
+      console.error('[batch ' + act + ']', err && err.stack ? err.stack : err);
+      return {
+        ok: false, data: null,
+        error: { code: (err && err.code) || 'INTERNAL', message: (err && err.message) || String(err) },
+      };
+    }
+  });
+
+  return jsonResponse(true, { results: results });
 }
 
 function jsonResponse(ok, data, error) {

@@ -186,8 +186,7 @@
   document.getElementById('d-date').textContent = Utils.fmtDateThai(new Date());
   (async function () {
     try {
-      const cfg = await api('settings.get', {}, { silent: true, loading: false });
-      if (cfg.settings && cfg.settings.school_name) schoolName = cfg.settings.school_name;
+      schoolName = await AppSettings.schoolName();
     } catch (e) { /* ใช้ค่า default */ }
     loadDashboard();
   })();

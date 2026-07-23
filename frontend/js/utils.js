@@ -84,3 +84,38 @@ const Utils = {
     }).join('');
   },
 };
+
+/**
+ * AppSettings — ค่าตั้งที่เปลี่ยนไม่บ่อย (ชื่อโรงเรียน) cache ไว้ใน localStorage 24 ชม.
+ * เดิมทุกโมดูลยิง settings.get ตอนเปิดหน้า ทั้งที่ใช้แค่ชื่อโรงเรียนไปขึ้นหัว PDF
+ */
+const AppSettings = {
+  _KEY: 'baanmai_school',
+  _TTL: 24 * 3600 * 1000,
+  _DEFAULT: 'โรงเรียนบ้านใหม่',
+
+  /** ชื่อโรงเรียน — คืนจาก cache ทันทีถ้ายังไม่หมดอายุ (ไม่ยิง API เลย) */
+  schoolName: async function () {
+    try {
+      const raw = localStorage.getItem(AppSettings._KEY);
+      if (raw) {
+        const o = JSON.parse(raw);
+        if (o && o.name && (Date.now() - o.ts) < AppSettings._TTL) return o.name;
+      }
+    } catch (e) { /* localStorage ปิด/เสีย: ข้ามไปดึงสด */ }
+
+    try {
+      const cfg = await api('settings.get', {}, { silent: true, loading: false });
+      const name = (cfg.settings && cfg.settings.school_name) || AppSettings._DEFAULT;
+      try { localStorage.setItem(AppSettings._KEY, JSON.stringify({ name: name, ts: Date.now() })); } catch (e) { /* ignore */ }
+      return name;
+    } catch (e) {
+      return AppSettings._DEFAULT;
+    }
+  },
+
+  /** ล้าง cache — เรียกหลังแก้ข้อมูลโรงเรียนในหน้าตั้งค่า */
+  clear: function () {
+    try { localStorage.removeItem(AppSettings._KEY); } catch (e) { /* ignore */ }
+  },
+};

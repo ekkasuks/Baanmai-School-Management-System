@@ -8,11 +8,8 @@
   src: url('../assets/fonts/Sarabun-Regular.ttf') format('truetype');
   font-weight: 400; font-style: normal; font-display: swap;
 }
-@font-face {
-  font-family: 'Sarabun';
-  src: url('../assets/fonts/Sarabun-SemiBold.ttf') format('truetype');
-  font-weight: 600; font-style: normal; font-display: swap;
-}
+/* หมายเหตุ: ตัด SemiBold (600) ออกเพื่อลดการโหลดฟอนต์ ~92KB
+   น้ำหนัก 600 ที่ใช้ในหน้าเว็บ เบราว์เซอร์จะเลือก Bold (700) ให้อัตโนมัติ — หน้าตาใกล้เคียงเดิม */
 @font-face {
   font-family: 'Sarabun';
   src: url('../assets/fonts/Sarabun-Bold.ttf') format('truetype');

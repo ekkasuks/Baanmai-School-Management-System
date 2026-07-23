@@ -42,6 +42,7 @@
       for (const k of SCHOOL_KEYS) {
         await api('settings.update', { key: k, value: form[k].value, recorded_by: 'admin' }, { loading: false, silent: true });
       }
+      AppSettings.clear();   // ล้าง cache ชื่อโรงเรียน เพื่อให้หน้าอื่นดึงค่าใหม่
       Toast.show('บันทึกข้อมูลโรงเรียนเรียบร้อย', 'success');
       loadSettings();
     } catch (err) { Toast.show('บันทึกไม่สำเร็จ: ' + err.message, 'danger'); }

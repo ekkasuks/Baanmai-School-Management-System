@@ -132,6 +132,7 @@
       res.className = 'alert alert-success mt-2';
       res.textContent = '✅ บันทึกผลตรวจวันที่ ' + Utils.fmtDateThai(r.date) + ' สำเร็จ — บันทึกใหม่ ' + r.inserted + ' คน, อัปเดต ' + r.updated + ' คน';
       res.classList.remove('hidden');
+      Store.invalidate('health:');
       Toast.show('บันทึกผลตรวจสำเร็จ', 'success');
       loadRecStudents();
     } catch (e) { /* Toast แสดงแล้ว */ }
@@ -141,7 +142,13 @@
   async function loadDashboard() {
     const date = document.getElementById('d-date').value || Utils.todayYmd();
     try {
-      const d = await api('health.dashboard', { date: date }, { loadingMsg: 'กำลังโหลดภาพรวม...' });
+      await Store.swr('health:dash:' + date,
+        function (had) { return api('health.dashboard', { date: date }, { loadingMsg: 'กำลังโหลดภาพรวม...', loading: !had, silent: had }); },
+        paintDashboard);
+    } catch (e) { /* Toast แสดงแล้ว */ }
+  }
+
+  function paintDashboard(d) {
       lastDash = d;
       document.getElementById('d-checked').textContent = Utils.fmtInt(d.checked_count);
       document.getElementById('d-notchecked').textContent = Utils.fmtInt(d.not_checked);
@@ -165,7 +172,6 @@
           '<div class="text-muted" style="margin-bottom:6px">ไม่ผ่าน ' + d.fail_list.length + ' คน</div>' +
           '<div class="table-wrap"><table><thead><tr><th>ชื่อ</th><th>ชั้น</th><th>รายการที่ไม่ผ่าน</th></tr></thead><tbody>' + rows + '</tbody></table></div>';
       }
-    } catch (e) { /* Toast แสดงแล้ว */ }
   }
 
   function labelOf(key) {
@@ -271,8 +277,7 @@
   document.getElementById('d-date').value = Utils.todayYmd();
   (async function () {
     try {
-      const cfg = await api('settings.get', {}, { silent: true, loading: false });
-      if (cfg.settings && cfg.settings.school_name) schoolName = cfg.settings.school_name;
+      schoolName = await AppSettings.schoolName();
     } catch (e) { /* ใช้ค่า default */ }
     loadRecClasses();
   })();
