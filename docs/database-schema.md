@@ -172,6 +172,51 @@
 
 ---
 
+## 7d. SCOUT_* — คะแนนกิจกรรมลูกเสือ (4 sheets)
+
+**SCOUT_GROUP** — หมู่ลูกเสือ
+
+| Column | Type | หมายเหตุ |
+|---|---|---|
+| group_id | text | **PK** (SG-xxxxxxxx) |
+| name | text | ชื่อหมู่ (ไม่ซ้ำในปีเดียวกัน) |
+| year | text | ปีการศึกษา (พ.ศ.) |
+| note / created_at / updated_at | | |
+
+**SCOUT_MEMBER** — สมาชิกในหมู่
+
+| Column | Type | หมายเหตุ |
+|---|---|---|
+| member_id | text | **PK** (SM-xxxxxxxx) |
+| group_id | text | FK → SCOUT_GROUP |
+| citizen_id | text(13) | FK → STUDENTS · 1 คน อยู่ได้ 1 หมู่/ปี |
+| created_at | datetime | |
+
+**SCOUT_ACTIVITY** — กิจกรรมให้คะแนน
+
+| Column | Type | หมายเหตุ |
+|---|---|---|
+| activity_id | text | **PK** (SA-xxxxxxxx) |
+| name | text | ชื่อกิจกรรม |
+| task | text | ชื่องานที่มอบหมาย |
+| max_score | number | คะแนนเต็ม |
+| year / date / note / created_at / updated_at | | |
+
+**SCOUT_SCORE** — คะแนนรายหมู่
+
+| Column | Type | หมายเหตุ |
+|---|---|---|
+| score_id | text | **PK** (SS-xxxxxxxx) |
+| activity_id | text | FK → SCOUT_ACTIVITY |
+| group_id | text | FK → SCOUT_GROUP |
+| score | number | ≤ คะแนนเต็มของกิจกรรม |
+| note / recorded_by / date / created_at | | |
+
+> Unique = (activity_id, group_id) — บันทึกซ้ำ = อัปเดต
+> **สมาชิกทุกคนในหมู่ได้คะแนนเท่ากัน** (เก็บคะแนนระดับหมู่ ไม่เก็บรายคน)
+
+---
+
 ## 8. ATTENDANCE — เช็คการมาเรียน
 
 | Column | Type | หมายเหตุ |

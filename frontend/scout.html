@@ -1,0 +1,198 @@
+<!doctype html>
+<html lang="th">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>คะแนนกิจกรรมลูกเสือ — โรงเรียนบ้านใหม่</title>
+<link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet">
+<link rel="stylesheet" href="css/style.css">
+<style>
+  .sc-table td, .sc-table th { padding:8px 10px; vertical-align:middle; }
+  .sc-input { width:100px; text-align:center; padding:7px 8px; font-size:16px; font-weight:700;
+    border:2px solid var(--border); border-radius:10px; font-family:inherit; }
+  .sc-input:focus { outline:none; border-color:var(--primary); }
+  .rank-medal { font-size:20px; }
+  .pick-list { max-height:340px; overflow:auto; border:1px solid var(--border); border-radius:12px; padding:6px 10px; }
+  .pick-row { display:flex; align-items:center; gap:10px; padding:6px 2px; border-bottom:1px solid var(--border); }
+  .pick-row:last-child { border-bottom:none; }
+  .pick-row input { width:18px; height:18px; }
+  .group-card { border:2px solid var(--border); border-radius:14px; padding:12px 14px; cursor:pointer; transition:all .15s; }
+  .group-card:hover { border-color:var(--primary); box-shadow:var(--shadow); }
+  .group-card.active { border-color:var(--primary-dark); background:var(--primary-light); }
+</style>
+</head>
+<body>
+
+<header class="app-header">
+  <a href="index.html" class="back">‹</a>
+  <span class="logo">⚜️</span>
+  <div>
+    <div class="title">คะแนนกิจกรรมลูกเสือ</div>
+    <div style="font-size:13px;opacity:.9">หมู่ลูกเสือ · กิจกรรม · คะแนน</div>
+  </div>
+</header>
+
+<main class="container">
+
+  <!-- ปีการศึกษา -->
+  <div class="card" style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">
+    <label style="margin:0">📅 ปีการศึกษา</label>
+    <select class="form-control" id="year-select" style="max-width:200px"></select>
+    <span class="text-muted" id="year-note" style="font-size:14px"></span>
+  </div>
+
+  <div class="tabs">
+    <button class="tab active" data-tab="dashboard">📊 แดชบอร์ด</button>
+    <button class="tab" data-tab="activity">🎯 สร้างกิจกรรม</button>
+    <button class="tab" data-tab="score">✍️ บันทึกคะแนน</button>
+    <button class="tab" data-tab="group">⚜️ หมู่ลูกเสือ</button>
+  </div>
+
+  <!-- ── แดชบอร์ด ── -->
+  <section class="tab-pane" id="tab-dashboard">
+    <div class="card">
+      <h3 class="card-title">📊 สรุปคะแนนรวมตามหมู่</h3>
+      <div class="stat-grid">
+        <div class="stat"><div class="label">จำนวนหมู่</div><div class="value" id="d-groups">-</div></div>
+        <div class="stat"><div class="label">กิจกรรมทั้งหมด</div><div class="value" id="d-acts">-</div></div>
+        <div class="stat"><div class="label">คะแนนเต็มรวม</div><div class="value" id="d-max">-</div></div>
+        <div class="stat"><div class="label">คะแนนที่ให้แล้ว</div><div class="value green" id="d-awarded">-</div></div>
+      </div>
+    </div>
+    <div class="card">
+      <h3 class="card-title">📈 กราฟคะแนนรวมแต่ละหมู่</h3>
+      <canvas id="d-chart" height="150"></canvas>
+    </div>
+    <div class="card">
+      <h3 class="card-title">🏆 อันดับคะแนน</h3>
+      <div id="d-table" class="text-muted">กำลังโหลด...</div>
+    </div>
+  </section>
+
+  <!-- ── สร้างกิจกรรม ── -->
+  <section class="tab-pane hidden" id="tab-activity">
+    <div class="card">
+      <h3 class="card-title">🎯 สร้าง / แก้ไขกิจกรรมให้คะแนน</h3>
+      <form id="act-form">
+        <input type="hidden" id="act-id">
+        <div class="form-group">
+          <label>ชื่อกิจกรรม</label>
+          <input class="form-control" id="act-name" placeholder="เช่น เดินทางไกลลูกเสือสำรอง">
+        </div>
+        <div class="form-group">
+          <label>ชื่องานที่มอบหมาย</label>
+          <input class="form-control" id="act-task" placeholder="เช่น ฐานผูกเงื่อน">
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label>คะแนนเต็ม</label>
+            <input class="form-control" id="act-max" type="number" min="1" step="1" placeholder="เช่น 20">
+          </div>
+          <div class="form-group">
+            <label>วันที่จัดกิจกรรม</label>
+            <input class="form-control" id="act-date" type="date">
+          </div>
+        </div>
+        <button class="btn btn-success" type="submit"><i class="bi bi-check-circle"></i> บันทึกกิจกรรม</button>
+        <button class="btn btn-secondary hidden" type="button" id="act-cancel">ยกเลิกแก้ไข</button>
+      </form>
+    </div>
+    <div class="card">
+      <h3 class="card-title">📋 กิจกรรมทั้งหมดในปีนี้</h3>
+      <div id="act-list" class="text-muted">กำลังโหลด...</div>
+    </div>
+  </section>
+
+  <!-- ── บันทึกคะแนน ── -->
+  <section class="tab-pane hidden" id="tab-score">
+    <div class="card">
+      <h3 class="card-title">✍️ บันทึกคะแนนตามหมู่</h3>
+      <div class="form-group">
+        <label>เลือกกิจกรรม</label>
+        <select class="form-control" id="sc-activity"><option value="">— เลือกกิจกรรม —</option></select>
+      </div>
+      <div class="form-group" style="max-width:320px">
+        <label>ผู้บันทึก</label>
+        <input class="form-control" id="sc-by" placeholder="ชื่อผู้ให้คะแนน">
+      </div>
+      <div class="alert alert-info" style="font-size:14px">💡 ให้คะแนน <strong>ต่อหมู่</strong> — สมาชิกทุกคนในหมู่จะได้รับคะแนนเท่ากันโดยอัตโนมัติ</div>
+      <div id="sc-info" class="hidden alert alert-success" style="font-size:14px"></div>
+      <div id="sc-table" class="text-muted">เลือกกิจกรรมเพื่อกรอกคะแนน</div>
+      <div id="sc-actions" class="hidden mt-2">
+        <button class="btn btn-success" id="sc-save"><i class="bi bi-check2-circle"></i> บันทึกคะแนน</button>
+        <button class="btn btn-secondary" id="sc-full"><i class="bi bi-award"></i> ให้คะแนนเต็มทุกหมู่</button>
+      </div>
+      <div id="sc-result" class="alert alert-success hidden mt-2"></div>
+    </div>
+  </section>
+
+  <!-- ── หมู่ลูกเสือ ── -->
+  <section class="tab-pane hidden" id="tab-group">
+    <div class="card">
+      <h3 class="card-title">⚜️ สร้าง / แก้ไขหมู่ลูกเสือ</h3>
+      <form id="grp-form">
+        <input type="hidden" id="grp-id">
+        <div class="form-row">
+          <div class="form-group">
+            <label>ชื่อหมู่</label>
+            <input class="form-control" id="grp-name" placeholder="เช่น หมู่เสือ">
+          </div>
+          <div class="form-group">
+            <label>หมายเหตุ (ไม่บังคับ)</label>
+            <input class="form-control" id="grp-note" placeholder="เช่น ลูกเสือสำรอง ป.4">
+          </div>
+        </div>
+        <button class="btn btn-success" type="submit"><i class="bi bi-plus-circle"></i> บันทึกหมู่</button>
+        <button class="btn btn-secondary hidden" type="button" id="grp-cancel">ยกเลิกแก้ไข</button>
+      </form>
+    </div>
+
+    <div class="card">
+      <h3 class="card-title">📋 หมู่ทั้งหมด (แตะเพื่อจัดการสมาชิก)</h3>
+      <div id="grp-list" class="menu-grid">กำลังโหลด...</div>
+    </div>
+
+    <!-- จัดการสมาชิก -->
+    <div class="card hidden" id="mem-panel">
+      <div class="flex" style="justify-content:space-between;flex-wrap:wrap;gap:8px">
+        <h3 class="card-title" style="margin:0" id="mem-title">สมาชิกในหมู่</h3>
+        <div>
+          <button class="btn btn-primary" id="mem-add-btn"><i class="bi bi-person-plus"></i> เพิ่มสมาชิก</button>
+          <button class="btn btn-danger" id="grp-del-btn"><i class="bi bi-trash"></i> ลบหมู่นี้</button>
+        </div>
+      </div>
+      <div id="mem-list" class="mt-2 text-muted">กำลังโหลด...</div>
+
+      <!-- ตัวเลือกนักเรียน -->
+      <div class="hidden mt-2" id="pick-panel" style="border-top:2px solid var(--border);padding-top:14px">
+        <h3 class="card-title">➕ เลือกนักเรียนเข้าหมู่ <span class="text-muted" style="font-size:13px;font-weight:400">(แสดงเฉพาะคนที่ยังไม่อยู่หมู่ใด)</span></h3>
+        <div class="form-row">
+          <div class="form-group">
+            <label>ค้นหา (ชื่อ/รหัส)</label>
+            <input class="form-control" id="pick-search" placeholder="พิมพ์เพื่อค้นหา">
+          </div>
+          <div class="form-group">
+            <label>ชั้น</label>
+            <select class="form-control" id="pick-grade"><option value="">ทุกชั้น</option></select>
+          </div>
+        </div>
+        <div id="pick-list" class="pick-list text-muted">กำลังโหลด...</div>
+        <div class="mt-2">
+          <button class="btn btn-success" id="pick-save"><i class="bi bi-check2"></i> เพิ่มที่เลือกเข้าหมู่</button>
+          <button class="btn btn-secondary" id="pick-cancel">ปิด</button>
+        </div>
+      </div>
+    </div>
+  </section>
+
+</main>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<script src="js/config.js"></script>
+<script src="js/auth.js"></script>
+<script src="js/api.js"></script>
+<script src="js/store.js"></script>
+<script src="js/utils.js"></script>
+<script src="js/modules/scout.js"></script>
+</body>
+</html>

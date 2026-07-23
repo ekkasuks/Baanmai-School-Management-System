@@ -61,6 +61,23 @@ const SHEETS = {
     // date = วัน "เคลียร์ถึง" (through-date); วันไม่มาที่ date > watermark = ยังค้าง
     headers: ['milk_id', 'date', 'citizen_id', 'boxes', 'type', 'note', 'recorded_by', 'created_at'],
   },
+  SCOUT_GROUP: {
+    name: 'SCOUT_GROUP',
+    headers: ['group_id', 'name', 'year', 'note', 'created_at', 'updated_at'],
+  },
+  SCOUT_MEMBER: {
+    name: 'SCOUT_MEMBER',
+    headers: ['member_id', 'group_id', 'citizen_id', 'created_at'],
+  },
+  SCOUT_ACTIVITY: {
+    name: 'SCOUT_ACTIVITY',
+    headers: ['activity_id', 'name', 'task', 'max_score', 'year', 'date', 'note', 'created_at', 'updated_at'],
+  },
+  SCOUT_SCORE: {
+    name: 'SCOUT_SCORE',
+    // 1 แถว = 1 (กิจกรรม × หมู่) — สมาชิกทุกคนในหมู่ได้คะแนนเท่ากันโดยปริยาย
+    headers: ['score_id', 'activity_id', 'group_id', 'score', 'note', 'recorded_by', 'date', 'created_at'],
+  },
   USERS: {
     name: 'USERS',
     headers: ['user_id', 'name', 'role', 'active', 'created_at'],

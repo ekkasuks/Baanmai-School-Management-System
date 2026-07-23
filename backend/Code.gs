@@ -43,6 +43,7 @@ function handle(req) {
     scholarship: ScholarshipAPI,
     attendance: AttendanceAPI,
     milk: MilkAPI,
+    scout: ScoutAPI,
     dashboard: DashboardAPI,
   };
 
