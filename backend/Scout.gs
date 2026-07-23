@@ -35,11 +35,16 @@ const ScoutAPI = {
         let maxTotal = 0;
         activities.forEach(function (a) { actIds[String(a.activity_id)] = true; maxTotal += Number(a.max_score) || 0; });
 
-        // นับสมาชิกต่อหมู่
-        const memberCount = {};
+        // นับสมาชิกต่อหมู่ + หาชื่อนายหมู่ (แสดงในวงเล็บท้ายชื่อหมู่บนตารางอันดับ)
+        const stIndex = buildIndex('STUDENTS', 'citizen_id');
+        const memberCount = {}, leaderOf = {};
         readAll('SCOUT_MEMBER').forEach(function (m) {
           const gid = String(m.group_id);
           memberCount[gid] = (memberCount[gid] || 0) + 1;
+          if (scoutRole(m.role) === 'leader') {
+            const s = stIndex[String(m.citizen_id)];
+            leaderOf[gid] = s ? studentName(s) : '';
+          }
         });
 
         // รวมคะแนนต่อหมู่ (เฉพาะกิจกรรมของปีนี้)
@@ -57,6 +62,7 @@ const ScoutAPI = {
           const total = Math.round((sums[gid] || 0) * 100) / 100;
           return {
             group_id: gid, name: g.name,
+            leader: leaderOf[gid] || '',
             members: memberCount[gid] || 0,
             total: total,
             scored_activities: scored[gid] || 0,

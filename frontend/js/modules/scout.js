@@ -79,15 +79,16 @@
     }
     const rows = d.groups.map(function (g) {
       const medal = g.rank <= 3 ? ['🥇', '🥈', '🥉'][g.rank - 1] : g.rank;
+      const leader = g.leader ? ' <span class="text-muted" style="font-weight:400;font-size:14px">(' + Utils.esc(g.leader) + ')</span>' : '';
       return '<tr><td style="text-align:center" class="rank-medal">' + medal + '</td>' +
-        '<td><strong>' + Utils.esc(g.name) + '</strong></td>' +
+        '<td><strong>' + Utils.esc(g.name) + '</strong>' + leader + '</td>' +
         '<td style="text-align:center">' + g.members + '</td>' +
         '<td style="text-align:center">' + g.scored_activities + '/' + d.activity_count + '</td>' +
         '<td style="text-align:right;font-weight:700;color:var(--green-dark);font-size:17px">' + Utils.fmtNumber(g.total, 0) + '</td>' +
         '<td style="text-align:right">' + Utils.fmtNumber(g.percent, 1) + '%</td></tr>';
     }).join('');
     host.innerHTML = '<div class="table-wrap"><table class="sc-table"><thead><tr>' +
-      '<th style="text-align:center">อันดับ</th><th>หมู่</th><th style="text-align:center">สมาชิก</th>' +
+      '<th style="text-align:center">อันดับ</th><th>หมู่ (นายหมู่)</th><th style="text-align:center">สมาชิก</th>' +
       '<th style="text-align:center">ให้คะแนนแล้ว</th><th style="text-align:right">คะแนนรวม</th><th style="text-align:right">คิดเป็น</th>' +
       '</tr></thead><tbody>' + rows + '</tbody></table></div>';
 
