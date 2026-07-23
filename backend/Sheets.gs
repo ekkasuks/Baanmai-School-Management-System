@@ -119,15 +119,29 @@ function getSheet(key) {
 }
 
 /** อ่านทุกแถวเป็น array ของ object (key = header) — cache 5 นาที */
+/**
+ * memo ระดับ execution — ใน 1 request ชีตเดียวกันจะอ่าน/แปลงจริงแค่ครั้งเดียว
+ * (เดิมทุกครั้งที่เรียก readAll จะยิง CacheService + JSON.parse ทั้งชีตใหม่)
+ * ⚠️ คืน "สำเนา array" เสมอ เพราะผู้เรียกบางจุด sort/reverse ต่อ — ถ้าคืนตัวเดิมจะไปสลับลำดับของ memo
+ */
+const _rowsMemo = {};
+
 function readAll(key) {
+  const memo = _rowsMemo[key];
+  if (memo) return memo.slice();
+
   const cache = CacheService.getScriptCache();
   const ckey = `sheet:${key}`;
   const cached = cache.get(ckey);
-  if (cached) return JSON.parse(cached);
+  if (cached) {
+    const rowsC = JSON.parse(cached);
+    _rowsMemo[key] = rowsC;
+    return rowsC.slice();
+  }
 
   const sh = getSheet(key);
   const lastRow = sh.getLastRow();
-  if (lastRow <= 1) return [];
+  if (lastRow <= 1) { _rowsMemo[key] = []; return []; }
   const headers = SHEETS[key].headers;
   const values = sh.getRange(2, 1, lastRow - 1, headers.length).getValues();
   const rows = values.map(function (row) {
@@ -137,10 +151,12 @@ function readAll(key) {
   });
 
   try { cache.put(ckey, JSON.stringify(rows), 300); } catch (e) { /* > 100kb: ข้าม cache */ }
-  return rows;
+  _rowsMemo[key] = rows;
+  return rows.slice();
 }
 
 function invalidateCache(key) {
+  delete _rowsMemo[key];              // สำคัญ: เขียนข้อมูลแล้วต้องล้าง memo ด้วย ไม่งั้นอ่านซ้ำได้ของเก่า
   const cache = CacheService.getScriptCache();
   cache.remove(`sheet:${key}`);
   // bump เวอร์ชันข้อมูล → cache ผลลัพธ์ที่คำนวณแล้ว (dashboard/summary) ที่อิงชีตนี้จะถือว่าเก่าทันที

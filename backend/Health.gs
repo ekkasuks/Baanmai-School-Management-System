@@ -143,6 +143,7 @@ const HealthAPI = {
   /** Dashboard — ผ่าน/ไม่ผ่านรายข้อ, ภาพรวม, รายชั้น, รายชื่อที่ไม่ผ่าน (ของวันที่ระบุ) */
   dashboard: function (params) {
     const date = (params && params.date) ? toYmd(params.date) : today();
+    return cachedResult('health.dash:' + date, ['HEALTH_CHECK', 'STUDENTS'], 90, function () {
     const stIndex = buildIndex('STUDENTS', 'citizen_id');
     const checks = readAll('HEALTH_CHECK').filter(function (c) { return toYmd(c.date) === date; });
 
@@ -192,5 +193,6 @@ const HealthAPI = {
       by_grade: byGrade,
       fail_list: failList,
     };
+    });
   },
 };

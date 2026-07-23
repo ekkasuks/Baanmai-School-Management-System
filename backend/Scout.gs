@@ -84,6 +84,7 @@ const ScoutAPI = {
   /** รายชื่อหมู่ + จำนวนสมาชิก */
   groups: function (params) {
     const year = scoutYear(params);
+    return cachedResult('scout.groups:' + year, ['SCOUT_GROUP', 'SCOUT_MEMBER', 'STUDENTS'], 90, function () {
     const stIndex = buildIndex('STUDENTS', 'citizen_id');
     const memberCount = {};
     const leaderOf = {}, deputyOf = {};
@@ -108,6 +109,7 @@ const ScoutAPI = {
       })
       .sort(function (a, b) { return String(a.name).localeCompare(String(b.name), 'th'); });
     return { year: year, groups: list };
+    });
   },
 
   /** สร้าง/แก้ไขหมู่ */
@@ -160,6 +162,7 @@ const ScoutAPI = {
   members: function (params) {
     const gid = String(params.group_id || '');
     if (!gid) apiError('VALIDATION', 'ไม่ได้ระบุหมู่');
+    return cachedResult('scout.members:' + gid, ['SCOUT_MEMBER', 'STUDENTS'], 90, function () {
     const stIndex = buildIndex('STUDENTS', 'citizen_id');
     const list = readAll('SCOUT_MEMBER')
       .filter(function (m) { return String(m.group_id) === gid; })
@@ -180,6 +183,7 @@ const ScoutAPI = {
         return d !== 0 ? d : String(a.name).localeCompare(String(b.name), 'th');
       });
     return { group_id: gid, members: list };
+    });
   },
 
   /**

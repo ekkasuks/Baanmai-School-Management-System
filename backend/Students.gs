@@ -106,6 +106,10 @@ const StudentsAPI = {
     const student = buildIndex('STUDENTS', 'citizen_id')[cid];
     if (!student) apiError('NOT_FOUND', 'ไม่พบนักเรียน');
 
+    return cachedResult('stu.profile:' + cid,
+      ['STUDENTS', 'BANK_BALANCE', 'BEHAVIOR_LOG', 'BEHAVIOR_MASTER', 'HEALTH_CHECK', 'ATTENDANCE', 'GROWTH', 'SCHOLARSHIP'],
+      90, function () {
+
     // ธนาคาร — ยอดคงเหลือ
     const balRow = buildIndex('BANK_BALANCE', 'citizen_id')[cid];
     const balance = balRow ? Number(balRow.balance) || 0 : 0;
@@ -178,6 +182,7 @@ const StudentsAPI = {
       growth: growth,
       scholarship: { year: curYear, year_total: Math.round(schYearTotal * 100) / 100, year_count: schYearCount, recent: schAll.slice(0, 5) },
     };
+    });
   },
 
   /** สถิติสรุป — ใช้ใน Dashboard ข้อมูลนักเรียน + Dashboard หลัก */

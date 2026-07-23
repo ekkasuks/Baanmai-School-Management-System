@@ -170,6 +170,7 @@ const GrowthAPI = {
 
   /** Dashboard — ใช้ค่า "ล่าสุด" ของแต่ละคน: เฉลี่ย BMI, การกระจาย, รายชั้น */
   dashboard: function () {
+    return cachedResult('growth.dash', ['GROWTH', 'STUDENTS'], 90, function () {
     const students = readAll('STUDENTS').filter(function (s) { return s.status !== 'inactive'; });
 
     // ค่าล่าสุดต่อคน
@@ -212,6 +213,7 @@ const GrowthAPI = {
       distribution: dist,
       by_grade: byGrade,
     };
+    });
   },
 };
 

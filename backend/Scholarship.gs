@@ -135,6 +135,7 @@ const ScholarshipAPI = {
   /** สรุปทุนในปี — รวมเงิน, จำนวนราย, จำนวนนักเรียน, รายชั้น, ผู้รับสูงสุด */
   dashboard: function (params) {
     const year = String((params && params.year) || SettingsAPI.get_raw('current_year') || '');
+    return cachedResult('sch.dash:' + year, ['SCHOLARSHIP', 'STUDENTS'], 90, function () {
     const stIndex = buildIndex('STUDENTS', 'citizen_id');
     const rows = readAll('SCHOLARSHIP').filter(function (r) { return String(r.year) === year; });
 
@@ -172,5 +173,6 @@ const ScholarshipAPI = {
       by_grade: byGrade,
       top: top,
     };
+    });
   },
 };

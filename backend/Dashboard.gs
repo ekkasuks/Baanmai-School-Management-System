@@ -7,6 +7,8 @@
 const DashboardAPI = {
 
   summary: function () {
+    return cachedResult('dash.summary',
+      ['STUDENTS', 'BANK_BALANCE', 'BEHAVIOR_LOG', 'HEALTH_CHECK', 'ATTENDANCE'], 90, function () {
     const students = readAll('STUDENTS').filter(function (s) { return s.status !== 'inactive'; });
     let male = 0, female = 0;
     students.forEach(function (s) {
@@ -72,5 +74,6 @@ const DashboardAPI = {
         present_rate: attChecked ? Math.round((counts['มา'] / attChecked) * 1000) / 10 : null,
       },
     };
+    });
   },
 };
