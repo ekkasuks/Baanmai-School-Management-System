@@ -283,6 +283,8 @@
         return '<div class="group-card" data-id="' + Utils.esc(g.group_id) + '" data-name="' + Utils.esc(g.name) + '">' +
           '<div style="font-weight:700;font-size:17px">⚜️ ' + Utils.esc(g.name) + '</div>' +
           '<div class="text-muted" style="font-size:13px">' + g.members + ' คน' + (g.note ? ' · ' + Utils.esc(g.note) : '') + '</div>' +
+          (g.leader ? '<div style="font-size:12px;color:#EF6C00;font-weight:600">นายหมู่: ' + Utils.esc(g.leader) + '</div>' : '') +
+          (g.deputy ? '<div style="font-size:12px;color:#0288D1;font-weight:600">รองนายหมู่: ' + Utils.esc(g.deputy) + '</div>' : '') +
           '</div>';
       }).join('');
       host.querySelectorAll('.group-card').forEach(function (c) {
@@ -337,16 +339,46 @@
       const d = await api('scout.members', { group_id: selGroup.group_id }, { silent: true, loading: false });
       if (!d.members.length) { host.innerHTML = '<div class="text-muted">ยังไม่มีสมาชิก — กด "เพิ่มสมาชิก"</div>'; return; }
       const rows = d.members.map(function (m) {
-        return '<tr><td>' + Utils.esc(m.name) + '</td><td style="text-align:center">' + Utils.esc(m.grade) + '/' + Utils.esc(m.room) + '</td>' +
+        const badge = m.role === 'leader' ? '<span class="role-badge lead">นายหมู่</span>'
+          : m.role === 'deputy' ? '<span class="role-badge dep">รองนายหมู่</span>' : '';
+        const roleBtn = function (role, label) {
+          const on = m.role === role;
+          return '<button class="role-btn' + (on ? ' on-' + role : '') + '" data-cid="' + Utils.esc(m.citizen_id) +
+            '" data-role="' + role + '" data-on="' + (on ? '1' : '') + '" title="' +
+            (on ? 'กดเพื่อยกเลิกตำแหน่ง' : 'กดเพื่อกำหนดเป็น' + label) + '">' + label + '</button>';
+        };
+        return '<tr><td>' + Utils.esc(m.name) + badge + '</td>' +
+          '<td style="text-align:center">' + Utils.esc(m.grade) + '/' + Utils.esc(m.room) + '</td>' +
           '<td style="text-align:center">' + Utils.esc(m.student_code) + '</td>' +
+          '<td style="text-align:center;white-space:nowrap">' + roleBtn('leader', 'นายหมู่') + roleBtn('deputy', 'รองนายหมู่') + '</td>' +
           '<td style="text-align:right"><button class="btn btn-danger mem-del" data-cid="' + Utils.esc(m.citizen_id) + '" style="padding:3px 10px;font-size:13px"><i class="bi bi-x-lg"></i></button></td></tr>';
       }).join('');
-      host.innerHTML = '<div class="text-muted" style="margin-bottom:6px">ทั้งหมด ' + d.members.length + ' คน</div>' +
-        '<div class="table-wrap"><table class="sc-table"><thead><tr><th>ชื่อ</th><th style="text-align:center">ชั้น</th><th style="text-align:center">รหัส</th><th></th></tr></thead><tbody>' + rows + '</tbody></table></div>';
+      host.innerHTML = '<div class="text-muted" style="margin-bottom:6px">ทั้งหมด ' + d.members.length + ' คน · ' +
+        'นายหมู่แสดงเป็นลำดับแรก · รองนายหมู่แสดงลำดับสุดท้าย</div>' +
+        '<div class="table-wrap"><table class="sc-table"><thead><tr><th>ชื่อ</th><th style="text-align:center">ชั้น</th><th style="text-align:center">รหัส</th><th style="text-align:center">กำหนดตำแหน่ง</th><th></th></tr></thead><tbody>' + rows + '</tbody></table></div>';
       host.querySelectorAll('.mem-del').forEach(function (b) {
         b.onclick = function () { removeMember(b.dataset.cid); };
       });
+      host.querySelectorAll('.role-btn').forEach(function (b) {
+        b.onclick = function () { setRole(b.dataset.cid, b.dataset.role, !!b.dataset.on); };
+      });
     } catch (e) { host.innerHTML = '<div class="alert alert-danger">' + Utils.esc(e.message) + '</div>'; }
+  }
+
+  /** กำหนด/ยกเลิกตำแหน่งนายหมู่-รองนายหมู่ (กดซ้ำที่ปุ่มเดิม = ยกเลิก) */
+  async function setRole(cid, role, isOn) {
+    if (!selGroup) return;
+    const label = role === 'leader' ? 'นายหมู่' : 'รองนายหมู่';
+    try {
+      await api('scout.member_role', {
+        group_id: selGroup.group_id, citizen_id: cid,
+        role: isOn ? '' : role, recorded_by: 'admin',
+      }, { loadingMsg: 'กำลังบันทึกตำแหน่ง...' });
+      Toast.show(isOn ? 'ยกเลิกตำแหน่ง' + label + 'แล้ว' : 'กำหนด' + label + 'เรียบร้อย', 'success');
+      clearCache();
+      loadMembers();   // โหลดใหม่ → เรียงนายหมู่ขึ้นบนสุด / รองนายหมู่ล่างสุด
+      loadGroups();
+    } catch (e) { /* Toast แสดงแล้ว */ }
   }
 
   async function removeMember(cid) {

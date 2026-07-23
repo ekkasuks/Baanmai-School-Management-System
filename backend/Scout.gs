@@ -84,17 +84,26 @@ const ScoutAPI = {
   /** รายชื่อหมู่ + จำนวนสมาชิก */
   groups: function (params) {
     const year = scoutYear(params);
+    const stIndex = buildIndex('STUDENTS', 'citizen_id');
     const memberCount = {};
+    const leaderOf = {}, deputyOf = {};
     readAll('SCOUT_MEMBER').forEach(function (m) {
       const gid = String(m.group_id);
       memberCount[gid] = (memberCount[gid] || 0) + 1;
+      const r = scoutRole(m.role);
+      if (!r) return;
+      const s = stIndex[String(m.citizen_id)];
+      const nm = s ? studentName(s) : '';
+      if (r === 'leader') leaderOf[gid] = nm; else deputyOf[gid] = nm;
     });
     const list = readAll('SCOUT_GROUP')
       .filter(function (g) { return String(g.year) === year; })
       .map(function (g) {
+        const gid = String(g.group_id);
         return {
           group_id: g.group_id, name: g.name, year: String(g.year), note: g.note,
-          members: memberCount[String(g.group_id)] || 0,
+          members: memberCount[gid] || 0,
+          leader: leaderOf[gid] || '', deputy: deputyOf[gid] || '',
         };
       })
       .sort(function (a, b) { return String(a.name).localeCompare(String(b.name), 'th'); });
@@ -144,7 +153,10 @@ const ScoutAPI = {
     return { ok: true };
   },
 
-  /** สมาชิกในหมู่ (พร้อมข้อมูลนักเรียน) */
+  /**
+   * สมาชิกในหมู่ (พร้อมข้อมูลนักเรียน)
+   * ลำดับ: นายหมู่ (บนสุด) → สมาชิกทั่วไป (ชั้น→ชื่อ) → รองนายหมู่ (ล่างสุด)
+   */
   members: function (params) {
     const gid = String(params.group_id || '');
     if (!gid) apiError('VALIDATION', 'ไม่ได้ระบุหมู่');
@@ -157,13 +169,56 @@ const ScoutAPI = {
           member_id: m.member_id, citizen_id: m.citizen_id,
           name: s ? studentName(s) : '(ไม่พบนักเรียน)',
           student_code: s ? s.student_code : '', grade: s ? s.grade : '', room: s ? s.room : '',
+          role: scoutRole(m.role),
+          role_label: SCOUT_ROLE_LABEL[scoutRole(m.role)] || '',
         };
       })
       .sort(function (a, b) {
+        const ra = scoutRoleOrder(a.role), rb = scoutRoleOrder(b.role);
+        if (ra !== rb) return ra - rb;
         const d = gradeSortKey(a.grade) - gradeSortKey(b.grade);
         return d !== 0 ? d : String(a.name).localeCompare(String(b.name), 'th');
       });
     return { group_id: gid, members: list };
+  },
+
+  /**
+   * กำหนด/ยกเลิกตำแหน่งในหมู่ — 1 หมู่มีนายหมู่ 1 คน และรองนายหมู่ 1 คน
+   * params = { group_id, citizen_id, role: 'leader'|'deputy'|'' }
+   */
+  member_role: function (params) {
+    const gid = String(params.group_id || '');
+    const cid = String(params.citizen_id || '');
+    const role = scoutRole(params.role);
+    if (!gid || !cid) apiError('VALIDATION', 'ข้อมูลไม่ครบ');
+    if (params.role && !role) apiError('VALIDATION', 'ตำแหน่งไม่ถูกต้อง');
+
+    const sh = getSheet('SCOUT_MEMBER');
+    const headers = SHEETS.SCOUT_MEMBER.headers;
+    const lastRow = sh.getLastRow();
+    if (lastRow <= 1) apiError('NOT_FOUND', 'ไม่พบสมาชิกในหมู่นี้');
+
+    const gIdx = headers.indexOf('group_id');
+    const cIdx = headers.indexOf('citizen_id');
+    const rIdx = headers.indexOf('role');
+    const values = sh.getRange(2, 1, lastRow - 1, headers.length).getValues();
+
+    let targetRow = -1;
+    const clearRows = [];
+    for (let i = 0; i < values.length; i++) {
+      if (String(values[i][gIdx]) !== gid) continue;
+      if (String(values[i][cIdx]) === cid) { targetRow = i + 2; continue; }
+      // ตั้งตำแหน่งใหม่ → ปลดคนเดิมที่ถือตำแหน่งเดียวกันในหมู่นี้
+      if (role && scoutRole(values[i][rIdx]) === role) clearRows.push(i + 2);
+    }
+    if (targetRow < 0) apiError('NOT_FOUND', 'ไม่พบสมาชิกในหมู่นี้');
+
+    clearRows.forEach(function (r) { sh.getRange(r, rIdx + 1).setValue(''); });
+    sh.getRange(targetRow, rIdx + 1).setValue(role);
+    invalidateCache('SCOUT_MEMBER');
+
+    audit('scout', 'MEMBER_ROLE', gid, { citizen_id: cid, role: role || '(ยกเลิก)' }, params.recorded_by);
+    return { ok: true, role: role, role_label: SCOUT_ROLE_LABEL[role] || '' };
   },
 
   /**
@@ -463,6 +518,20 @@ const ScoutAPI = {
 };
 
 /* ── helpers ── */
+
+const SCOUT_ROLE_LABEL = { leader: 'นายหมู่', deputy: 'รองนายหมู่' };
+
+/** normalize ค่า role → 'leader' | 'deputy' | '' */
+function scoutRole(v) {
+  const s = String(v || '').trim();
+  return (s === 'leader' || s === 'deputy') ? s : '';
+}
+
+/** ลำดับการแสดง: นายหมู่ 0 → สมาชิก 1 → รองนายหมู่ 2 */
+function scoutRoleOrder(role) {
+  const r = scoutRole(role);
+  return r === 'leader' ? 0 : r === 'deputy' ? 2 : 1;
+}
 
 /** ปีการศึกษาที่ใช้งาน (จาก params หรือ SETTINGS.current_year) */
 function scoutYear(params) {

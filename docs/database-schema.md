@@ -191,6 +191,9 @@
 | group_id | text | FK → SCOUT_GROUP |
 | citizen_id | text(13) | FK → STUDENTS · 1 คน อยู่ได้ 1 หมู่/ปี |
 | created_at | datetime | |
+| role | text | `''` สมาชิก / `leader` นายหมู่ / `deputy` รองนายหมู่ — อย่างละ 1 คน/หมู่ |
+
+> ลำดับแสดงสมาชิก: **นายหมู่ (บนสุด) → สมาชิกทั่วไป (ชั้น→ชื่อ) → รองนายหมู่ (ล่างสุด)**
 
 **SCOUT_ACTIVITY** — กิจกรรมให้คะแนน
 

@@ -67,7 +67,8 @@ const SHEETS = {
   },
   SCOUT_MEMBER: {
     name: 'SCOUT_MEMBER',
-    headers: ['member_id', 'group_id', 'citizen_id', 'created_at'],
+    // role: '' (สมาชิก) | 'leader' (นายหมู่) | 'deputy' (รองนายหมู่) — 1 ตำแหน่ง/หมู่
+    headers: ['member_id', 'group_id', 'citizen_id', 'created_at', 'role'],
   },
   SCOUT_ACTIVITY: {
     name: 'SCOUT_ACTIVITY',
@@ -105,6 +106,14 @@ function getSheet(key) {
     sh.setFrozenRows(1);
     sh.getRange(1, 1, 1, def.headers.length)
       .setBackground('#4FC3F7').setFontColor('#FFFFFF').setFontWeight('bold');
+  } else {
+    // มีคอลัมน์ใหม่เพิ่มใน schema ภายหลัง → เติมเฉพาะหัวตารางที่ยังขาด (ไม่แตะข้อมูล/หัวเดิม)
+    const lastCol = sh.getLastColumn();
+    if (lastCol > 0 && lastCol < def.headers.length) {
+      sh.getRange(1, lastCol + 1, 1, def.headers.length - lastCol)
+        .setValues([def.headers.slice(lastCol)])
+        .setBackground('#4FC3F7').setFontColor('#FFFFFF').setFontWeight('bold');
+    }
   }
   return sh;
 }

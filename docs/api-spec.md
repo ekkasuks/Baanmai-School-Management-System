@@ -52,6 +52,7 @@
 | `scout.years` / `scout.dashboard` | — | ลูกเสือ: ปีการศึกษา · สรุปคะแนนรวมตามหมู่ (+อันดับ/กราฟ) |
 | `scout.groups` / `scout.group_save` / `scout.group_delete` | — | สร้าง/แก้ไข/ลบหมู่ลูกเสือ |
 | `scout.members` / `scout.available_students` / `scout.member_add` / `scout.member_remove` | — | จัดการสมาชิกในหมู่ (เลือกจากทะเบียนนักเรียน) |
+| `scout.member_role` | — | กำหนด/ยกเลิก นายหมู่ (`leader`) · รองนายหมู่ (`deputy`) — อย่างละ 1 คน/หมู่ |
 | `scout.activities` / `scout.activity_save` / `scout.activity_delete` | — | กิจกรรม: ชื่อกิจกรรม · งานที่มอบหมาย · คะแนนเต็ม |
 | `scout.score_sheet` / `scout.score_save` / `scout.group_detail` | — | บันทึกคะแนนรายหมู่ (upsert activity+group) · รายละเอียดรายหมู่ |
 | `dashboard.summary` | — | Dashboard หลัก (รวมตัวเลขทุกโมดูล อ่าน sheet ตรง ไม่ผ่าน PIN) |
