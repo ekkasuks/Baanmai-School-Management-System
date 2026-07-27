@@ -14,7 +14,7 @@
 - [~] **Step 10.5** Module เสริม — การเจริญเติบโต (Growth): บันทึกน้ำหนัก/ส่วนสูงรายชั้น → คำนวณ BMI + **แปลผลตามเกณฑ์ WHO BMI-for-age z-score** (LMS จากไฟล์ทางการ WHO 0-5 + 5-19 ปี · `GrowthData.gs`/`growth-lms.js` · ตรวจสอบ z ที่เส้น SD ตรงทุกจุด), ภาพรวม (การกระจาย 5 ระดับ/รายชั้น), รายบุคคล (กราฟแนวโน้ม) · เพิ่ม sheet GROWTH (+zscore) — โค้ดเสร็จ → รอ deploy
 - [~] **Step 10** Dashboard หลัก — `dashboard.summary` (ไม่ใช้ PIN): นักเรียน·เงินฝากรวม·คะแนนพฤติกรรมเฉลี่ย·ตรวจสุขภาพล่าสุด·มาเรียนวันนี้ → แสดงบน index.html — โค้ดเสร็จ → รอ deploy
 - [x] **Step 11** GitHub Actions workflow + Deploy GitHub Pages → [deploy.yml](../.github/workflows/deploy.yml)
-- [ ] **Step 12** คู่มือใช้งาน
+- [x] **Step 12** คู่มือใช้งาน — หน้า [help.html](../frontend/help.html) อธิบายทุกเมนูแบบทีละขั้นตอน (collapsible + ทางลัด) + เมนูหน้าหลัก
 
 ## Definition of Done (แต่ละ Module)
 

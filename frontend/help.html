@@ -1,0 +1,280 @@
+<!doctype html>
+<html lang="th">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>คู่มือการใช้งาน — โรงเรียนบ้านใหม่</title>
+<link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet">
+<link rel="stylesheet" href="css/style.css">
+<style>
+  .nav-grid { display:grid; gap:10px; grid-template-columns:repeat(auto-fill,minmax(160px,1fr)); }
+  .nav-chip { display:flex; align-items:center; gap:8px; padding:11px 14px; border:2px solid var(--border);
+    border-radius:12px; color:var(--ink); font-weight:600; font-size:15px; background:#fff; transition:all .15s; }
+  .nav-chip:hover { border-color:var(--primary); transform:translateY(-2px); box-shadow:var(--shadow); }
+  .nav-chip i { font-size:20px; color:var(--primary-dark); }
+
+  details.guide { border:2px solid var(--border); border-radius:var(--radius); margin-bottom:14px; background:#fff; overflow:hidden; }
+  details.guide[open] { border-color:var(--primary); }
+  details.guide > summary { cursor:pointer; list-style:none; padding:16px 18px; display:flex; align-items:center; gap:12px;
+    font-size:17px; font-weight:700; color:var(--ink); }
+  details.guide > summary::-webkit-details-marker { display:none; }
+  details.guide > summary .ico { font-size:24px; color:var(--primary-dark); width:30px; text-align:center; }
+  details.guide > summary .chev { margin-left:auto; color:var(--muted); transition:transform .2s; }
+  details.guide[open] > summary .chev { transform:rotate(180deg); }
+  details.guide > summary:hover { background:var(--primary-light); }
+  .guide-body { padding:4px 20px 18px; border-top:1px solid var(--border); }
+  .guide-body h4 { font-size:15px; color:var(--primary-dark); margin:14px 0 6px; }
+  .guide-body ol, .guide-body ul { margin:0 0 8px; padding-left:22px; }
+  .guide-body li { margin-bottom:6px; line-height:1.7; }
+  .guide-body .tip { background:#FFF8E1; border:1px solid #FFE0B2; color:#8a5a00; border-radius:10px;
+    padding:9px 13px; font-size:14px; margin:10px 0; }
+  .guide-body .warn { background:#FFEBEE; border:1px solid #FFCDD2; color:#C62828; border-radius:10px;
+    padding:9px 13px; font-size:14px; margin:10px 0; }
+  .kbd { background:var(--primary-light); color:var(--primary-dark); border-radius:6px; padding:1px 8px; font-weight:700; font-size:14px; white-space:nowrap; }
+  .step-tabs { color:var(--muted); font-size:14px; }
+</style>
+</head>
+<body>
+
+<header class="app-header">
+  <a href="index.html" class="back">‹</a>
+  <span class="logo">📖</span>
+  <div>
+    <div class="title">คู่มือการใช้งาน</div>
+    <div style="font-size:13px;opacity:.9">วิธีใช้แต่ละเมนูแบบทีละขั้นตอน</div>
+  </div>
+</header>
+
+<main class="container">
+
+  <!-- ── เริ่มต้น ── -->
+  <div class="card">
+    <h3 class="card-title">👋 เริ่มต้นใช้งาน</h3>
+    <p style="margin:0 0 8px">ระบบนี้ใช้ผ่าน <strong>เว็บเบราว์เซอร์</strong> ได้ทั้งคอมพิวเตอร์ แท็บเล็ต และมือถือ — เปิดหน้าหลักแล้วแตะเมนูที่ต้องการใช้ได้เลย</p>
+    <ul style="margin:0;padding-left:22px">
+      <li>ข้อมูลทั้งหมดเก็บบน Google Sheets อัตโนมัติ — บันทึกแล้วไม่ต้องกด Save ซ้ำ</li>
+      <li>เมนูที่มีสัญลักษณ์ <span class="kbd">PIN</span> ต้องกรอกรหัสก่อนใช้ (ถ้ามี)</li>
+      <li>ถ้าข้อมูลดูไม่อัปเดต ให้ <strong>รีเฟรชหน้า</strong> (ดึงลงใหม่ หรือกด <span class="kbd">Ctrl</span>+<span class="kbd">R</span>)</li>
+    </ul>
+  </div>
+
+  <!-- ── ทางลัด ── -->
+  <div class="card">
+    <h3 class="card-title">🧭 ไปยังคู่มือของเมนู</h3>
+    <div class="nav-grid">
+      <a class="nav-chip" href="#m-attendance"><i class="bi bi-calendar-check-fill"></i> เช็คการมาเรียน</a>
+      <a class="nav-chip" href="#m-bank"><i class="bi bi-piggy-bank-fill"></i> ธนาคารโรงเรียน</a>
+      <a class="nav-chip" href="#m-scholarship"><i class="bi bi-mortarboard-fill"></i> ทุนการศึกษา</a>
+      <a class="nav-chip" href="#m-behavior"><i class="bi bi-star-fill"></i> พฤติกรรม</a>
+      <a class="nav-chip" href="#m-scout"><i class="bi bi-flag-fill"></i> กิจกรรมลูกเสือ</a>
+      <a class="nav-chip" href="#m-milk"><i class="bi bi-cup-straw"></i> นมโรงเรียน</a>
+      <a class="nav-chip" href="#m-health"><i class="bi bi-heart-pulse-fill"></i> ตรวจสุขภาพ</a>
+      <a class="nav-chip" href="#m-growth"><i class="bi bi-rulers"></i> การเจริญเติบโต</a>
+      <a class="nav-chip" href="#m-students"><i class="bi bi-people-fill"></i> ข้อมูลนักเรียน</a>
+      <a class="nav-chip" href="#m-settings"><i class="bi bi-gear-fill"></i> ตั้งค่าระบบ</a>
+    </div>
+    <div class="text-muted" style="font-size:13px;margin-top:10px">แตะที่หัวข้อด้านล่างเพื่อเปิด/ปิดรายละเอียด</div>
+  </div>
+
+  <!-- ══════ เช็คการมาเรียน ══════ -->
+  <details class="guide" id="m-attendance">
+    <summary><span class="ico">📋</span> เช็คการมาเรียน <i class="bi bi-chevron-down chev"></i></summary>
+    <div class="guide-body">
+      <p class="step-tabs">แท็บ: สรุปรายวัน · เช็คชื่อ · ภาพรวม · ประวัติ</p>
+      <h4>เช็คชื่อรายชั้น</h4>
+      <ol>
+        <li>ไปแท็บ <strong>เช็คชื่อ</strong> → เลือก <strong>วันที่</strong> และ <strong>ชั้นเรียน</strong></li>
+        <li>รายชื่อนักเรียนจะขึ้นมา โดยตั้งค่าเริ่มต้นเป็น <strong>“มา”</strong> ทุกคน</li>
+        <li>แตะปุ่มสถานะของคนที่ไม่มา เพื่อเปลี่ยนเป็น <strong>ขาด / ลา / สาย</strong></li>
+        <li>ใส่ชื่อผู้บันทึก แล้วกด <strong>บันทึกการเช็คชื่อ</strong></li>
+      </ol>
+      <div class="tip">💡 ปุ่ม “ตั้งทุกคนเป็นมา” ช่วยรีเซ็ตทั้งห้องกลับเป็นมาได้เร็ว · เช็คชื่อซ้ำวันเดิม = อัปเดต ไม่เพิ่มซ้ำ</div>
+      <h4>ดูสรุป / ประวัติ</h4>
+      <ul>
+        <li><strong>สรุปรายวัน</strong> — ตารางมา/ขาด/ลา/สาย แยกชั้น พร้อม Export PDF</li>
+        <li><strong>ภาพรวม</strong> — กราฟ + รายชื่อที่ไม่มาของวันที่เลือก</li>
+        <li><strong>ประวัติ</strong> — ค้นย้อนหลังตามช่วงวันที่/ชั้น/สถานะ</li>
+      </ul>
+    </div>
+  </details>
+
+  <!-- ══════ ธนาคารโรงเรียน ══════ -->
+  <details class="guide" id="m-bank">
+    <summary><span class="ico">🐷</span> ธนาคารโรงเรียน <i class="bi bi-chevron-down chev"></i></summary>
+    <div class="guide-body">
+      <p class="step-tabs">แท็บ: ภาพรวม · ฝาก/ถอน · ประวัติ · สมุดบัญชี · นิสัยออม</p>
+      <h4>ฝาก / ถอนเงิน</h4>
+      <ol>
+        <li>ไปแท็บ <strong>ฝาก/ถอน</strong> → เลือกชั้นเรียน → แตะชื่อนักเรียน</li>
+        <li>กรอกจำนวนเงินและผู้บันทึก</li>
+        <li>กด <strong>ฝากเงิน</strong> (สีเขียว) หรือ <strong>ถอนเงิน</strong> (สีส้ม)</li>
+        <li>กด <strong>พิมพ์สลิป</strong> เพื่อออกสลิป PDF ได้ทันที</li>
+      </ol>
+      <div class="warn">⚠️ ถอนเกินยอดคงเหลือไม่ได้ — ระบบจะแจ้งเตือนและไม่บันทึก</div>
+      <h4>อื่น ๆ</h4>
+      <ul>
+        <li><strong>สมุดบัญชี</strong> — พิมพ์ชื่อ/รหัสค้นหา → ดูรายการเข้า-ออกทั้งหมด + Export PDF</li>
+        <li><strong>นิสัยออม</strong> — จัดอันดับความถี่การฝากรายเดือน (ส่งเสริมการออม)</li>
+      </ul>
+    </div>
+  </details>
+
+  <!-- ══════ ทุนการศึกษา ══════ -->
+  <details class="guide" id="m-scholarship">
+    <summary><span class="ico">🎓</span> ทุนการศึกษา <i class="bi bi-chevron-down chev"></i></summary>
+    <div class="guide-body">
+      <p class="step-tabs">เลือกปีการศึกษาด้านบน · แท็บ: บันทึก · ภาพรวม · ประวัติ</p>
+      <h4>บันทึกการรับทุน</h4>
+      <ol>
+        <li>เลือก <strong>ปีการศึกษา</strong> ด้านบน</li>
+        <li>แท็บ <strong>บันทึก</strong> → เลือกชั้น → แตะชื่อนักเรียน</li>
+        <li>กรอก <strong>ชื่อทุน</strong>, <strong>จำนวนเงิน</strong>, <strong>วันที่ได้รับ</strong> แล้วกด บันทึกทุน</li>
+        <li>บันทึกได้หลายทุนต่อคน · ลบรายการได้จากตารางด้านล่าง</li>
+      </ol>
+      <h4>ดูสรุป</h4>
+      <ul>
+        <li><strong>ภาพรวม</strong> — เงินทุนรวม, สรุปรายชั้น, นักเรียนที่ได้รับทุนสูงสุด</li>
+        <li>ยอดทุนของนักเรียนแต่ละคนจะไปแสดงในหน้า <strong>ข้อมูลนักเรียน</strong> ด้วย</li>
+      </ul>
+    </div>
+  </details>
+
+  <!-- ══════ พฤติกรรม ══════ -->
+  <details class="guide" id="m-behavior">
+    <summary><span class="ico">⭐</span> พฤติกรรมนักเรียน <i class="bi bi-chevron-down chev"></i></summary>
+    <div class="guide-body">
+      <p class="step-tabs">เลือกเดือนด้านบน · แท็บ: ภาพรวม · บันทึก · อันดับ · ประวัติ · รายการพฤติกรรม</p>
+      <h4>หลักการให้คะแนน</h4>
+      <ul>
+        <li>ทุกคนเริ่มต้น <strong>20 คะแนน</strong> ทุกเดือน (ขึ้นเดือนใหม่รีเซ็ตเป็น 20 อัตโนมัติ)</li>
+        <li>คะแนนเพิ่ม/ลด ตามรายการที่บันทึก</li>
+      </ul>
+      <h4>บันทึกพฤติกรรม</h4>
+      <ol>
+        <li>แท็บ <strong>บันทึก</strong> → เลือกชั้น → แตะชื่อนักเรียน</li>
+        <li>แตะปุ่มรายการพฤติกรรม (สีเขียว = เพิ่ม, สีส้ม = หัก) — คะแนนอัปเดตทันที</li>
+      </ol>
+      <div class="tip">💡 ตั้งรายการพฤติกรรมเองได้ที่แท็บ <strong>รายการพฤติกรรม</strong> (เพิ่ม/หัก, กำหนดคะแนน) · แท็บ <strong>อันดับ</strong> Export PDF ได้</div>
+    </div>
+  </details>
+
+  <!-- ══════ ลูกเสือ ══════ -->
+  <details class="guide" id="m-scout">
+    <summary><span class="ico">⚜️</span> กิจกรรมลูกเสือ <i class="bi bi-chevron-down chev"></i></summary>
+    <div class="guide-body">
+      <p class="step-tabs">เลือกปีด้านบน · แท็บ: แดชบอร์ด · สร้างกิจกรรม · บันทึกคะแนน · หมู่ลูกเสือ</p>
+      <h4>ลำดับการใช้งานครั้งแรก</h4>
+      <ol>
+        <li><strong>สร้างหมู่ลูกเสือ</strong> (แท็บ หมู่ลูกเสือ) → พิมพ์ชื่อหมู่ → บันทึกหมู่</li>
+        <li>แตะการ์ดหมู่ → กด <strong>เพิ่มสมาชิก</strong> → เลือกนักเรียนจากรายชื่อเข้าหมู่</li>
+        <li>ที่ท้ายชื่อสมาชิก กดปุ่ม <strong>นายหมู่</strong> / <strong>รองนายหมู่</strong> เพื่อกำหนดตำแหน่ง</li>
+        <li><strong>สร้างกิจกรรม</strong> → ใส่ชื่อกิจกรรม, งานที่มอบหมาย, คะแนนเต็ม</li>
+        <li><strong>บันทึกคะแนน</strong> → เลือกกิจกรรม → กรอกคะแนนของแต่ละหมู่</li>
+      </ol>
+      <div class="tip">💡 ให้คะแนน “ต่อหมู่” — สมาชิกทุกคนในหมู่ได้คะแนนเท่ากันอัตโนมัติ · นายหมู่จะขึ้นชื่อแรก, รองนายหมู่ขึ้นชื่อสุดท้าย · <strong>แดชบอร์ด</strong> แสดงอันดับคะแนนรวม + ชื่อนายหมู่ในวงเล็บ</div>
+    </div>
+  </details>
+
+  <!-- ══════ นมโรงเรียน ══════ -->
+  <details class="guide" id="m-milk">
+    <summary><span class="ico">🥛</span> นมโรงเรียน <i class="bi bi-chevron-down chev"></i></summary>
+    <div class="guide-body">
+      <h4>แนวคิด</h4>
+      <ul>
+        <li>นักเรียนได้รับนมคนละ <strong>1 กล่อง/วัน</strong></li>
+        <li>วันที่ <strong>ขาด/ลา</strong> (จากการเช็คชื่อ) = ยังไม่ได้รับนม → ค้างสะสม</li>
+        <li>(มาสาย = ถือว่ามาโรงเรียน ได้รับนมตามปกติ)</li>
+      </ul>
+      <h4>จ่ายนมค้าง</h4>
+      <ol>
+        <li>หน้าแรกแสดงจำนวนนักเรียนและกล่องนมที่ค้าง แยกตามชั้น</li>
+        <li>เมื่อจ่ายนมค้างให้นักเรียนแล้ว กด <strong>“ได้รับนมแล้ว”</strong> เพื่อเคลียร์ยอดของคนนั้น</li>
+      </ol>
+      <div class="warn">⚠️ ปุ่ม “ล้างทั้งโรงเรียน” จะถือว่านมค้างก่อนวันนี้จัดการหมดแล้ว — ใช้เมื่อเริ่มนับใหม่เท่านั้น</div>
+    </div>
+  </details>
+
+  <!-- ══════ ตรวจสุขภาพ ══════ -->
+  <details class="guide" id="m-health">
+    <summary><span class="ico">🩺</span> ตรวจสุขภาพ <i class="bi bi-chevron-down chev"></i></summary>
+    <div class="guide-body">
+      <p class="step-tabs">แท็บ: บันทึกผลตรวจ · ภาพรวม · ประวัติ</p>
+      <h4>บันทึกผลตรวจรายชั้น</h4>
+      <ol>
+        <li>เลือกวันที่ตรวจ และชั้นเรียน</li>
+        <li>แต่ละคนมี 5 ช่อง: <strong>ผม · เล็บ · แก้วน้ำ · แปรงสีฟัน · ยาสีฟัน</strong> — ค่าเริ่มต้น “ผ่าน” (สีเขียว)</li>
+        <li>แตะช่องที่ <strong>ไม่ผ่าน</strong> ให้เป็นสีแดง แล้วกด บันทึกผลตรวจทั้งห้อง</li>
+      </ol>
+      <div class="tip">💡 “ตั้งทุกคนเป็นผ่าน” ช่วยกรอกเร็ว · ภาพรวมมีกราฟรายข้อ + รายชื่อที่ไม่ผ่าน + Export PDF</div>
+    </div>
+  </details>
+
+  <!-- ══════ การเจริญเติบโต ══════ -->
+  <details class="guide" id="m-growth">
+    <summary><span class="ico">📏</span> การเจริญเติบโต (BMI) <i class="bi bi-chevron-down chev"></i></summary>
+    <div class="guide-body">
+      <p class="step-tabs">แท็บ: บันทึก · ภาพรวม · รายชั้น · รายบุคคล</p>
+      <h4>บันทึกน้ำหนัก/ส่วนสูง</h4>
+      <ol>
+        <li>เลือกวันที่และชั้นเรียน</li>
+        <li>กรอกน้ำหนัก (กก.) และส่วนสูง (ซม.) ของแต่ละคน</li>
+        <li>ระบบคำนวณ <strong>BMI + แปลผลตามเกณฑ์ WHO</strong> (ตามเพศและอายุ) ให้อัตโนมัติ</li>
+      </ol>
+      <div class="tip">💡 แปลผลเป็น ผอมมาก / ผอม / สมส่วน / น้ำหนักเกิน / อ้วน · แท็บ <strong>รายบุคคล</strong> มีกราฟแนวโน้ม BMI ตามเวลา</div>
+      <div class="warn">⚠️ นักเรียนที่ยังไม่มีวันเกิดในระบบ จะคำนวณแปลผลไม่ได้ — เติมวันเกิดได้ที่เมนูข้อมูลนักเรียน</div>
+    </div>
+  </details>
+
+  <!-- ══════ ข้อมูลนักเรียน ══════ -->
+  <details class="guide" id="m-students">
+    <summary><span class="ico">🧑‍🎓</span> ข้อมูลนักเรียน <i class="bi bi-chevron-down chev"></i></summary>
+    <div class="guide-body">
+      <p class="step-tabs">แท็บ: รายชื่อ · ภาพรวม</p>
+      <ol>
+        <li>ค้นหาด้วยชื่อ/รหัส หรือกรองตามชั้น</li>
+        <li>แตะชื่อนักเรียนเพื่อดู <strong>โปรไฟล์รายบุคคล</strong> — รวมข้อมูลข้ามโมดูล: เงินฝาก, ทุนการศึกษา, BMI, คะแนนพฤติกรรม, สุขภาพ, การมาเรียน</li>
+        <li>กด <strong>แก้ไขข้อมูล</strong> เพื่อปรับปรุงชื่อ/ชั้น/วันเกิด/ผู้ปกครอง ฯลฯ</li>
+      </ol>
+    </div>
+  </details>
+
+  <!-- ══════ ตั้งค่าระบบ ══════ -->
+  <details class="guide" id="m-settings">
+    <summary><span class="ico">⚙️</span> ตั้งค่าระบบ <i class="bi bi-chevron-down chev"></i></summary>
+    <div class="guide-body">
+      <p class="step-tabs">แท็บ: ข้อมูลโรงเรียน · นำเข้า DMC · PIN · Backup/Restore · ระบบ</p>
+      <ul>
+        <li><strong>ข้อมูลโรงเรียน</strong> — ชื่อ, ปีการศึกษา, ภาคเรียน (ใช้ทั่วทั้งระบบ)</li>
+        <li><strong>นำเข้า DMC</strong> — อัปโหลดไฟล์ Excel จาก DMC เพื่อสร้าง/อัปเดตทะเบียนนักเรียน</li>
+        <li><strong>PIN</strong> — ตั้งรหัสสำหรับเมนูที่ต้องใช้ PIN</li>
+        <li><strong>สำรอง / กู้คืน</strong> — ดาวน์โหลดไฟล์สำรองข้อมูล และกู้คืนได้</li>
+        <li><strong>สร้าง Sheet ทั้งหมด</strong> — เตรียมฐานข้อมูลครั้งแรก (รันซ้ำได้ ไม่ลบข้อมูลเดิม)</li>
+      </ul>
+      <div class="warn">⚠️ ไฟล์ DMC มีเลขบัตรประชาชนเด็ก — เก็บเป็นความลับ ห้ามเผยแพร่</div>
+    </div>
+  </details>
+
+  <div class="text-center text-muted" style="font-size:13px;margin:22px 0 10px">
+    คู่มือการใช้งาน · โรงเรียนบ้านใหม่ — ผู้พัฒนา ครูเอกศักดิ์ ปรีติประสงค์
+  </div>
+
+</main>
+
+<script>
+  // เปิดหัวข้ออัตโนมัติเมื่อเข้ามาจากลิงก์ทางลัด (#m-xxx) แล้วเลื่อนไปหา
+  function openFromHash() {
+    if (!location.hash) return;
+    const el = document.querySelector(location.hash);
+    if (el && el.tagName === 'DETAILS') {
+      el.open = true;
+      el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+  }
+  document.querySelectorAll('.nav-chip').forEach(function (a) {
+    a.addEventListener('click', function () { setTimeout(openFromHash, 30); });
+  });
+  window.addEventListener('hashchange', openFromHash);
+  openFromHash();
+</script>
+</body>
+</html>

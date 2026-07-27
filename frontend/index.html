@@ -63,6 +63,7 @@ const MENUS = [
   { href: 'growth.html',     icon: 'rulers',             name: 'การเจริญเติบโต',  desc: 'น้ำหนัก · ส่วนสูง · BMI',  ready: true },
   { href: 'students.html',   icon: 'people-fill',        name: 'ข้อมูลนักเรียน',  desc: 'ทะเบียน · ค้นหา · แก้ไข',  ready: true },
   { href: 'settings.html',   icon: 'gear-fill',          name: 'ตั้งค่าระบบ',     desc: 'ข้อมูลโรงเรียน · นำเข้า DMC · สำรองข้อมูล', ready: true },
+  { href: 'help.html',       icon: 'book-fill',          name: 'คู่มือการใช้งาน', desc: 'วิธีใช้แต่ละเมนู',         ready: true },
 ];
 document.getElementById('menu-grid').innerHTML = MENUS.map(function (m) {
   const badge = m.ready ? '' : '<div class="badge badge-fail" style="margin-top:4px">เร็วๆ นี้</div>';
