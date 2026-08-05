@@ -239,7 +239,7 @@ const BehaviorAPI = {
   ranking: function (params) {
     const ym = (params && params.year_month) || yearMonth();
     const grade = (params && params.grade) || '';
-    return cachedResult('bhv.rank:' + ym + ':' + grade, ['STUDENTS', 'BEHAVIOR_LOG'], 90, function () {
+    return cachedResult('bhv.rank:' + ym + ':' + grade, ['STUDENTS', 'BEHAVIOR_LOG', 'SETTINGS'], 90, function () {
     const ms = monthScores(ym);
     const students = readAll('STUDENTS').filter(function (s) { return s.status !== 'inactive'; });
 
@@ -265,7 +265,7 @@ const BehaviorAPI = {
   /** Dashboard — เฉลี่ย, การกระจายคะแนน, เฉลี่ยรายชั้น, สูงสุด/ต่ำสุด */
   dashboard: function (params) {
     const ym = (params && params.year_month) || yearMonth();
-    return cachedResult('bhv.dash:' + ym, ['STUDENTS', 'BEHAVIOR_LOG'], 90, function () {
+    return cachedResult('bhv.dash:' + ym, ['STUDENTS', 'BEHAVIOR_LOG', 'SETTINGS'], 90, function () {
     const ms = monthScores(ym);
     const students = readAll('STUDENTS').filter(function (s) { return s.status !== 'inactive'; });
 

@@ -107,7 +107,7 @@ const StudentsAPI = {
     if (!student) apiError('NOT_FOUND', 'ไม่พบนักเรียน');
 
     return cachedResult('stu.profile:' + cid,
-      ['STUDENTS', 'BANK_BALANCE', 'BEHAVIOR_LOG', 'BEHAVIOR_MASTER', 'HEALTH_CHECK', 'ATTENDANCE', 'GROWTH', 'SCHOLARSHIP'],
+      ['STUDENTS', 'BANK_BALANCE', 'BEHAVIOR_LOG', 'BEHAVIOR_MASTER', 'HEALTH_CHECK', 'ATTENDANCE', 'GROWTH', 'SCHOLARSHIP', 'SETTINGS'],
       90, function () {
 
     // ธนาคาร — ยอดคงเหลือ

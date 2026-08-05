@@ -96,6 +96,7 @@
   }
 
   function drawChart(labels, data) {
+    if (!window.Chart) { LazyLib.chart().then(function () { drawChart(labels, data); }).catch(function () {}); return; }
     const ctx = document.getElementById('d-chart').getContext('2d');
     if (chart) chart.destroy();
     chart = new Chart(ctx, {

@@ -43,6 +43,7 @@
         await api('settings.update', { key: k, value: form[k].value, recorded_by: 'admin' }, { loading: false, silent: true });
       }
       AppSettings.clear();   // ล้าง cache ชื่อโรงเรียน เพื่อให้หน้าอื่นดึงค่าใหม่
+      if (window.Store) Store.invalidate('home:');   // ล้าง cache หน้าหลัก (ชื่อ/ปีการศึกษา)
       Toast.show('บันทึกข้อมูลโรงเรียนเรียบร้อย', 'success');
       loadSettings();
     } catch (err) { Toast.show('บันทึกไม่สำเร็จ: ' + err.message, 'danger'); }
@@ -90,10 +91,12 @@
 
   // ── นำเข้า DMC ──
   let dmcRows = null;
-  document.getElementById('dmc-file').addEventListener('change', function (e) {
+  document.getElementById('dmc-file').addEventListener('change', async function (e) {
     const file = e.target.files[0];
     if (!file) return;
     Loading.show('กำลังอ่านไฟล์...');
+    try { await LazyLib.xlsx(); }   // โหลดไลบรารี xlsx (~900KB) เฉพาะตอนเลือกไฟล์
+    catch (err) { Loading.hide(); Toast.show('โหลดตัวอ่าน Excel ไม่สำเร็จ: ' + err.message, 'danger'); return; }
     const reader = new FileReader();
     reader.onload = function (ev) {
       try {

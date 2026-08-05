@@ -180,6 +180,7 @@
   }
 
   function drawChart(byItem) {
+    if (!window.Chart) { LazyLib.chart().then(function () { drawChart(byItem); }).catch(function () {}); return; }
     const ctx = document.getElementById('d-chart').getContext('2d');
     if (chart) chart.destroy();
     chart = new Chart(ctx, {

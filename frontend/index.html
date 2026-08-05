@@ -47,6 +47,7 @@
 <script src="js/config.js"></script>
 <script src="js/auth.js"></script>
 <script src="js/api.js"></script>
+<script src="js/store.js"></script>
 <script src="js/utils.js"></script>
 <script>
 document.getElementById('stat-date').textContent = Utils.fmtDateThai(new Date());
@@ -72,30 +73,53 @@ document.getElementById('menu-grid').innerHTML = MENUS.map(function (m) {
   return '<' + tag + ' class="menu-tile"' + href + '><i class="bi bi-' + m.icon + ' icon"></i><div class="name">' + m.name + '</div><div class="desc">' + m.desc + '</div>' + badge + '</' + tag + '>';
 }).join('');
 
-async function loadDashboard() {
-  try {
-    const cfg = await api('settings.get', {}, { silent: true, loading: false });
-    const s = cfg.settings || {};
-    if (s.school_name) document.getElementById('school-name').textContent = s.school_name;
-    if (s.current_year) document.getElementById('school-meta').textContent = 'ปีการศึกษา ' + s.current_year + ' ภาคเรียนที่ ' + (s.current_semester || '-');
-    document.getElementById('api-status').textContent = '✅ เชื่อมต่อ Apps Script สำเร็จ';
-  } catch (e) {
-    document.getElementById('api-status').innerHTML = '<span style="color:#C62828">⚠️ ' + Utils.esc(e.message) + ' — แก้ js/config.js</span>';
-    return;
+function paintSettings(s) {
+  s = s || {};
+  if (s.school_name) document.getElementById('school-name').textContent = s.school_name;
+  if (s.current_year) document.getElementById('school-meta').textContent = 'ปีการศึกษา ' + s.current_year + ' ภาคเรียนที่ ' + (s.current_semester || '-');
+}
+
+function paintSummary(d) {
+  document.getElementById('stat-total').textContent = Utils.fmtInt(d.students.total);
+  document.getElementById('stat-gender').textContent = d.students.male + ' / ' + d.students.female;
+  document.getElementById('stat-bank').textContent = Utils.fmtMoney(d.bank.total_balance);
+  document.getElementById('stat-behavior').textContent = Utils.fmtNumber(d.behavior.avg_score, 1);
+  if (d.attendance.present_rate != null) {
+    document.getElementById('stat-attend').innerHTML = Utils.fmtNumber(d.attendance.present_rate, 0) + '%' +
+      '<div style="font-size:12px;color:var(--muted);font-weight:400">มา ' + d.attendance.counts['มา'] + ' จากเช็ค ' + d.attendance.checked + ' คน</div>';
+  } else {
+    document.getElementById('stat-attend').innerHTML = '<span style="font-size:15px;color:var(--muted)">ยังไม่เช็ควันนี้</span>';
   }
+}
+
+async function loadDashboard() {
+  // แสดงค่าที่เคยโหลด (จาก localStorage) ทันที แล้วค่อยดึงใหม่เบื้องหลัง (SWR)
+  const cachedSum = Store.get('home:summary');
+  if (cachedSum) { try { paintSummary(cachedSum); } catch (e) { /* ignore */ } }
+  const cachedCfg = Store.get('home:settings');
+  if (cachedCfg) paintSettings(cachedCfg);
+
   try {
-    const d = await api('dashboard.summary', {}, { silent: true, loading: false });
-    document.getElementById('stat-total').textContent = Utils.fmtInt(d.students.total);
-    document.getElementById('stat-gender').textContent = d.students.male + ' / ' + d.students.female;
-    document.getElementById('stat-bank').textContent = Utils.fmtMoney(d.bank.total_balance);
-    document.getElementById('stat-behavior').textContent = Utils.fmtNumber(d.behavior.avg_score, 1);
-    if (d.attendance.present_rate != null) {
-      document.getElementById('stat-attend').innerHTML = Utils.fmtNumber(d.attendance.present_rate, 0) + '%' +
-        '<div style="font-size:12px;color:var(--muted);font-weight:400">มา ' + d.attendance.counts['มา'] + ' จากเช็ค ' + d.attendance.checked + ' คน</div>';
+    // ⚡ ดึงตั้งค่า + สรุปภาพรวม ใน request เดียว (เดิมยิง 2 ครั้งเรียงกัน)
+    const [cfgR, sumR] = await apiBatch([
+      { action: 'settings.get' },
+      { action: 'dashboard.summary' },
+    ], { silent: true, loading: false });
+
+    if (cfgR && cfgR.ok) {
+      const s = cfgR.data.settings || {};
+      paintSettings(s);
+      Store.set('home:settings', s);
+      document.getElementById('api-status').textContent = '✅ เชื่อมต่อ Apps Script สำเร็จ';
     } else {
-      document.getElementById('stat-attend').innerHTML = '<span style="font-size:15px;color:var(--muted)">ยังไม่เช็ควันนี้</span>';
+      throw new Error((cfgR && cfgR.error && cfgR.error.message) || 'เชื่อมต่อไม่ได้');
     }
-  } catch (e) { /* ยังไม่ได้ deploy dashboard.summary หรือยังไม่มีข้อมูล */ }
+    if (sumR && sumR.ok) { paintSummary(sumR.data); Store.set('home:summary', sumR.data); }
+  } catch (e) {
+    if (!cachedCfg) {
+      document.getElementById('api-status').innerHTML = '<span style="color:#C62828">⚠️ ' + Utils.esc(e.message) + ' — แก้ js/config.js</span>';
+    }
+  }
 }
 loadDashboard();
 </script>

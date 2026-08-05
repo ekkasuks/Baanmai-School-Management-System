@@ -203,6 +203,7 @@
   }
 
   function drawDist(dist) {
+    if (!window.Chart) { LazyLib.chart().then(function () { drawDist(dist); }).catch(function () {}); return; }
     const ctx = document.getElementById('d-chart').getContext('2d');
     if (distChart) distChart.destroy();
     distChart = new Chart(ctx, {
@@ -293,6 +294,7 @@
   }
 
   function drawTrend(records) {
+    if (!window.Chart) { LazyLib.chart().then(function () { drawTrend(records); }).catch(function () {}); return; }
     const ctx = document.getElementById('ps-chart').getContext('2d');
     if (psChart) psChart.destroy();
     psChart = new Chart(ctx, {

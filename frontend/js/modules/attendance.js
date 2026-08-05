@@ -301,6 +301,7 @@
   }
 
   function drawChart(counts) {
+    if (!window.Chart) { LazyLib.chart().then(function () { drawChart(counts); }).catch(function () {}); return; }
     const ctx = document.getElementById('d-chart').getContext('2d');
     if (chart) chart.destroy();
     chart = new Chart(ctx, {

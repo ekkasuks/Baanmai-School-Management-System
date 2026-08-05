@@ -117,6 +117,7 @@
   }
 
   function drawChart(labels, data) {
+    if (!window.Chart) { LazyLib.chart().then(function () { drawChart(labels, data); }).catch(function () {}); return; }
     const ctx = document.getElementById('d-chart').getContext('2d');
     if (chart) chart.destroy();
     chart = new Chart(ctx, {
@@ -298,6 +299,7 @@
   }
 
   function drawHabitChart(trend) {
+    if (!window.Chart) { LazyLib.chart().then(function () { drawHabitChart(trend); }).catch(function () {}); return; }
     const ctx = document.getElementById('hb-chart').getContext('2d');
     if (hbChart) hbChart.destroy();
     hbChart = new Chart(ctx, {

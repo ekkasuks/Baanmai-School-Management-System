@@ -119,3 +119,32 @@ const AppSettings = {
     try { localStorage.removeItem(AppSettings._KEY); } catch (e) { /* ignore */ }
   },
 };
+
+/**
+ * LazyLib — โหลดไลบรารีภายนอกแบบ lazy เมื่อจำเป็นจริง (ลดของที่โหลดตอนเปิดหน้า)
+ * โหลดซ้ำได้ปลอดภัย: จำ Promise ต่อ URL · ถ้าล้มเหลวลบทิ้งให้ลองใหม่ได้
+ */
+const LazyLib = {
+  _p: {},
+  script: function (src) {
+    if (this._p[src]) return this._p[src];
+    this._p[src] = new Promise(function (resolve, reject) {
+      const s = document.createElement('script');
+      s.src = src;
+      s.onload = function () { resolve(); };
+      s.onerror = function () { delete LazyLib._p[src]; reject(new Error('โหลดไลบรารีไม่สำเร็จ (ตรวจสอบอินเทอร์เน็ต)')); };
+      document.head.appendChild(s);
+    });
+    return this._p[src];
+  },
+  /** โหลด Chart.js เมื่อจะวาดกราฟครั้งแรก */
+  chart: function () {
+    if (window.Chart) return Promise.resolve();
+    return this.script('https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js');
+  },
+  /** โหลด SheetJS (xlsx) เมื่อจะอ่านไฟล์ Excel */
+  xlsx: function () {
+    if (window.XLSX) return Promise.resolve();
+    return this.script('https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js');
+  },
+};
