@@ -12,7 +12,23 @@
   let selPb = null;    // ข้อมูลสมุดบัญชีที่กำลังเปิด
 
   /* ── ล้าง cache SWR ของธนาคาร — เรียกเมื่อเครื่องตัวเองฝาก/ถอน ── */
-  function clearDashCache() { Store.invalidate('bank:'); }
+  /**
+   * แก้ตัวเลขใน cache ภาพรวม (bank:dash) หลังฝาก/ถอน — เพื่อให้เปิดแท็บภาพรวมแล้วเห็นเลขที่ถูกต้องทันที
+   * ไม่ต้องยิง bank.dashboard ใหม่แบบ synchronous (ช้า) — SWR จะ revalidate เบื้องหลังเองครั้งถัดไป
+   */
+  function patchDashCache(type, amount, balanceAfter, stu) {
+    const d = Store.get('bank:dash');
+    if (!d) return;
+    const delta = (type === 'deposit' ? amount : -amount);
+    d.total_balance = Math.round((d.total_balance + delta) * 100) / 100;
+    if (type === 'deposit') { d.today_deposit = (d.today_deposit || 0) + amount; d.today_deposit_count = (d.today_deposit_count || 0) + 1; }
+    else { d.today_withdraw = (d.today_withdraw || 0) + amount; d.today_withdraw_count = (d.today_withdraw_count || 0) + 1; }
+    if (Array.isArray(d.top10)) {
+      const it = d.top10.find(function (x) { return String(x.citizen_id) === String(stu.citizen_id); });
+      if (it) it.balance = balanceAfter;   // อันดับอาจไม่ตรงเป๊ะจนกว่าจะ revalidate — ยอมรับได้
+    }
+    Store.set('bank:dash', d);
+  }
 
   const TH_MONTHS = ['ม.ค.', 'ก.พ.', 'มี.ค.', 'เม.ย.', 'พ.ค.', 'มิ.ย.', 'ก.ค.', 'ส.ค.', 'ก.ย.', 'ต.ค.', 'พ.ย.', 'ธ.ค.'];
 
@@ -191,7 +207,8 @@
         citizen_id: selTxn.citizen_id, amount: amount, note: note, recorded_by: by || 'admin',
       }, { loadingMsg: 'กำลังบันทึก...' });
 
-      clearDashCache();  // ยอดเปลี่ยน → ภาพรวม/นิสัยออม ต้องโหลดใหม่
+      patchDashCache(type, amount, r.balance_after, selTxn);  // แก้ตัวเลขใน cache ภาพรวมทันที (ไม่ต้องโหลดใหม่แบบช้าๆ)
+      Store.invalidate('bank:habit');                          // นิสัยออมต้องคำนวณใหม่
       selTxn.balance = r.balance_after;
       document.getElementById('txn-balance').textContent = Utils.fmtMoney(r.balance_after);
       const res = document.getElementById('txn-result');
@@ -425,7 +442,24 @@
     try {
       schoolName = await AppSettings.schoolName();
     } catch (e) { /* ใช้ค่า default */ }
-    loadDashboard();
+
+    // แสดงภาพรวมที่ cache ไว้ทันที (ถ้ามี)
+    const cached = Store.get('bank:dash');
+    if (cached) { try { paintDashboard(cached); } catch (e) { /* ignore */ } }
+
+    // ⚡ โหลด "ภาพรวม + รายชื่อชั้น" ใน request เดียว → คลิกแท็บฝาก/ถอนแล้วไม่ต้องรอโหลดชั้นอีก
+    try {
+      const [dashR, clsR] = await apiBatch([
+        { action: 'bank.dashboard' },
+        { action: 'bank.classes' },
+      ], { silent: true, loading: !cached, loadingMsg: 'กำลังโหลด...' });
+
+      if (dashR && dashR.ok) { paintDashboard(dashR.data); Store.set('bank:dash', dashR.data); }
+      else if (!cached) { loadDashboard(); }   // batch ล้มเหลว + ไม่มี cache → ถอยไปวิธีเดิม
+      if (clsR && clsR.ok) { fillClassSelect(document.getElementById('txn-class'), clsR.data.classes); txnClassesLoaded = true; }
+    } catch (e) {
+      if (!cached) loadDashboard();
+    }
   }).catch(function () {
     document.querySelector('.container').innerHTML =
       '<div class="card"><div class="alert alert-warning">ต้องกรอก PIN เพื่อเข้าใช้ธนาคารโรงเรียน</div>' +

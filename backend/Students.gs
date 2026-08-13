@@ -260,18 +260,21 @@ function gradeSortKey(g) {
 
 /** รายชื่อชั้น/ห้อง (distinct) ของนักเรียน active เรียงตามชั้น→ห้อง — ใช้ใน dropdown เลือกชั้น */
 function listClasses() {
-  const map = {};
-  readAll('STUDENTS').forEach(function (s) {
-    if (s.status === 'inactive') return;
-    const grade = s.grade || '-';
-    const room = (s.room === undefined || s.room === null) ? '' : String(s.room);
-    const key = grade + '|' + room;
-    if (!map[key]) map[key] = { grade: grade, room: room, count: 0 };
-    map[key].count++;
-  });
-  return Object.keys(map).map(function (k) { return map[k]; }).sort(function (a, b) {
-    const d = gradeSortKey(a.grade) - gradeSortKey(b.grade);
-    return d !== 0 ? d : (parseInt(a.room, 10) || 0) - (parseInt(b.room, 10) || 0);
+  // cache ผลลัพธ์ (ผูกกับ STUDENTS) — ~8 โมดูลเรียก endpoint 'classes' บ่อย · ชั้น/ห้องเปลี่ยนน้อย
+  return cachedResult('listClasses', ['STUDENTS'], 300, function () {
+    const map = {};
+    readAll('STUDENTS').forEach(function (s) {
+      if (s.status === 'inactive') return;
+      const grade = s.grade || '-';
+      const room = (s.room === undefined || s.room === null) ? '' : String(s.room);
+      const key = grade + '|' + room;
+      if (!map[key]) map[key] = { grade: grade, room: room, count: 0 };
+      map[key].count++;
+    });
+    return Object.keys(map).map(function (k) { return map[k]; }).sort(function (a, b) {
+      const d = gradeSortKey(a.grade) - gradeSortKey(b.grade);
+      return d !== 0 ? d : (parseInt(a.room, 10) || 0) - (parseInt(b.room, 10) || 0);
+    });
   });
 }
 
