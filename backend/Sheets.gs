@@ -150,9 +150,15 @@ function readAll(key) {
     return o;
   });
 
-  try { cache.put(ckey, JSON.stringify(rows), 300); } catch (e) { /* > 100kb: ข้าม cache */ }
-  _rowsMemo[key] = rows;
-  return rows.slice();
+  // ⚠️ getValues() คืน "Date object" สำหรับ cell ที่ Sheets แปลงเป็นวันที่ (date/created_at)
+  //    ต้อง normalize เป็น ISO string ให้เหมือน path cache-hit (JSON.parse) เสมอ
+  //    ไม่งั้น String(created_at) ตอนอ่านสด = "Sun Jul 19 2026..." → เรียงตามชื่อวัน = เพี้ยน
+  //    (ใช้ JSON.stringify ที่ต้องคำนวณเพื่อ cache อยู่แล้ว — ไม่เพิ่มต้นทุนมาก)
+  const json = JSON.stringify(rows);
+  try { cache.put(ckey, json, 300); } catch (e) { /* > 100kb: ข้าม cache */ }
+  const normalized = JSON.parse(json);
+  _rowsMemo[key] = normalized;
+  return normalized.slice();
 }
 
 function invalidateCache(key) {
