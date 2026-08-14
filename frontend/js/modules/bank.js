@@ -62,6 +62,7 @@
       document.getElementById('tab-' + t.dataset.tab).classList.remove('hidden');
       if (t.dataset.tab === 'dashboard') loadDashboard();
       else if (t.dataset.tab === 'txn') loadTxnClasses();
+      else if (t.dataset.tab === 'shist') loadShistClasses();
       else if (t.dataset.tab === 'habit') { ensureHabitMonths(); loadSavingHabit(); }
     });
   });
@@ -402,6 +403,115 @@
         columnStyles: { 0: { halign: 'left' }, 1: { halign: 'center' } },
       });
       doc.save('passbook_' + selPb.student.student_code + '.pdf');
+    } catch (e) {
+      Toast.show('สร้าง PDF ไม่สำเร็จ: ' + e.message, 'danger');
+    } finally { Loading.hide(); }
+  };
+
+  /* ════ ประวัติรายคน — เลือกชั้น → นักเรียน → ช่วงวันที่ + Export PDF ════ */
+  let selShist = null;        // นักเรียนที่เลือก
+  let shClassesLoaded = false;
+  let shLastResult = null;    // ผลล่าสุด (สำหรับ PDF)
+
+  async function loadShistClasses() {
+    if (shClassesLoaded) return;
+    try {
+      const d = await bankApi('bank.classes', {}, { silent: true, loading: false });
+      fillClassSelect(document.getElementById('sh-class'), d.classes);
+      shClassesLoaded = true;
+    } catch (e) { /* Toast แสดงแล้ว */ }
+  }
+
+  document.getElementById('sh-class').addEventListener('change', async function () {
+    const host = document.getElementById('sh-students');
+    document.getElementById('sh-panel').classList.add('hidden');
+    selShist = null;
+    if (!this.value) { host.innerHTML = 'เลือกชั้นเพื่อแสดงรายชื่อนักเรียน'; host.className = 'text-muted'; return; }
+    const parts = this.value.split('|');
+    try {
+      host.className = '';
+      const d = await bankApi('bank.by_class', { grade: parts[0], room: parts[1] }, { loadingMsg: 'กำลังโหลดรายชื่อ...' });
+      renderResults(host, d.results, pickShistStudent);
+    } catch (e) { host.innerHTML = '<div class="alert alert-danger">' + Utils.esc(e.message) + '</div>'; }
+  });
+
+  function pickShistStudent(r) {
+    selShist = r;
+    shLastResult = null;
+    document.getElementById('sh-panel').classList.remove('hidden');
+    document.getElementById('sh-name').textContent = '🔎 ' + r.name + ' (ชั้น ' + r.grade + '/' + r.room + ')';
+    const res = document.getElementById('sh-result');
+    res.className = 'mt-2 text-muted';
+    res.innerHTML = 'เลือกช่วงวันที่แล้วกดแสดงประวัติ';
+    document.getElementById('sh-panel').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  }
+
+  document.getElementById('sh-go').onclick = async function () {
+    if (!selShist) { Toast.show('กรุณาเลือกนักเรียนก่อน', 'warning'); return; }
+    const host = document.getElementById('sh-result');
+    const from = document.getElementById('sh-from').value || undefined;
+    const to = document.getElementById('sh-to').value || undefined;
+    try {
+      host.className = 'mt-2';
+      const d = await bankApi('bank.history', {
+        citizen_id: selShist.citizen_id, date_from: from, date_to: to, limit: 500,
+      }, { loadingMsg: 'กำลังค้นหา...' });
+      shLastResult = { list: d.transactions, from: from, to: to, student: selShist };
+      renderShist(d.transactions);
+    } catch (e) { host.innerHTML = '<div class="alert alert-danger">' + Utils.esc(e.message) + '</div>'; }
+  };
+
+  function renderShist(list) {
+    const host = document.getElementById('sh-result');
+    if (!list.length) { host.innerHTML = '<div class="text-muted">ไม่พบรายการในช่วงที่เลือก</div>'; return; }
+    let dep = 0, wd = 0;
+    const rows = list.map(function (t) {
+      const isDep = t.type === 'deposit';
+      if (isDep) dep += t.amount; else wd += t.amount;
+      return '<tr><td>' + Utils.fmtDateThai(t.date) + '</td>' +
+        '<td><span class="badge ' + (isDep ? 'badge-pass' : 'badge-fail') + '">' + (isDep ? 'ฝาก' : 'ถอน') + '</span></td>' +
+        '<td style="text-align:right;color:var(--green-dark)">' + (isDep ? Utils.fmtMoney(t.amount) : '-') + '</td>' +
+        '<td style="text-align:right;color:var(--red)">' + (!isDep ? Utils.fmtMoney(t.amount) : '-') + '</td>' +
+        '<td style="text-align:right;font-weight:700">' + Utils.fmtMoney(t.balance_after) + '</td>' +
+        '<td>' + Utils.esc(t.recorded_by) + '</td></tr>';
+    }).join('');
+    host.innerHTML = '<div class="text-muted" style="margin-bottom:6px">พบ ' + list.length + ' รายการ · ฝากรวม ' +
+      Utils.fmtMoney(dep) + ' · ถอนรวม ' + Utils.fmtMoney(wd) + '</div>' +
+      '<div class="table-wrap"><table><thead><tr><th>วันที่</th><th>ประเภท</th><th style="text-align:right">ฝาก</th><th style="text-align:right">ถอน</th><th style="text-align:right">คงเหลือ</th><th>ผู้บันทึก</th></tr></thead><tbody>' + rows + '</tbody></table></div>';
+  }
+
+  document.getElementById('sh-pdf').onclick = async function () {
+    if (!selShist || !shLastResult || !shLastResult.list.length) { Toast.show('ยังไม่มีข้อมูลให้ส่งออก — กดแสดงประวัติก่อน', 'warning'); return; }
+    try {
+      Loading.show('กำลังสร้าง PDF...');
+      const s = shLastResult;
+      const doc = await PDF.newDoc('p');
+      let y = PDF.header(doc, schoolName, 'ประวัติการฝาก/ถอนเงิน ธนาคารโรงเรียน');
+      doc.setFontSize(12);
+      doc.text('ชื่อ: ' + s.student.name, 14, y + 4);
+      doc.text('ชั้น: ' + s.student.grade + '/' + s.student.room + '   รหัส: ' + s.student.student_code, 14, y + 11);
+      const rangeTxt = (s.from ? Utils.fmtDateThai(s.from) : 'เริ่มต้น') + ' ถึง ' + (s.to ? Utils.fmtDateThai(s.to) : 'ปัจจุบัน');
+      doc.text('ช่วงวันที่: ' + rangeTxt, 14, y + 18);
+
+      let dep = 0, wd = 0;
+      const body = s.list.map(function (t) {
+        const isDep = t.type === 'deposit';
+        if (isDep) dep += t.amount; else wd += t.amount;
+        return [Utils.fmtDateThai(t.date), isDep ? 'ฝาก' : 'ถอน',
+          isDep ? Utils.fmtNumber(t.amount) : '', !isDep ? Utils.fmtNumber(t.amount) : '',
+          Utils.fmtNumber(t.balance_after), t.recorded_by || ''];
+      });
+      doc.autoTable({
+        startY: y + 24,
+        head: [['วันที่', 'ประเภท', 'ฝาก', 'ถอน', 'คงเหลือ', 'ผู้บันทึก']],
+        body: body,
+        foot: [['รวม', '', Utils.fmtNumber(dep), Utils.fmtNumber(wd), '', '']],
+        styles: { font: 'Sarabun', fontSize: 11, halign: 'right' },
+        headStyles: { font: 'Sarabun', fontStyle: 'bold', fillColor: [79, 195, 247], halign: 'center' },
+        footStyles: { font: 'Sarabun', fontStyle: 'bold', fillColor: [225, 245, 254], textColor: 20 },
+        columnStyles: { 0: { halign: 'left' }, 1: { halign: 'center' }, 5: { halign: 'left' } },
+      });
+      doc.save('bank_history_' + s.student.student_code + '.pdf');
     } catch (e) {
       Toast.show('สร้าง PDF ไม่สำเร็จ: ' + e.message, 'danger');
     } finally { Loading.hide(); }

@@ -24,6 +24,7 @@
     <button class="tab active" data-tab="dashboard">📊 ภาพรวม</button>
     <button class="tab" data-tab="txn">💵 ฝาก/ถอน</button>
     <button class="tab" data-tab="history">📜 ประวัติ</button>
+    <button class="tab" data-tab="shist">🔎 ประวัติรายคน</button>
     <button class="tab" data-tab="passbook">📒 สมุดบัญชี</button>
     <button class="tab" data-tab="habit">🏆 นิสัยออม</button>
   </div>
@@ -109,6 +110,31 @@
       </div>
       <button class="btn btn-primary" id="h-go"><i class="bi bi-search"></i> ค้นหา</button>
       <div id="h-result" class="mt-2 text-muted">กดค้นหาเพื่อดูรายการ</div>
+    </div>
+  </section>
+
+  <!-- ── ประวัติรายคน (เลือกชั้น → นักเรียน → ช่วงวันที่) ── -->
+  <section class="tab-pane hidden" id="tab-shist">
+    <div class="card">
+      <h3 class="card-title">🏫 เลือกชั้นเรียน → นักเรียน</h3>
+      <div class="form-group">
+        <select class="form-control" id="sh-class"><option value="">— เลือกชั้น/ห้อง —</option></select>
+      </div>
+      <div id="sh-students" class="text-muted">เลือกชั้นเพื่อแสดงรายชื่อนักเรียน</div>
+    </div>
+
+    <div class="card hidden" id="sh-panel">
+      <div class="flex" style="justify-content:space-between;flex-wrap:wrap;gap:8px">
+        <h3 class="card-title" style="margin:0" id="sh-name">ประวัติการฝาก/ถอน</h3>
+        <button class="btn btn-danger" id="sh-pdf"><i class="bi bi-filetype-pdf"></i> Export PDF</button>
+      </div>
+      <div class="form-row mt-2">
+        <div class="form-group"><label>ตั้งแต่วันที่</label><input class="form-control" id="sh-from" type="date"></div>
+        <div class="form-group"><label>ถึงวันที่</label><input class="form-control" id="sh-to" type="date"></div>
+      </div>
+      <button class="btn btn-primary" id="sh-go"><i class="bi bi-search"></i> แสดงประวัติ</button>
+      <div class="text-muted" style="font-size:13px;margin-top:6px">เว้นว่างช่วงวันที่ = แสดงทั้งหมด</div>
+      <div id="sh-result" class="mt-2 text-muted">เลือกนักเรียนแล้วกดแสดงประวัติ</div>
     </div>
   </section>
 
