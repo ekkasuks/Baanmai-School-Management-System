@@ -315,9 +315,14 @@ function applyTransaction(type, params) {
 
   const lock = LockService.getScriptLock();
   lock.waitLock(15000);
+  let result;
   try {
-    const balRow = buildIndex('BANK_BALANCE', 'citizen_id')[String(cid)];
-    const current = balRow ? Number(balRow.balance) || 0 : 0;
+    // อ่าน BANK_BALANCE ครั้งเดียว → ได้ทั้งยอดปัจจุบัน + เลขแถว (เลี่ยง findRowIndex ที่สแกนคอลัมน์ซ้ำใน lock)
+    const balRows = readAll('BANK_BALANCE');
+    let rowIdx = -1, current = 0;
+    for (let i = 0; i < balRows.length; i++) {
+      if (String(balRows[i].citizen_id) === String(cid)) { rowIdx = i + 2; current = Number(balRows[i].balance) || 0; break; }
+    }
 
     if (type === 'withdraw' && amount > current) {
       apiError('INSUFFICIENT_FUNDS',
@@ -333,14 +338,11 @@ function applyTransaction(type, params) {
       note: params.note || '', recorded_by: params.recorded_by || 'admin', created_at: ts,
     }]);
 
-    upsertRow('BANK_BALANCE', 'citizen_id', {
-      citizen_id: cid, balance: balanceAfter, last_txn_date: ts, updated_at: ts,
-    });
+    const balObj = { citizen_id: cid, balance: balanceAfter, last_txn_date: ts, updated_at: ts };
+    if (rowIdx > 0) updateRow('BANK_BALANCE', rowIdx, balObj);
+    else appendRows('BANK_BALANCE', [balObj]);
 
-    audit('bank', type === 'deposit' ? 'DEPOSIT' : 'WITHDRAW', txnId,
-      { citizen_id: cid, amount: amount, balance_after: balanceAfter }, params.recorded_by);
-
-    return {
+    result = {
       txn_id: txnId, type: type, amount: amount,
       balance_after: balanceAfter, date: today(),
       student: { name: studentName(student), grade: student.grade, room: student.room, student_code: student.student_code },
@@ -348,4 +350,10 @@ function applyTransaction(type, params) {
   } finally {
     lock.releaseLock();
   }
+
+  // audit นอก lock — ไม่ให้การเขียน AUDIT_LOG (และการตัด log เป็นครั้งคราว) หน่วงการฝาก/ถอนของครูคนอื่นที่รอ lock อยู่
+  audit('bank', type === 'deposit' ? 'DEPOSIT' : 'WITHDRAW', result.txn_id,
+    { citizen_id: cid, amount: amount, balance_after: result.balance_after }, params.recorded_by);
+
+  return result;
 }

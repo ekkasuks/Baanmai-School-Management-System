@@ -10,6 +10,7 @@
   let habitMonthsBuilt = false;
   let selTxn = null;   // นักเรียนที่เลือกในแท็บฝาก/ถอน
   let selPb = null;    // ข้อมูลสมุดบัญชีที่กำลังเปิด
+  let bankClasses = null;   // รายชื่อชั้น/ห้อง (โหลดครั้งเดียวตอน init) ใช้ร่วมทุกแท็บ
 
   /* ── ล้าง cache SWR ของธนาคาร — เรียกเมื่อเครื่องตัวเองฝาก/ถอน ── */
   /**
@@ -152,8 +153,8 @@
   async function loadTxnClasses() {
     if (txnClassesLoaded) return;
     try {
-      const d = await bankApi('bank.classes', {}, { silent: true, loading: false });
-      fillClassSelect(document.getElementById('txn-class'), d.classes);
+      if (!bankClasses) bankClasses = (await bankApi('bank.classes', {}, { silent: true, loading: false })).classes;
+      fillClassSelect(document.getElementById('txn-class'), bankClasses);
       txnClassesLoaded = true;
     } catch (e) { /* Toast แสดงแล้ว */ }
   }
@@ -182,18 +183,8 @@
     document.getElementById('txn-amount').value = '';
     document.getElementById('txn-note').value = '';
     document.getElementById('txn-panel').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-    // safeguard: ดึงยอดคงเหลือสด ๆ (ไม่ผ่าน cache) กันทำรายการบนยอดเก่าจากครูคนอื่น
-    refreshSelBalance(r.citizen_id);
-  }
-
-  async function refreshSelBalance(cid) {
-    try {
-      const b = await bankApi('bank.balance', { citizen_id: cid }, { silent: true, loading: false });
-      if (selTxn && String(selTxn.citizen_id) === String(b.citizen_id)) {
-        selTxn.balance = b.balance;
-        document.getElementById('txn-balance').textContent = Utils.fmtMoney(b.balance);
-      }
-    } catch (e) { /* ใช้ยอดจากรายชื่อไปก่อน — server ตรวจตอนบันทึกอยู่แล้ว */ }
+    // ยอดคงเหลือใช้ค่าจาก by_class (อ่านจาก BANK_BALANCE ที่ล้าง cache ทุกครั้งที่มีการฝาก/ถอนอยู่แล้ว)
+    // ไม่ยิง bank.balance ซ้ำทุกครั้งที่เลือกคน (ประหยัด 1 round-trip) — ตอนถอน server ตรวจยอดใต้ lock อยู่แล้ว
   }
 
   async function doTxn(type) {
@@ -416,8 +407,9 @@
   async function loadShistClasses() {
     if (shClassesLoaded) return;
     try {
-      const d = await bankApi('bank.classes', {}, { silent: true, loading: false });
-      fillClassSelect(document.getElementById('sh-class'), d.classes);
+      // ใช้รายชื่อชั้นที่โหลดไว้แล้วตอน init (ไม่ยิง bank.classes ซ้ำ)
+      if (!bankClasses) bankClasses = (await bankApi('bank.classes', {}, { silent: true, loading: false })).classes;
+      fillClassSelect(document.getElementById('sh-class'), bankClasses);
       shClassesLoaded = true;
     } catch (e) { /* Toast แสดงแล้ว */ }
   }
@@ -566,7 +558,7 @@
 
       if (dashR && dashR.ok) { paintDashboard(dashR.data); Store.set('bank:dash', dashR.data); }
       else if (!cached) { loadDashboard(); }   // batch ล้มเหลว + ไม่มี cache → ถอยไปวิธีเดิม
-      if (clsR && clsR.ok) { fillClassSelect(document.getElementById('txn-class'), clsR.data.classes); txnClassesLoaded = true; }
+      if (clsR && clsR.ok) { bankClasses = clsR.data.classes; fillClassSelect(document.getElementById('txn-class'), bankClasses); txnClassesLoaded = true; }
     } catch (e) {
       if (!cached) loadDashboard();
     }

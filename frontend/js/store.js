@@ -28,6 +28,10 @@ const Store = (function () {
   }
 
   function set(key, data) {
+    // อัปเดตทั้ง localStorage และสำเนาในหน่วยความจำเซสชัน (memFresh)
+    // สำคัญ: ถ้าอัปเดตแค่ localStorage แต่ memFresh ยังเป็นค่าเก่า swr จะคืนค่าเก่า (ตาม throttle 15 วิ)
+    // → เช่น patch ยอดหลังฝากแล้วเปิดแท็บภาพรวมยังเห็นเลขก่อนฝาก
+    memFresh[key] = { data: data, ts: Date.now() };
     try { localStorage.setItem(PREFIX + key, JSON.stringify({ ts: Date.now(), data: data })); }
     catch (e) { /* localStorage เต็ม/ปิด: ข้ามได้ ไม่กระทบการทำงาน */ }
   }
