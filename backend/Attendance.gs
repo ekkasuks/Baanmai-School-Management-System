@@ -50,48 +50,62 @@ const AttendanceAPI = {
     const ts = now();
     const by = params.recorded_by || 'admin';
 
+    let result;
     const lock = LockService.getScriptLock();
     lock.waitLock(15000);
     try {
       const sh = getSheet('ATTENDANCE');
-      const headers = SHEETS.ATTENDANCE.headers;
+      const headers = SHEETS.ATTENDANCE.headers;   // att_id, date, citizen_id, status, note, recorded_by, created_at
       const lastRow = sh.getLastRow();
-      const keyToRow = {};
+
+      // อ่าน att_id(1)+date(2)+citizen_id(3) ทีเดียว (3 คอลัมน์ติดกัน) → เลขแถว + att_id เดิม (ต้องคงไว้ตอน update)
+      const keyToRow = {}, keyToAtt = {};
       if (lastRow > 1) {
-        const dateCol = headers.indexOf('date') + 1;
-        const cidCol = headers.indexOf('citizen_id') + 1;
-        const dates = sh.getRange(2, dateCol, lastRow - 1, 1).getValues();
-        const cids = sh.getRange(2, cidCol, lastRow - 1, 1).getValues();
-        for (let i = 0; i < dates.length; i++) {
-          keyToRow[toYmd(dates[i][0]) + '|' + String(cids[i][0])] = i + 2;
+        const head3 = sh.getRange(2, 1, lastRow - 1, 3).getValues();
+        for (let i = 0; i < head3.length; i++) {
+          const k = toYmd(head3[i][1]) + '|' + String(head3[i][2]);
+          keyToRow[k] = i + 2;
+          keyToAtt[k] = head3[i][0];
         }
       }
 
       const inserts = [];
-      let updated = 0;
+      const updates = [];   // { row, values:[...] } — เขียนเฉพาะแถวเป้าหมาย
+      const seen = {};      // กันส่งซ้ำ (date, citizen_id) ในชุดเดียว → ไม่เพิ่มแถวซ้ำ
+      let inserted = 0, updated = 0;
+
       records.forEach(function (r) {
         if (!r.citizen_id) return;
+        const key = date + '|' + String(r.citizen_id);
+        if (seen[key]) return;   // ซ้ำในpayloadเดียว → ข้ามตัวถัดไป
+        seen[key] = true;
         const status = ATT_STATUSES.indexOf(r.status) >= 0 ? r.status : 'มา';
-        const rec = {
-          date: date, citizen_id: r.citizen_id, status: status,
-          note: r.note || '', recorded_by: by, created_at: ts,
-        };
-        const existRow = keyToRow[date + '|' + String(r.citizen_id)];
-        if (existRow) {
-          updateRow('ATTENDANCE', existRow, rec);
+        const note = r.note || '';
+
+        if (keyToRow[key]) {
+          // update: คง att_id เดิมไว้ · เขียนทั้งแถวตามลำดับ header
+          updates.push({ row: keyToRow[key], values: [keyToAtt[key], date, r.citizen_id, status, note, by, ts] });
           updated++;
         } else {
-          rec.att_id = genId('ATT');
-          inserts.push(rec);
+          inserts.push({ att_id: genId('ATT'), date: date, citizen_id: r.citizen_id,
+            status: status, note: note, recorded_by: by, created_at: ts });
+          inserted++;
         }
       });
-      if (inserts.length) appendRows('ATTENDANCE', inserts);
 
-      audit('attendance', 'SAVE', date, { date: date, inserted: inserts.length, updated: updated }, by);
-      return { date: date, inserted: inserts.length, updated: updated };
+      // เขียน update แบบรวมช่วงแถวที่ติดกัน (setValues ทีเดียวต่อ 1 ช่วง — เขียนเฉพาะแถวเป้าหมาย ไม่แตะแถวอื่น)
+      if (updates.length) attWriteUpdates(sh, headers.length, updates);
+      if (inserts.length) appendRows('ATTENDANCE', inserts);   // batched + ล้าง cache ให้
+      if (updates.length && !inserts.length) invalidateCache('ATTENDANCE');   // มีแต่ update → ต้องล้าง cache เอง
+
+      result = { date: date, inserted: inserted, updated: updated };
     } finally {
       lock.releaseLock();
     }
+
+    // audit นอก lock — ไม่ให้การเขียน AUDIT_LOG (และการตัด log เป็นครั้งคราว) หน่วงการเช็คชื่อของครูคนอื่นที่รอ lock
+    audit('attendance', 'SAVE', result.date, { date: result.date, inserted: result.inserted, updated: result.updated }, by);
+    return result;
   },
 
   /** ประวัติการเช็คชื่อ — กรองตามวันที่/ชั้น/นักเรียน/สถานะ */
@@ -243,3 +257,22 @@ const AttendanceAPI = {
     });
   },
 };
+
+/**
+ * เขียน update หลายแถวแบบรวมช่วงแถวที่ติดกัน (batched setValues)
+ * ⚠️ ปลอดภัยต่อข้อมูล: เขียนเฉพาะ "แถวเป้าหมาย" เท่านั้น — แถวที่อยู่ระหว่างช่วง (ไม่ใช่เป้าหมาย)
+ *    จะถูกแยกเป็นคนละช่วงและไม่ถูกแตะ (กันเขียนทับข้อมูลของชั้น/วันอื่น)
+ * updates = [{ row: <เลขแถว 1-based>, values: [...ทั้งแถวตามลำดับ header] }]
+ */
+function attWriteUpdates(sh, ncols, updates) {
+  updates.sort(function (a, b) { return a.row - b.row; });
+  let i = 0;
+  while (i < updates.length) {
+    let j = i;
+    while (j + 1 < updates.length && updates[j + 1].row === updates[j].row + 1) j++;   // รวมแถวที่ต่อเนื่อง
+    const block = [];
+    for (let k = i; k <= j; k++) block.push(updates[k].values);
+    sh.getRange(updates[i].row, 1, block.length, ncols).setValues(block);
+    i = j + 1;
+  }
+}
