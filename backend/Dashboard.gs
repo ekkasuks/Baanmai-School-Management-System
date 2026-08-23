@@ -7,8 +7,10 @@
 const DashboardAPI = {
 
   summary: function () {
+    // ไม่รวม HEALTH_CHECK ใน deps แล้ว — หน้าหลักไม่แสดงข้อมูลสุขภาพ การเช็คสุขภาพระหว่างวัน
+    //   จึงไม่ควรทำให้ cache ภาพรวมหน้าหลักถูกล้าง (ลดการคำนวณใหม่โดยไม่จำเป็น)
     return cachedResult('dash.summary',
-      ['STUDENTS', 'BANK_BALANCE', 'BEHAVIOR_LOG', 'HEALTH_CHECK', 'ATTENDANCE', 'SETTINGS'], 90, function () {
+      ['STUDENTS', 'BANK_BALANCE', 'BEHAVIOR_LOG', 'ATTENDANCE', 'SETTINGS'], 90, function () {
     const students = readAll('STUDENTS').filter(function (s) { return s.status !== 'inactive'; });
     let male = 0, female = 0;
     students.forEach(function (s) {
@@ -31,23 +33,6 @@ const DashboardAPI = {
     students.forEach(function (s) { scoreSum += ms.start + (ms.sums[String(s.citizen_id)] || 0); });
     const behaviorAvg = students.length ? Math.round((scoreSum / students.length) * 10) / 10 : ms.start;
 
-    // ── ตรวจสุขภาพ: วันล่าสุดที่มีการตรวจ ──
-    const healthRows = readAll('HEALTH_CHECK');
-    let healthDate = '';
-    healthRows.forEach(function (c) { const cd = toYmd(c.date); if (cd > healthDate) healthDate = cd; });
-    let hPass = 0, hCells = 0, hChecked = 0;
-    if (healthDate) {
-      const items = ['hair', 'nails', 'cup', 'toothbrush', 'toothpaste'];
-      healthRows.forEach(function (c) {
-        if (toYmd(c.date) !== healthDate) return;
-        hChecked++;
-        items.forEach(function (k) {
-          if (c[k] === 'ผ่าน') { hPass++; hCells++; }
-          else if (c[k] === 'ไม่ผ่าน') { hCells++; }
-        });
-      });
-    }
-
     // ── การมาเรียนวันนี้ ──
     const td = today();
     const counts = { 'มา': 0, 'ขาด': 0, 'ลา': 0, 'สาย': 0 };
@@ -63,11 +48,6 @@ const DashboardAPI = {
       students: { total: students.length, male: male, female: female },
       bank: { total_balance: Math.round(bankTotal * 100) / 100, account_count: accountCount },
       behavior: { year_month: ym, avg_score: behaviorAvg, start: ms.start },
-      health: {
-        date: healthDate,
-        checked: hChecked,
-        pass_rate: hCells ? Math.round((hPass / hCells) * 1000) / 10 : null,
-      },
       attendance: {
         checked: attChecked,
         counts: counts,
