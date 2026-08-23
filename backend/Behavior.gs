@@ -15,7 +15,15 @@ const BehaviorAPI = {
   master_list: function (params) {
     let items = readAll('BEHAVIOR_MASTER');
     if (!items.length) {
-      seedBehaviorMaster();
+      // seed ครั้งเดียว — ล็อกกัน 2 เครื่องเปิดพร้อมกันแล้ว seed ซ้ำเป็น 16 แถว (double-checked)
+      const lock = LockService.getScriptLock();
+      lock.waitLock(15000);
+      try {
+        invalidateCache('BEHAVIOR_MASTER');            // อ่านสดหลังได้ lock
+        if (!readAll('BEHAVIOR_MASTER').length) seedBehaviorMaster();
+      } finally {
+        lock.releaseLock();
+      }
       items = readAll('BEHAVIOR_MASTER');
     }
     const includeInactive = params && params.include_inactive;
@@ -57,8 +65,16 @@ const BehaviorAPI = {
       updateRow('BEHAVIOR_MASTER', rowIdx, { type: type, name: name, points: points, active: active });
       audit('behavior', 'MASTER_UPDATE', itemId, { type: type, name: name, points: points, active: active }, params.recorded_by);
     } else {
-      itemId = genBehaviorItemId();
-      appendRows('BEHAVIOR_MASTER', [{ item_id: itemId, type: type, name: name, points: points, active: active }]);
+      // สร้าง id + append ใต้ lock — กัน 2 คำขอพร้อมกันคำนวณ B00X เลขเดียวกัน → item_id ซ้ำ
+      const lock = LockService.getScriptLock();
+      lock.waitLock(15000);
+      try {
+        invalidateCache('BEHAVIOR_MASTER');            // อ่านสด เพื่อคิดเลขล่าสุดหลังได้ lock
+        itemId = genBehaviorItemId();
+        appendRows('BEHAVIOR_MASTER', [{ item_id: itemId, type: type, name: name, points: points, active: active }]);
+      } finally {
+        lock.releaseLock();
+      }
       audit('behavior', 'MASTER_CREATE', itemId, { type: type, name: name, points: points }, params.recorded_by);
     }
     return { item_id: itemId };
@@ -82,7 +98,7 @@ const BehaviorAPI = {
   /** นักเรียนในชั้น/ห้อง + คะแนนของเดือนที่ระบุ (สำหรับเลือกบันทึก) */
   by_class: function (params) {
     if (!params.grade) apiError('VALIDATION', 'กรุณาเลือกชั้นเรียน');
-    const ym = params.year_month || yearMonth();
+    const ym = toYm(params.year_month) || yearMonth();
     const ms = monthScores(ym);
     const results = studentsInClass(params.grade, params.room).map(function (s) {
       return {
@@ -98,7 +114,7 @@ const BehaviorAPI = {
   search: function (params) {
     const q = String(params.q || '').trim().toLowerCase();
     if (!q) return { results: [] };
-    const ym = params.year_month || yearMonth();
+    const ym = toYm(params.year_month) || yearMonth();
     const ms = monthScores(ym);
 
     const results = [];
@@ -120,6 +136,8 @@ const BehaviorAPI = {
   /**
    * บันทึกพฤติกรรม 1 รายการ
    * params = { citizen_id, item_id, note, recorded_by, date? }
+   * คืน logs ของเดือนนั้น (รวมรายการที่เพิ่งบันทึก) ด้วย → หน้าเว็บวาดคะแนน/ประวัติได้เลย
+   *   ไม่ต้องยิง student_score ซ้ำอีก 1 รอบ (ลด round-trip ซึ่งเป็นต้นทุนหลักของ Apps Script)
    */
   record: function (params) {
     const cid = params.citizen_id;
@@ -130,12 +148,14 @@ const BehaviorAPI = {
     const student = buildIndex('STUDENTS', 'citizen_id')[String(cid)];
     if (!student) apiError('NOT_FOUND', 'ไม่พบนักเรียน');
 
-    const item = buildIndex('BEHAVIOR_MASTER', 'item_id')[String(itemId)];
+    const itemIndex = buildIndex('BEHAVIOR_MASTER', 'item_id');
+    const item = itemIndex[String(itemId)];
     if (!item) apiError('NOT_FOUND', 'ไม่พบรายการพฤติกรรม');
 
     const points = Math.abs(Number(item.points) || 0);
     const change = item.type === 'add' ? points : -points;
 
+    let result;
     const lock = LockService.getScriptLock();
     lock.waitLock(15000);
     try {
@@ -145,25 +165,40 @@ const BehaviorAPI = {
       const current = ms.start + (ms.sums[String(cid)] || 0);
       const pointsAfter = current + change;
 
+      // logs เดิมของนักเรียนคนนี้ในเดือนนี้ (readAll ถูก memo ไว้จาก monthScores แล้ว → ไม่อ่านชีตซ้ำ)
+      const priorLogs = readAll('BEHAVIOR_LOG')
+        .filter(function (l) { return String(l.citizen_id) === String(cid) && toYm(l.year_month) === ym; })
+        .map(function (l) { return behaviorLogView(l, itemIndex); });
+
       const logId = genId('BHV');
+      const ts = now();
       appendRows('BEHAVIOR_LOG', [{
         log_id: logId, date: date, year_month: ym, citizen_id: cid, item_id: itemId,
         points_change: change, points_after: pointsAfter,
-        note: params.note || '', recorded_by: params.recorded_by || 'admin', created_at: now(),
+        note: params.note || '', recorded_by: params.recorded_by || 'admin', created_at: ts,
       }]);
 
-      audit('behavior', 'RECORD', logId,
-        { citizen_id: cid, item_id: itemId, points_change: change, points_after: pointsAfter }, params.recorded_by);
+      // ต่อรายการใหม่เข้ากับของเดิมในหน่วยความจำ (ไม่ต้องอ่านชีตหลัง append) แล้วเรียงตามเวลา
+      const logs = priorLogs.concat([{
+        log_id: logId, date: date, item_name: item.name,
+        points_change: change, points_after: pointsAfter,
+        note: params.note || '', recorded_by: params.recorded_by || 'admin', created_at: ts,
+      }]).sort(function (a, b) { return String(a.created_at).localeCompare(String(b.created_at)); });
 
-      return {
+      result = {
         log_id: logId, date: date, year_month: ym,
         item_name: item.name, item_type: item.type,
-        points_change: change, points_after: pointsAfter,
+        points_change: change, points_after: pointsAfter, score: pointsAfter, logs: logs,
         student: { name: studentName(student), grade: student.grade, room: student.room, student_code: student.student_code },
       };
     } finally {
       lock.releaseLock();
     }
+
+    // audit นอก lock — ไม่ให้การเขียน AUDIT_LOG หน่วงครูคนถัดไปที่รอ lock (แบบเดียวกับ Bank/Attendance)
+    audit('behavior', 'RECORD', result.log_id,
+      { citizen_id: cid, item_id: itemId, points_change: result.points_change, points_after: result.points_after }, params.recorded_by);
+    return result;
   },
 
   /** คะแนน + รายการของนักเรียน 1 คน ในเดือนที่ระบุ (default เดือนปัจจุบัน) */
@@ -173,23 +208,18 @@ const BehaviorAPI = {
     const s = buildIndex('STUDENTS', 'citizen_id')[String(cid)];
     if (!s) apiError('NOT_FOUND', 'ไม่พบนักเรียน');
 
-    const ym = params.year_month || yearMonth();
+    const ym = toYm(params.year_month) || yearMonth();
     const start = behaviorStart();
     const itemIndex = buildIndex('BEHAVIOR_MASTER', 'item_id');
 
     const logs = readAll('BEHAVIOR_LOG')
       .filter(function (l) { return String(l.citizen_id) === String(cid) && toYm(l.year_month) === ym; })
       .sort(function (a, b) { return String(a.created_at).localeCompare(String(b.created_at)); })
-      .map(function (l) {
-        const it = itemIndex[String(l.item_id)];
-        return {
-          log_id: l.log_id, date: l.date, item_name: it ? it.name : '(ลบแล้ว)',
-          points_change: Number(l.points_change) || 0, points_after: Number(l.points_after) || 0,
-          note: l.note, recorded_by: l.recorded_by, created_at: l.created_at,
-        };
-      });
+      .map(function (l) { return behaviorLogView(l, itemIndex); });
 
-    const score = logs.length ? logs[logs.length - 1].points_after : start;
+    // คำนวณจาก start + ผลรวม points_change (แข็งแรงกว่าการอิง points_after ของรายการสุดท้าย
+    //   เผื่ออนาคตมีการบันทึกย้อนหลัง/แก้ไข log ที่ทำให้ลำดับ points_after ไม่ต่อเนื่อง)
+    const score = logs.reduce(function (s, l) { return s + l.points_change; }, start);
     return {
       student: { citizen_id: s.citizen_id, student_code: s.student_code, name: studentName(s), grade: s.grade, room: s.room },
       year_month: ym, start: start, score: score, logs: logs,
@@ -203,7 +233,7 @@ const BehaviorAPI = {
     const itemIndex = buildIndex('BEHAVIOR_MASTER', 'item_id');
     let rows = readAll('BEHAVIOR_LOG');
 
-    if (p.year_month) rows = rows.filter(function (l) { return toYm(l.year_month) === p.year_month; });
+    if (p.year_month) { const ymP = toYm(p.year_month); rows = rows.filter(function (l) { return toYm(l.year_month) === ymP; }); }
     if (p.citizen_id) rows = rows.filter(function (l) { return String(l.citizen_id) === String(p.citizen_id); });
     if (p.type) {
       rows = rows.filter(function (l) {
@@ -237,7 +267,7 @@ const BehaviorAPI = {
 
   /** อันดับคะแนนรายเดือน (นักเรียน active) — เรียงมาก→น้อย */
   ranking: function (params) {
-    const ym = (params && params.year_month) || yearMonth();
+    const ym = (params && toYm(params.year_month)) || yearMonth();
     const grade = (params && params.grade) || '';
     return cachedResult('bhv.rank:' + ym + ':' + grade, ['STUDENTS', 'BEHAVIOR_LOG', 'SETTINGS'], 90, function () {
     const ms = monthScores(ym);
@@ -264,7 +294,7 @@ const BehaviorAPI = {
 
   /** Dashboard — เฉลี่ย, การกระจายคะแนน, เฉลี่ยรายชั้น, สูงสุด/ต่ำสุด */
   dashboard: function (params) {
-    const ym = (params && params.year_month) || yearMonth();
+    const ym = (params && toYm(params.year_month)) || yearMonth();
     return cachedResult('bhv.dash:' + ym, ['STUDENTS', 'BEHAVIOR_LOG', 'SETTINGS'], 90, function () {
     const ms = monthScores(ym);
     const students = readAll('STUDENTS').filter(function (s) { return s.status !== 'inactive'; });
@@ -302,16 +332,12 @@ const BehaviorAPI = {
     // นักเรียนที่ยังคงคะแนนเต็ม (= start) ไม่ถือว่าต้องดูแล จึงไม่ขึ้นรายชื่อ
     const bottom = sorted.slice().reverse().filter(function (e) { return e.score < ms.start; }).slice(0, 5);
 
-    // จำนวนการบันทึกในเดือนนี้
-    let recordCount = 0;
-    readAll('BEHAVIOR_LOG').forEach(function (l) { if (toYm(l.year_month) === ym) recordCount++; });
-
     return {
       year_month: ym,
       start: ms.start,
       student_count: enriched.length,
       avg_score: enriched.length ? Math.round((sum / enriched.length) * 100) / 100 : ms.start,
-      record_count: recordCount,
+      record_count: ms.count,   // นับจาก monthScores แล้ว (ไม่วน BEHAVIOR_LOG ซ้ำอีกรอบ)
       distribution: dist,
       by_grade: byGrade,
       top: top,
@@ -329,15 +355,27 @@ function behaviorStart() {
   return isFinite(v) ? v : 20;
 }
 
-/** { start, sums:{ citizen_id -> ผลรวม points_change ของเดือน ym } } */
+/** { start, sums:{ citizen_id -> ผลรวม points_change ของเดือน ym }, count: จำนวน log ในเดือนนั้น } */
 function monthScores(ym) {
   const sums = {};
+  let count = 0;
   readAll('BEHAVIOR_LOG').forEach(function (l) {
     if (toYm(l.year_month) !== ym) return;
+    count++;
     const cid = String(l.citizen_id);
     sums[cid] = (sums[cid] || 0) + (Number(l.points_change) || 0);
   });
-  return { start: behaviorStart(), sums: sums };
+  return { start: behaviorStart(), sums: sums, count: count };
+}
+
+/** map แถว BEHAVIOR_LOG → รูปแบบที่หน้าเว็บใช้ (ใช้ร่วมกันระหว่าง record / student_score) */
+function behaviorLogView(l, itemIndex) {
+  const it = itemIndex[String(l.item_id)];
+  return {
+    log_id: l.log_id, date: l.date, item_name: it ? it.name : '(ลบแล้ว)',
+    points_change: Number(l.points_change) || 0, points_after: Number(l.points_after) || 0,
+    note: l.note, recorded_by: l.recorded_by, created_at: l.created_at,
+  };
 }
 
 /** id แบบ B001, B002, ... (อิงเลขสูงสุดเดิม) */

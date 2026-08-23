@@ -62,7 +62,7 @@
       document.getElementById('tab-' + t.dataset.tab).classList.remove('hidden');
       if (t.dataset.tab === 'dashboard') loadDashboard();
       else if (t.dataset.tab === 'master') loadMaster();
-      else if (t.dataset.tab === 'record') { ensureItems(); loadRecClasses(); }
+      else if (t.dataset.tab === 'record') loadRecordTab();
     });
   });
 
@@ -186,6 +186,24 @@
     });
   }
 
+  // เปิดแท็บ "บันทึก" ครั้งแรก: โหลดรายการพฤติกรรม + รายชื่อชั้น ใน request เดียว (ลดจาก 2 round-trip เหลือ 1)
+  async function loadRecordTab() {
+    if (masterItems.length && recClassesLoaded) { renderItemButtons(); return; }   // มีครบแล้ว ไม่ต้องยิง
+    if (!masterItems.length && !recClassesLoaded) {
+      try {
+        const [mlR, clsR] = await apiBatch([
+          { action: 'behavior.master_list' },
+          { action: 'behavior.classes' },
+        ], { silent: true, loading: false });
+        if (mlR && mlR.ok) { masterItems = mlR.data.items; renderItemButtons(); }
+        if (clsR && clsR.ok) { fillClassSelect(document.getElementById('rec-class'), clsR.data.classes); recClassesLoaded = true; }
+        if ((mlR && mlR.ok) && (clsR && clsR.ok)) return;   // สำเร็จทั้งคู่ → จบ
+      } catch (e) { /* batch ล้มเหลว → ถอยไปโหลดทีละอย่างด้านล่าง */ }
+    }
+    ensureItems();        // โหลดเฉพาะส่วนที่ยังขาด (มี guard ภายในกันยิงซ้ำ)
+    loadRecClasses();
+  }
+
   let recClassesLoaded = false;
   async function loadRecClasses() {
     if (recClassesLoaded) return;
@@ -270,7 +288,11 @@
       document.getElementById('rec-note').value = '';
       clearDashCache();  // คะแนนเปลี่ยน → ภาพรวม/อันดับ ต้องโหลดใหม่
       Toast.show('บันทึกพฤติกรรมสำเร็จ', 'success');
-      await refreshStudentScore();
+      // record คืน score+logs ของเดือนมาแล้ว → วาดในเครื่องเลย ไม่ต้องยิง student_score ซ้ำอีกรอบ (ประหยัด 1 round-trip)
+      if (selRec) selRec.score = r.points_after;
+      document.getElementById('rec-score').textContent = Utils.fmtInt(r.points_after);
+      if (r.logs) renderRecLogs(r.logs);
+      else await refreshStudentScore();
     } catch (e) { /* Toast แสดงแล้ว */ }
   }
 
