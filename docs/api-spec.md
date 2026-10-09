@@ -49,6 +49,8 @@
 | `scholarship.history` / `scholarship.dashboard` | — | ประวัติ · สรุปรายปี (รวมเงิน/รายชั้น/ผู้รับสูงสุด) |
 | `attendance.classes` / `attendance.by_class` | 127 | เลือกชั้น → รายชื่อ+สถานะของวันนั้น (pre-fill) |
 | `attendance.save` / `attendance.history` / `attendance.dashboard` | 127 | บันทึกรายชั้น (upsert date+citizen_id) · ประวัติ · ภาพรวมรายวัน |
+| `attendance.daily_summary` | — | สรุปรายวันแยกชั้น (มา/ไม่มา ช/ญ) |
+| `attendance.report_months` / `attendance.monthly_by_class` / `attendance.monthly_by_student` | — | รายงานรายเดือน: รายการเดือน · สรุปรายชั้น · สรุปรายคน (มา/สาย/ลา/ขาด + อัตรามาเรียน) |
 | `scout.years` / `scout.dashboard` | — | ลูกเสือ: ปีการศึกษา · สรุปคะแนนรวมตามหมู่ (+อันดับ/กราฟ) |
 | `scout.groups` / `scout.group_save` / `scout.group_delete` | — | สร้าง/แก้ไข/ลบหมู่ลูกเสือ |
 | `scout.members` / `scout.available_students` / `scout.member_add` / `scout.member_remove` | — | จัดการสมาชิกในหมู่ (เลือกจากทะเบียนนักเรียน) |

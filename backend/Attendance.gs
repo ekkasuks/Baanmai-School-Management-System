@@ -256,7 +256,139 @@ const AttendanceAPI = {
     return { date: date, rows: rows, totals: totals, class_count: rows.length };
     });
   },
+
+  /** เดือนที่มีข้อมูลเช็คชื่อ (distinct 'YYYY-MM') — สำหรับ dropdown · ใหม่→เก่า · รวมเดือนปัจจุบันเสมอ */
+  report_months: function (params, ctx) {
+    return cachedResult('att.report.months', ['ATTENDANCE'], 300, function () {
+      const set = {};
+      readAll('ATTENDANCE').forEach(function (a) {
+        const ym = toYm(a.date);
+        if (ym) set[ym] = true;
+      });
+      set[yearMonth()] = true;   // ให้เลือกเดือนปัจจุบันได้เสมอแม้ยังไม่มีข้อมูล
+      return { months: Object.keys(set).sort().reverse() };
+    });
+  },
+
+  /**
+   * สรุปการมาเรียน "รายเดือน" แยกรายชั้น/ห้อง
+   * params = { year_month? ('YYYY-MM', default เดือนปัจจุบัน) }
+   * แต่ละแถว: จำนวนนักเรียน · วันที่เช็ค · มา/สาย/ลา/ขาด · มาโรงเรียน(มา+สาย) · อัตรา%
+   */
+  monthly_by_class: function (params, ctx) {
+    const ym = (params && params.year_month) ? String(params.year_month).substring(0, 7) : yearMonth();
+    return cachedResult('att.month.class:' + ym, ['STUDENTS', 'ATTENDANCE'], 180, function () {
+      const stIndex = buildIndex('STUDENTS', 'citizen_id');
+      const classMap = {};
+      const keyOf = function (g, r) { return g + '|' + r; };
+
+      // init ทุกชั้นจากนักเรียน active → ชั้นที่ยังไม่เช็คก็ปรากฏ
+      readAll('STUDENTS').forEach(function (s) {
+        if (s.status === 'inactive') return;
+        const grade = s.grade || '-';
+        const room = (s.room === undefined || s.room === null) ? '' : String(s.room);
+        const k = keyOf(grade, room);
+        if (!classMap[k]) classMap[k] = newMonthRow(grade, room);
+        classMap[k].student_count++;
+      });
+
+      const allDays = {};
+      readAll('ATTENDANCE').forEach(function (a) {
+        if (toYm(a.date) !== ym) return;
+        const s = stIndex[String(a.citizen_id)];
+        const grade = s ? (s.grade || '-') : '-';
+        const room = s ? ((s.room === undefined || s.room === null) ? '' : String(s.room)) : '';
+        const k = keyOf(grade, room);
+        if (!classMap[k]) classMap[k] = newMonthRow(grade, room);
+        addStatus(classMap[k], a.status);
+        classMap[k].days[toYmd(a.date)] = true;
+        allDays[toYmd(a.date)] = true;
+      });
+
+      const rows = Object.keys(classMap).map(function (k) { return finalizeMonthRow(classMap[k]); })
+        .sort(function (a, b) {
+          const d = gradeSortKey(a.grade) - gradeSortKey(b.grade);
+          return d !== 0 ? d : (parseInt(a.room, 10) || 0) - (parseInt(b.room, 10) || 0);
+        });
+
+      const totals = finalizeMonthRow(rows.reduce(function (t, c) {
+        t.student_count += c.student_count; t.present += c.present; t.late += c.late;
+        t.leave += c.leave; t.absent += c.absent; t.records += c.records;
+        return t;
+      }, newMonthRow('รวมทั้งหมด', '')));
+      totals.days_checked = Object.keys(allDays).length;
+
+      return { year_month: ym, school_days: Object.keys(allDays).length, rows: rows, totals: totals, class_count: rows.length };
+    });
+  },
+
+  /**
+   * สรุปการมาเรียน "รายเดือน" รายคน (ในชั้นที่เลือก)
+   * params = { year_month?, grade, room? }
+   */
+  monthly_by_student: function (params, ctx) {
+    if (!params || !params.grade) apiError('VALIDATION', 'กรุณาเลือกชั้นเรียน');
+    const ym = params.year_month ? String(params.year_month).substring(0, 7) : yearMonth();
+    const grade = params.grade;
+    const room = params.room || '';
+    return cachedResult('att.month.stu:' + ym + ':' + grade + '|' + room, ['STUDENTS', 'ATTENDANCE'], 180, function () {
+      const byCid = {};
+      studentsInClass(grade, room).forEach(function (s) {
+        const row = newMonthRow(s.grade, (s.room === undefined || s.room === null) ? '' : String(s.room));
+        row.citizen_id = s.citizen_id;
+        row.name = studentName(s);
+        row.student_count = 1;
+        byCid[String(s.citizen_id)] = row;
+      });
+
+      const allDays = {};
+      readAll('ATTENDANCE').forEach(function (a) {
+        if (toYm(a.date) !== ym) return;
+        const row = byCid[String(a.citizen_id)];
+        if (!row) return;
+        addStatus(row, a.status);
+        row.days[toYmd(a.date)] = true;
+        allDays[toYmd(a.date)] = true;
+      });
+
+      const rows = Object.keys(byCid).map(function (c) { return finalizeMonthRow(byCid[c]); })
+        .sort(function (a, b) { return String(a.name).localeCompare(String(b.name), 'th'); });
+
+      const totals = finalizeMonthRow(rows.reduce(function (t, c) {
+        t.present += c.present; t.late += c.late; t.leave += c.leave; t.absent += c.absent; t.records += c.records;
+        return t;
+      }, newMonthRow('รวม', '')));
+      totals.student_count = rows.length;
+
+      return { year_month: ym, grade: grade, room: room, school_days: Object.keys(allDays).length, rows: rows, totals: totals };
+    });
+  },
 };
+
+/* ── helpers สำหรับรายงานรายเดือน ── */
+
+function newMonthRow(grade, room) {
+  return { grade: grade, room: room, student_count: 0,
+    present: 0, late: 0, leave: 0, absent: 0, records: 0, days: {} };
+}
+
+function addStatus(row, status) {
+  const st = ATT_STATUSES.indexOf(status) >= 0 ? status : 'มา';
+  if (st === 'มา') row.present++;
+  else if (st === 'สาย') row.late++;
+  else if (st === 'ลา') row.leave++;
+  else if (st === 'ขาด') row.absent++;
+  row.records++;
+}
+
+/** came = มา+สาย (มาโรงเรียน) · rate = came/records% · days_checked = จำนวนวันที่มีบันทึก */
+function finalizeMonthRow(row) {
+  row.came = row.present + row.late;
+  row.rate = row.records ? Math.round((row.came / row.records) * 1000) / 10 : 0;
+  row.days_checked = (row.days && typeof row.days === 'object') ? Object.keys(row.days).length : 0;
+  delete row.days;
+  return row;
+}
 
 /**
  * เขียน update หลายแถวแบบรวมช่วงแถวที่ติดกัน (batched setValues)
