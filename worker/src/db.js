@@ -23,6 +23,7 @@ export const TABLES = {
   SCOUT_SCORE:       { pk: 'score_id',      cols: ['score_id', 'activity_id', 'group_id', 'score', 'note', 'recorded_by', 'date', 'created_at'] },
   USERS:             { pk: 'user_id',       cols: ['user_id', 'name', 'role', 'active', 'created_at'] },
   AUDIT_LOG:         { pk: 'log_id',        cols: ['log_id', 'timestamp', 'action', 'module', 'target_id', 'details', 'recorded_by'] },
+  SESSIONS:          { pk: 'token',         cols: ['token', 'module', 'issued_at', 'expires_at'] },
 };
 
 export function apiError(code, message) {
@@ -50,12 +51,13 @@ export async function getBy(db, table, col, val) {
   return await db.prepare('SELECT * FROM ' + table + ' WHERE ' + col + ' = ?').bind(val).first();
 }
 
-/** INSERT หลายแถว (batch atomic) — คืนจำนวนที่เพิ่ม */
-export async function insertRows(db, table, objects) {
+/** INSERT หลายแถว (batch atomic) — คืนจำนวนที่เพิ่ม · orReplace=true → INSERT OR REPLACE (กัน PK ซ้ำตอน import) */
+export async function insertRows(db, table, objects, orReplace) {
   const d = def(table);
   if (!objects || !objects.length) return 0;
   const placeholders = '(' + d.cols.map(function () { return '?'; }).join(',') + ')';
-  const sql = 'INSERT INTO ' + table + ' (' + d.cols.join(',') + ') VALUES ' + placeholders;
+  const verb = orReplace ? 'INSERT OR REPLACE INTO ' : 'INSERT INTO ';
+  const sql = verb + table + ' (' + d.cols.join(',') + ') VALUES ' + placeholders;
   const stmts = objects.map(function (o) {
     const st = db.prepare(sql);
     return st.bind.apply(st, d.cols.map(function (c) { return norm(o[c]); }));

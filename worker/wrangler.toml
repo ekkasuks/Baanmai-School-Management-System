@@ -7,7 +7,7 @@ compatibility_date = "2026-09-01"
 [[d1_databases]]
 binding = "DB"
 database_name = "baanmai_sms"
-database_id = "PASTE_DATABASE_ID_HERE"
+database_id = "e880b19e-3f6a-46a0-871e-03611396f0ee"
 
 # ADMIN_KEY (สำหรับ migration) อย่าใส่ในไฟล์นี้ — ตั้งเป็น secret:
 #   npx wrangler secret put ADMIN_KEY

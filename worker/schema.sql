@@ -1,5 +1,5 @@
 -- Baanmai SMS — Cloudflare D1 (SQLite) schema
--- มิเรอร์จาก SHEETS ใน backend/Sheets.gs (18 ตาราง) + SESSIONS (เก็บ PIN token)
+-- มิเรอร์จาก SHEETS ใน backend/Sheets.gs (17 ตาราง) + SESSIONS (เก็บ PIN token)
 -- วันที่เก็บเป็น TEXT 'YYYY-MM-DD' / ISO — SQLite ไม่ coerce เป็น Date (ต่างจาก Sheets)
 
 CREATE TABLE IF NOT EXISTS SETTINGS (

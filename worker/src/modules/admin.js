@@ -30,8 +30,8 @@ export const AdminAPI = {
       const rows = data[table] || [];
       await clearTable(ctx.db, table);
       let n = 0;
-      for (let i = 0; i < rows.length; i += 50) {   // chunk กัน batch ใหญ่เกิน
-        n += await insertRows(ctx.db, table, rows.slice(i, i + 50));
+      for (let i = 0; i < rows.length; i += 50) {   // chunk กัน batch ใหญ่เกิน · OR REPLACE กัน PK ซ้ำในต้นทาง
+        n += await insertRows(ctx.db, table, rows.slice(i, i + 50), true);
       }
       report[table] = n;
     }
