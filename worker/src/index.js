@@ -10,6 +10,7 @@ import { SettingsAPI } from './modules/settings.js';
 import { AuthAPI } from './modules/auth.js';
 import { AdminAPI } from './modules/admin.js';
 import { StudentsAPI } from './modules/students.js';
+import { BankAPI } from './modules/bank.js';
 import { now } from './db.js';
 
 const ROUTER = {
@@ -17,6 +18,7 @@ const ROUTER = {
   auth: AuthAPI,
   admin: AdminAPI,
   students: StudentsAPI,
+  bank: BankAPI,
 };
 
 const CORS = {
