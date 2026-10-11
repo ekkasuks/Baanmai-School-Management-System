@@ -16,6 +16,8 @@ import { AttendanceAPI } from './modules/attendance.js';
 import { HealthAPI } from './modules/health.js';
 import { GrowthAPI } from './modules/growth.js';
 import { MilkAPI } from './modules/milk.js';
+import { ScholarshipAPI } from './modules/scholarship.js';
+import { ScoutAPI } from './modules/scout.js';
 import { now } from './db.js';
 
 const ROUTER = {
@@ -29,6 +31,8 @@ const ROUTER = {
   health: HealthAPI,
   growth: GrowthAPI,
   milk: MilkAPI,
+  scholarship: ScholarshipAPI,
+  scout: ScoutAPI,
 };
 
 const CORS = {
