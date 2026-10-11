@@ -9,12 +9,14 @@
 import { SettingsAPI } from './modules/settings.js';
 import { AuthAPI } from './modules/auth.js';
 import { AdminAPI } from './modules/admin.js';
+import { StudentsAPI } from './modules/students.js';
 import { now } from './db.js';
 
 const ROUTER = {
   settings: SettingsAPI,
   auth: AuthAPI,
   admin: AdminAPI,
+  students: StudentsAPI,
 };
 
 const CORS = {

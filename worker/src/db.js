@@ -51,6 +51,13 @@ export async function getBy(db, table, col, val) {
   return await db.prepare('SELECT * FROM ' + table + ' WHERE ' + col + ' = ?').bind(val).first();
 }
 
+/** ทุกแถวที่ column = value (ใช้ index — เร็วกว่าอ่านทั้งตารางแล้ว filter) */
+export async function selectWhere(db, table, col, val) {
+  def(table);
+  const res = await db.prepare('SELECT * FROM ' + table + ' WHERE ' + col + ' = ?').bind(val).all();
+  return res.results || [];
+}
+
 /** INSERT หลายแถว (batch atomic) — คืนจำนวนที่เพิ่ม · orReplace=true → INSERT OR REPLACE (กัน PK ซ้ำตอน import) */
 export async function insertRows(db, table, objects, orReplace) {
   const d = def(table);
@@ -114,6 +121,9 @@ export function buildIndex(rows, col) {
 function norm(v) {
   if (v === undefined || v === null) return null;
   if (typeof v === 'boolean') return v ? 1 : 0;
+  // ⚠️ number → string: กัน SQLite เติม ".0" ให้คอลัมน์ TEXT (เช่น citizen_id/current_year ที่ต้นทางเก็บเป็นตัวเลข)
+  //    คอลัมน์ REAL/INTEGER จะถูกแปลงกลับเป็นตัวเลขด้วย column affinity ตอน INSERT เอง
+  if (typeof v === 'number') return String(v);
   if (typeof v === 'object') return JSON.stringify(v);
   return v;
 }
