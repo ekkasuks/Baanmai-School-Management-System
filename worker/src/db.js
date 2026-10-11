@@ -137,8 +137,8 @@ export function yearMonth() { return bkk().toISOString().slice(0, 7); }  // YYYY
 export function toYmd(v) {
   if (v === null || v === undefined || v === '') return '';
   const s = String(v);
-  if (/^\d{4}-\d{2}-\d{2}/.test(s)) return s.slice(0, 10);
-  const d = new Date(s);
+  if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return s;   // วันที่ล้วน 10 ตัว → ใช้ตามนั้น (ต้อง anchored $ เหมือน Apps Script)
+  const d = new Date(s);                          // ISO ที่มีเวลา (UTC) → แปลงเป็นวันที่โซนไทย (+7) ให้ตรงระบบเดิม
   return isNaN(d.getTime()) ? s : new Date(d.getTime() + 7 * 3600 * 1000).toISOString().slice(0, 10);
 }
 export function toYm(v) { const s = toYmd(v); return s ? s.slice(0, 7) : ''; }
