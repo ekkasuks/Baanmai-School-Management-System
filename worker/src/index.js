@@ -11,6 +11,7 @@ import { AuthAPI } from './modules/auth.js';
 import { AdminAPI } from './modules/admin.js';
 import { StudentsAPI } from './modules/students.js';
 import { BankAPI } from './modules/bank.js';
+import { BehaviorAPI } from './modules/behavior.js';
 import { now } from './db.js';
 
 const ROUTER = {
@@ -19,6 +20,7 @@ const ROUTER = {
   admin: AdminAPI,
   students: StudentsAPI,
   bank: BankAPI,
+  behavior: BehaviorAPI,
 };
 
 const CORS = {
