@@ -10,10 +10,16 @@
 - [x] โครงสร้าง: `schema.sql` (18 ตาราง), Worker scaffold, data-access layer (`db.js`)
 - [x] โมดูล **settings** (get/update/init) + **auth** (PIN → SESSIONS table)
 - [x] **admin.import** — ย้ายข้อมูลจาก backup ของ Sheets (lossless) + `admin.stats`
-- [ ] students · bank · behavior · attendance · (+report) · health · growth · milk · scholarship · scout · dashboard
-- [ ] สลับ `frontend/js/config.js` → Worker URL (หลังพอร์ตครบ + ทดสอบ)
+- [x] **students · bank · behavior · attendance (+report) · health · growth · milk · scholarship · scout · dashboard** — พอร์ตครบ + cross-check ตรงกับ Apps Script ทุกตัว
+- [ ] re-migrate รอบสุดท้าย (ดึงข้อมูลล่าสุด + ล้าง test data) แล้วสลับ `frontend/js/config.js` → Worker URL
 
 ระหว่างนี้ **ระบบเดิม (Sheets) ยังทำงานปกติ** — Worker สร้างคู่ขนาน ยังไม่แตะของเดิม
+
+**Worker URL:** `https://baanmai-sms-api.ekkasuks.workers.dev` · **D1:** `baanmai_sms`
+
+### วิธีตรวจ (cross-check)
+เรียก action เดียวกันทั้ง Apps Script เดิมและ Worker แล้วเทียบผล JSON ให้ตรง bit-ต่อ-bit
+(ทำผ่าน console ของหน้าแอป) — dashboard/รายงานทุกโมดูลตรงกัน
 
 ## ขั้นตอนติดตั้ง (ครั้งเดียว)
 
