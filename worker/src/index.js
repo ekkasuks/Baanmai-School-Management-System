@@ -18,6 +18,7 @@ import { GrowthAPI } from './modules/growth.js';
 import { MilkAPI } from './modules/milk.js';
 import { ScholarshipAPI } from './modules/scholarship.js';
 import { ScoutAPI } from './modules/scout.js';
+import { DashboardAPI } from './modules/dashboard.js';
 import { now } from './db.js';
 
 const ROUTER = {
@@ -33,6 +34,7 @@ const ROUTER = {
   milk: MilkAPI,
   scholarship: ScholarshipAPI,
   scout: ScoutAPI,
+  dashboard: DashboardAPI,
 };
 
 const CORS = {
