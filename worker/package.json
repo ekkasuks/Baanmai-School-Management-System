@@ -1,0 +1,11 @@
+{
+  "name": "baanmai-sms-api",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy",
+    "db:init": "wrangler d1 execute baanmai_sms --remote --file=./schema.sql"
+  }
+}

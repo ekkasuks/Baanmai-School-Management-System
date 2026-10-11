@@ -1,0 +1,13 @@
+name = "baanmai-sms-api"
+main = "src/index.js"
+compatibility_date = "2026-09-01"
+
+# D1 database — สร้างด้วย:  npx wrangler d1 create baanmai_sms
+# แล้วเอา database_id ที่ได้มาวางแทนข้างล่าง
+[[d1_databases]]
+binding = "DB"
+database_name = "baanmai_sms"
+database_id = "PASTE_DATABASE_ID_HERE"
+
+# ADMIN_KEY (สำหรับ migration) อย่าใส่ในไฟล์นี้ — ตั้งเป็น secret:
+#   npx wrangler secret put ADMIN_KEY

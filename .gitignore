@@ -16,3 +16,7 @@ Thumbs.db
 *.log
 .cache/
 node_modules/
+
+# ── Cloudflare Worker ──
+.wrangler/
+worker/.dev.vars
