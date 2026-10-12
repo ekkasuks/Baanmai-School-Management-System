@@ -68,19 +68,37 @@ export default {
     const action = req && req.action;
     if (!action) return json(false, null, { code: 'VALIDATION', message: 'ไม่ได้ระบุ action' });
 
-    const parts = String(action).split('.');
-    const mod = ROUTER[parts[0]];
-    const method = mod && mod[parts[1]];
-    if (typeof method !== 'function') {
-      return json(false, null, { code: 'NOT_FOUND', message: 'ไม่รู้จักคำสั่ง: ' + action });
+    const base = { db: env.DB, env: env, token: req.token };
+
+    // batch — เรียกหลาย action ในคำขอเดียว (สูงสุด 10) · แต่ละรายการล้มเหลวอิสระ
+    if (action === 'batch') {
+      const calls = req.params && req.params.calls;
+      if (!Array.isArray(calls) || !calls.length) return json(false, null, { code: 'VALIDATION', message: 'batch ต้องมี calls อย่างน้อย 1 รายการ' });
+      if (calls.length > 10) return json(false, null, { code: 'VALIDATION', message: 'batch ได้สูงสุด 10 รายการต่อครั้ง' });
+      const results = [];
+      for (const c of calls) results.push(await runOne(String((c && c.action) || ''), (c && c.params) || {}, base));
+      return json(true, { results: results });
     }
 
-    const ctx = { db: env.DB, env: env, token: req.token, action: action };
-    try {
-      const result = await method(req.params || {}, ctx);
-      return json(true, result);
-    } catch (err) {
-      return json(false, null, { code: (err && err.code) || 'INTERNAL', message: (err && err.message) || String(err) });
-    }
+    const r = await runOne(action, req.params || {}, base);
+    return new Response(JSON.stringify(r), {
+      headers: Object.assign({ 'Content-Type': 'application/json;charset=utf-8' }, CORS),
+    });
   },
 };
+
+/** dispatch 1 action → { ok, data, error } (ไม่ throw) */
+async function runOne(action, params, base) {
+  const parts = String(action).split('.');
+  const mod = ROUTER[parts[0]];
+  const method = mod && mod[parts[1]];
+  if (typeof method !== 'function') {
+    return { ok: false, data: null, error: { code: 'NOT_FOUND', message: 'ไม่รู้จักคำสั่ง: ' + action } };
+  }
+  try {
+    const data = await method(params, { db: base.db, env: base.env, token: base.token, action: action });
+    return { ok: true, data: data === undefined ? null : data, error: null };
+  } catch (err) {
+    return { ok: false, data: null, error: { code: (err && err.code) || 'INTERNAL', message: (err && err.message) || String(err) } };
+  }
+}

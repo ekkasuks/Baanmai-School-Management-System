@@ -113,7 +113,7 @@ async function loadDashboard() {
       const s = cfgR.data.settings || {};
       paintSettings(s);
       Store.set('home:settings', s);
-      document.getElementById('api-status').textContent = '✅ เชื่อมต่อ Apps Script สำเร็จ';
+      document.getElementById('api-status').textContent = '✅ เชื่อมต่อเซิร์ฟเวอร์สำเร็จ';
     } else {
       throw new Error((cfgR && cfgR.error && cfgR.error.message) || 'เชื่อมต่อไม่ได้');
     }
