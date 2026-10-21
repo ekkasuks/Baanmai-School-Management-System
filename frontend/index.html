@@ -23,6 +23,9 @@
 
 <main class="container">
 
+  <!-- ข้อความวิ่ง: ประกาศ/การเปลี่ยนแปลงตารางสอนที่เผยแพร่แล้ว (ซ่อนเมื่อไม่มีข้อความ) -->
+  <div id="tt-ticker" class="hidden"></div>
+
   <div class="card">
     <h3 class="card-title">📊 ภาพรวมวันนี้</h3>
     <div class="stat-grid">
@@ -51,6 +54,7 @@
 <script src="js/api.js"></script>
 <script src="js/store.js"></script>
 <script src="js/utils.js"></script>
+<script src="js/tt-ticker.js"></script>
 <script>
 document.getElementById('stat-date').textContent = Utils.fmtDateThai(new Date());
 
@@ -102,13 +106,19 @@ async function loadDashboard() {
   if (cachedSum) { try { paintSummary(cachedSum); } catch (e) { /* ignore */ } }
   const cachedCfg = Store.get('home:settings');
   if (cachedCfg) paintSettings(cachedCfg);
+  const cachedTicker = Store.get('home:ticker');
+  if (cachedTicker) { try { TTTicker.mount(document.getElementById('tt-ticker'), cachedTicker, 'timetable.html'); } catch (e) { /* ignore */ } }
 
   try {
-    // ⚡ ดึงตั้งค่า + สรุปภาพรวม ใน request เดียว (เดิมยิง 2 ครั้งเรียงกัน)
-    const [cfgR, sumR] = await apiBatch([
+    // ⚡ ดึงตั้งค่า + สรุปภาพรวม + ข้อความวิ่ง ใน request เดียว
+    const [cfgR, sumR, tickR] = await apiBatch([
       { action: 'settings.get' },
       { action: 'dashboard.summary' },
+      { action: 'tt.ticker' },
     ], { silent: true, loading: false });
+    if (tickR && tickR.ok) {
+      try { TTTicker.mount(document.getElementById('tt-ticker'), tickR.data.items, 'timetable.html'); Store.set('home:ticker', tickR.data.items); } catch (e) { /* ข้อความวิ่งไม่ควรทำให้หน้าหลักพัง */ }
+    }
 
     if (cfgR && cfgR.ok) {
       const s = cfgR.data.settings || {};

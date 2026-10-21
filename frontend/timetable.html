@@ -118,6 +118,11 @@
     body.tt-printing .tt-rep-sec:last-child { page-break-after:auto; break-after:auto; }
     body.tt-printing td, body.tt-printing th { -webkit-print-color-adjust:exact; print-color-adjust:exact; }
   }
+  /* ── นำเข้า (เฟส 5) ── */
+  .tt-drop { border:2px dashed #90CAF9; border-radius:14px; padding:22px; text-align:center; color:var(--primary-dark); background:#F7FCFF; }
+  .tt-drop.over { background:var(--primary-light); border-color:var(--primary-dark); }
+  .tt-link { color:var(--primary-dark); text-decoration:underline; cursor:pointer; font-weight:600; }
+  .tt-results tr.row-err { background:#FFF5F5; }
   @media (max-width:600px) { .tt-free { grid-template-columns:1fr; } }
   @media (max-width:900px) { .tt-ed { grid-template-columns:minmax(0,1fr); } .tt-save { margin-left:0; width:100%; } }
   @media (max-width:600px) { .tt-form { grid-template-columns:1fr; } .tt-stat .value { font-size:20px; } }
@@ -147,6 +152,8 @@
     <button class="tab" data-tab="edit">✏️ ตรวจสอบ / แก้ไขตาราง</button>
     <button class="tab" data-tab="search">🔎 ค้นหา</button>
     <button class="tab" data-tab="report">📑 รายงาน / ส่งออก</button>
+    <button class="tab" data-tab="import">📥 นำเข้า</button>
+    <button class="tab" data-tab="ticker">📢 ข้อความวิ่ง</button>
   </div>
 
   <!-- Dashboard -->
@@ -230,6 +237,10 @@
   <!-- ค้นหา (โมดูล 10) / รายงาน + ส่งออก (โมดูล 8, 11) — สร้างเนื้อหาโดย timetable-search.js / timetable-report.js -->
   <section class="tab-pane hidden" id="tab-search"></section>
   <section class="tab-pane hidden" id="tab-report"></section>
+
+  <!-- นำเข้า (โมดูล 7) / ข้อความวิ่ง (โมดูล 9) — สร้างเนื้อหาโดย timetable-import.js / timetable-ticker.js -->
+  <section class="tab-pane hidden" id="tab-import"></section>
+  <section class="tab-pane hidden" id="tab-ticker"></section>
 </main>
 
 <script src="js/config.js"></script>
@@ -244,5 +255,8 @@
 <script src="js/pdf.js"></script>
 <script src="js/modules/timetable-report.js"></script>
 <script src="js/modules/timetable-search.js"></script>
+<script src="js/tt-ticker.js"></script>
+<script src="js/modules/timetable-import.js"></script>
+<script src="js/modules/timetable-ticker.js"></script>
 </body>
 </html>

@@ -225,3 +225,21 @@ code { background: var(--primary-light); padding: 1px 6px; border-radius: 6px; f
   .container { padding: 14px; }
   .card { padding: 16px; }
 }
+
+/* ── ข้อความวิ่ง (ระบบจัดตารางสอน · js/tt-ticker.js) ── */
+.ticker { display: flex; align-items: stretch; background: #FFF8E1; border: 2px solid var(--yellow); border-radius: 14px; overflow: hidden; margin-bottom: 16px; }
+.ticker-label { flex: none; display: flex; align-items: center; gap: 6px; padding: 8px 14px; background: var(--yellow); color: #5D4037; font-weight: 700; font-size: 14px; white-space: nowrap; }
+a.ticker-label:hover { background: #FFCA28; }
+.ticker-viewport { flex: 1; overflow: hidden; display: flex; align-items: center; min-width: 0; }
+.ticker-track { display: inline-flex; white-space: nowrap; animation: ticker-move var(--ticker-dur, 30s) linear infinite; }
+.ticker:hover .ticker-track, .ticker:active .ticker-track { animation-play-state: paused; }
+.ticker-run { display: inline-flex; align-items: center; padding-left: 16px; }
+.ticker-item { font-size: 14px; color: #4E342E; }
+.ticker-at { color: #8D6E63; font-size: 12px; }
+.ticker-sep { color: #FFB300; margin: 0 14px; }
+@keyframes ticker-move { from { transform: translateX(0); } to { transform: translateX(-50%); } }
+@media (prefers-reduced-motion: reduce) {
+  .ticker-track { animation: none; white-space: normal; flex-wrap: wrap; }
+  .ticker-run[aria-hidden] { display: none; }
+  .ticker-run { flex-wrap: wrap; padding: 6px 12px; row-gap: 4px; }
+}

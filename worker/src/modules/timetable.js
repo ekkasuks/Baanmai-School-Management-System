@@ -3,6 +3,7 @@
  * เขียนเฉพาะตาราง TT_* เท่านั้น · อ่าน STUDENTS/SETTINGS แบบอ่านอย่างเดียว (ห้ามกระทบข้อมูลเดิม)
  * action: tt.bootstrap · tt.list · tt.save · tt.remove · tt.dashboard · tt.sync_classes · tt.seed_periods
  * เฟส 2–3: tt.constraints_* · tt.save_version · tt.get_version · tt.update_slots (Auto Save) · tt.version_meta · tt.duplicate_version · tt.delete_version · tt.changes
+ * เฟส 5: tt.import_entities · tt.ticker (หน้าหลัก) · tt.announce · tt.ticker_hide
  */
 import {
   TABLES, readAll, getBy, selectWhere, insertRows, insertStmts, updateWhere, deleteWhere, upsert,
@@ -126,6 +127,38 @@ async function validate(db, entName, term, row, id) {
   const others = (await selectWhere(db, ent.table, 'term_id', term)).filter(function (r) {
     return String(r[ent.pk]) !== String(id || '') && String(r.active) !== '0';
   });
+  checkRow(entName, row, others);
+}
+
+/** record จากหน้าเว็บ → แถวที่พร้อมบันทึก (เฉพาะคอลัมน์ที่แก้ได้ · trim · แปลงตัวเลข/JSON) */
+function normalizeRecord(ent, rec) {
+  const row = {};
+  TABLES[ent.table].cols.forEach(function (c) {
+    if (c === ent.pk || c === 'term_id' || c === 'updated_at' || c === 'active' || c === 'combine_group') return;
+    if (rec[c] !== undefined) row[c] = typeof rec[c] === 'string' ? rec[c].trim() : rec[c];
+  });
+  ent.ints.forEach(function (f) {
+    if (row[f] === undefined) return;
+    if (row[f] === null || row[f] === '') { row[f] = null; return; }
+    const n = Number(row[f]);
+    if (!isFinite(n) || n < 0) apiError('VALIDATION', (ent.labels[f] || f) + ' ต้องเป็นตัวเลขไม่ติดลบ');
+    row[f] = Math.round(n);
+  });
+  Object.keys(ent.json).forEach(function (f) {
+    if (row[f] === undefined) return;
+    if (typeof row[f] === 'string') { try { row[f] = JSON.parse(row[f] || 'null'); } catch (e) { apiError('VALIDATION', 'รูปแบบข้อมูล ' + f + ' ไม่ถูกต้อง'); } }
+    if (row[f] === null) row[f] = Array.isArray(ent.json[f]) ? [] : {};
+  });
+  return row;
+}
+function requireFields(ent, row) {
+  ent.required.forEach(function (f) {
+    if (row[f] === undefined || row[f] === null || String(row[f]).trim() === '') apiError('VALIDATION', 'กรุณากรอก' + (ent.labels[f] || f));
+  });
+}
+
+/** ตรวจ 1 แถวเทียบกับรายการอื่น (ไม่แตะ DB — ใช้ซ้ำตอนนำเข้าทีละหลายแถว) */
+function checkRow(entName, row, others) {
   if (row.code && others.some(function (r) { return String(r.code || '').trim() === String(row.code).trim(); })) {
     apiError('DUPLICATE', 'รหัส "' + row.code + '" ถูกใช้แล้ว');
   }
@@ -301,8 +334,14 @@ const DEFAULT_CONFIG = {
   avoid_gaps: true,              // ไม่ให้มีคาบว่างแทรกระหว่างวัน
   fallback_homeroom: true,       // วิชาที่ไม่ระบุครู → ให้ครูประจำชั้นสอน
   time_limit_sec: 6,             // เวลาค้นหาของ AI Engine
+  ticker_enabled: true,          // ข้อความวิ่งที่หน้าหลัก (เฟส 5)
+  ticker_days: 7,                // แสดงการเปลี่ยนแปลงย้อนหลังกี่วัน
 };
-const CONFIG_INT = { teacher_max_consecutive: [1, 10], subject_max_per_day: [1, 10], time_limit_sec: [1, 30] };
+const CONFIG_INT = { teacher_max_consecutive: [1, 10], subject_max_per_day: [1, 10], time_limit_sec: [1, 30], ticker_days: [1, 60] };
+const IMPORT_MAX = 500;
+
+/** เวลาไทยย้อนหลัง n วัน ในรูปแบบเดียวกับ now() — ใช้เทียบ created_at แบบ string */
+function bkkDaysAgo(n) { return new Date(Date.now() + 7 * 3600 * 1000 - n * 86400000).toISOString().slice(0, 19); }
 
 async function getConfig(db, term) {
   const row = await getBy(db, 'TT_CONSTRAINT', 'term_id', term);
@@ -572,6 +611,124 @@ export const TimetableAPI = {
     return { version_id: vid, slots: rows.length };
   },
 
+  /* ════ เฟส 5: นำเข้า + ข้อความวิ่ง ════ */
+
+  /**
+   * นำเข้าข้อมูลพื้นฐานหลายแถว — params = { entity, rows:[record (+pk = อัปเดตแถวเดิม), __row?] }
+   * ตรวจทุกแถวในหน่วยความจำก่อน (รหัสซ้ำ/ชั้นซ้ำ/เวลา ฯลฯ ทั้งกับข้อมูลเดิมและภายในไฟล์) → ผิดแม้แถวเดียว = ไม่บันทึกเลย
+   * บันทึกทั้งหมดใน db.batch เดียว (atomic) · เพิ่ม/อัปเดตเท่านั้น ไม่ลบข้อมูลเดิม
+   */
+  import_entities: async function (params, ctx) {
+    const db = ctx.db;
+    const entName = params.entity;
+    const ent = entityOf(entName);
+    const term = await activeTerm(db, params);
+    const rows = params.rows;
+    if (!Array.isArray(rows) || !rows.length) apiError('VALIDATION', 'ไม่มีข้อมูลให้นำเข้า');
+    if (rows.length > IMPORT_MAX) apiError('VALIDATION', 'นำเข้าได้ครั้งละไม่เกิน ' + IMPORT_MAX + ' แถว');
+
+    const existing = await selectWhere(db, ent.table, 'term_id', term);
+    const byId = {}, pool = {};
+    existing.forEach(function (r) { byId[r[ent.pk]] = r; if (String(r.active) !== '0') pool[r[ent.pk]] = r; });
+    let maxSeq = existing.reduce(function (m, p) { return Math.max(m, Number(p.seq) || 0); }, 0);
+    const ts = now(), errors = [], out = [];
+    rows.forEach(function (rec, i) {
+      try {
+        const id = rec[ent.pk] ? String(rec[ent.pk]) : '';
+        const row = normalizeRecord(ent, rec);
+        let full;
+        if (id) {
+          if (!byId[id]) apiError('NOT_FOUND', 'ไม่พบข้อมูลเดิมที่จะอัปเดต');
+          full = Object.assign({}, byId[id], row);        // ช่องที่ไม่ได้ส่งมา = คงค่าเดิม
+          if (hasCol(ent, 'active')) full.active = '1';
+        } else {
+          full = Object.assign({}, row);
+          full[ent.pk] = genId(ent.prefix);
+          full.term_id = term;
+          if (hasCol(ent, 'active')) full.active = '1';
+        }
+        if (entName === 'period' && (full.seq === undefined || full.seq === null || full.seq === '')) full.seq = ++maxSeq;
+        requireFields(ent, full);
+        checkRow(entName, full, Object.keys(pool).filter(function (k) { return k !== String(full[ent.pk]); }).map(function (k) { return pool[k]; }));
+        if (hasCol(ent, 'updated_at')) full.updated_at = ts;
+        pool[full[ent.pk]] = full;
+        out.push({ row: full, isNew: !id });
+      } catch (e) {
+        errors.push('แถว ' + (rec.__row || i + 1) + ': ' + e.message);
+      }
+    });
+    if (errors.length) apiError('VALIDATION', 'ข้อมูลไม่ถูกต้อง ' + errors.length + ' แถว (ยังไม่ได้บันทึก) — ' + errors.slice(0, 5).join(' · ') + (errors.length > 5 ? ' …' : ''));
+
+    await db.batch(insertStmts(db, ent.table, out.map(function (x) { return x.row; }), true));
+    const created = out.filter(function (x) { return x.isNew; }).length;
+    await ttLog(db, term, 'IMPORT', entName, '', params.recorded_by, { detail: { created: created, updated: out.length - created } });
+    return { entity: entName, created: created, updated: out.length - created };
+  },
+
+  /**
+   * ข้อความวิ่ง (หน้าหลัก) — ประกาศจากผู้ดูแล + การประกาศใช้/แก้ไขตารางฉบับที่เผยแพร่ (ย้อนหลัง ticker_days วัน)
+   * params.all = true → รวมรายการที่ซ่อน/หมดอายุ (สำหรับหน้าจัดการ)
+   */
+  ticker: async function (params, ctx) {
+    const db = ctx.db;
+    const term = await activeTerm(db, params);
+    const cfg = await getConfig(db, term);
+    const all = params.all === true;
+    if (!cfg.ticker_enabled && !all) return { enabled: false, days: cfg.ticker_days, items: [] };
+    const V = {};
+    (await selectWhere(db, 'TT_VERSION', 'term_id', term)).forEach(function (v) { V[v.version_id] = v; });
+    const rows = (await selectWhere(db, 'TT_CHANGE', 'term_id', term)).map(function (r) { return Object.assign({}, r, { det: parseJson(r.detail, {}) }); });
+    const publishedAt = {};
+    rows.forEach(function (r) {
+      if (r.det.action === 'UPDATE' && r.det.entity === 'version' && r.det.status === 'published' && String(r.created_at) > (publishedAt[r.version_id] || '')) publishedAt[r.version_id] = String(r.created_at);
+    });
+    const nowS = now(), since = bkkDaysAgo(cfg.ticker_days);
+    const items = [];
+    rows.forEach(function (r) {
+      const det = r.det, v = V[r.version_id];
+      let kind, text, expired = false;
+      if (det.kind === 'announce') {
+        kind = 'announce'; text = r.message;
+        expired = !!(det.expires_at && det.expires_at < nowS);
+      } else if (det.action === 'UPDATE' && det.entity === 'version' && det.status === 'published' && v && v.status === 'published' && String(r.created_at) === publishedAt[r.version_id]) {
+        kind = 'publish'; text = 'ประกาศใช้ตารางสอน "' + v.label + '"';
+      } else if (det.action === 'EDIT' && r.message && v && v.status === 'published' && publishedAt[r.version_id] && String(r.created_at) > publishedAt[r.version_id]) {
+        kind = 'edit'; text = 'ปรับตารางสอน: ' + r.message;
+      } else return;
+      if (kind !== 'announce' && String(r.created_at) < since) expired = true;
+      if (!all && (expired || det.hidden)) return;
+      items.push({ id: r.change_id, kind: kind, text: text, at: r.created_at, hidden: !!det.hidden, expired: expired, expires_at: det.expires_at || '' });
+    });
+    items.sort(function (a, b) { return String(b.at).localeCompare(String(a.at)); });
+    return { enabled: !!cfg.ticker_enabled, days: cfg.ticker_days, items: items.slice(0, all ? 100 : 20) };
+  },
+
+  /** เพิ่มประกาศข้อความวิ่ง — params = { message, days (1–60) } */
+  announce: async function (params, ctx) {
+    const db = ctx.db;
+    const term = await activeTerm(db, params);
+    const msg = String(params.message || '').trim();
+    if (!msg) apiError('VALIDATION', 'กรุณาพิมพ์ข้อความประกาศ');
+    if (msg.length > 200) apiError('VALIDATION', 'ข้อความยาวเกิน 200 ตัวอักษร');
+    const days = Math.round(Number(params.days) || 7);
+    if (days < 1 || days > 60) apiError('VALIDATION', 'จำนวนวันต้องอยู่ระหว่าง 1–60');
+    const expires = new Date(Date.now() + 7 * 3600 * 1000 + days * 86400000).toISOString().slice(0, 19);
+    await ttLog(db, term, 'ANNOUNCE', 'ticker', '', params.recorded_by, { message: msg, detail: { kind: 'announce', expires_at: expires } });
+    return { ok: true, expires_at: expires };
+  },
+
+  /** ซ่อน/แสดงข้อความวิ่ง 1 รายการ — params = { change_id, hidden } */
+  ticker_hide: async function (params, ctx) {
+    const db = ctx.db;
+    const term = await activeTerm(db, params);
+    const r = params.change_id ? await getBy(db, 'TT_CHANGE', 'change_id', String(params.change_id)) : null;
+    if (!r || String(r.term_id) !== term) apiError('NOT_FOUND', 'ไม่พบข้อความ');
+    const det = parseJson(r.detail, {});
+    det.hidden = params.hidden !== false;
+    await updateWhere(db, 'TT_CHANGE', 'change_id', r.change_id, { detail: det });
+    return { id: r.change_id, hidden: det.hidden };
+  },
+
   /** ประวัติการเปลี่ยนแปลง (อ่านอย่างเดียว) — params = { version_id?, limit? } ใหม่สุดก่อน */
   changes: async function (params, ctx) {
     const db = ctx.db;
@@ -616,27 +773,8 @@ export const TimetableAPI = {
     const term = await activeTerm(db, params);
     const rec = params.record || {};
     const id = rec[ent.pk] ? String(rec[ent.pk]) : '';
-
-    const row = {};
-    TABLES[ent.table].cols.forEach(function (c) {
-      if (c === ent.pk || c === 'term_id' || c === 'updated_at' || c === 'active' || c === 'combine_group') return;
-      if (rec[c] !== undefined) row[c] = typeof rec[c] === 'string' ? rec[c].trim() : rec[c];
-    });
-    ent.required.forEach(function (f) {
-      if (row[f] === undefined || row[f] === null || String(row[f]).trim() === '') apiError('VALIDATION', 'กรุณากรอก' + (ent.labels[f] || f));
-    });
-    ent.ints.forEach(function (f) {
-      if (row[f] === undefined) return;
-      if (row[f] === null || row[f] === '') { row[f] = null; return; }
-      const n = Number(row[f]);
-      if (!isFinite(n) || n < 0) apiError('VALIDATION', (ent.labels[f] || f) + ' ต้องเป็นตัวเลขไม่ติดลบ');
-      row[f] = Math.round(n);
-    });
-    Object.keys(ent.json).forEach(function (f) {
-      if (row[f] === undefined) return;
-      if (typeof row[f] === 'string') { try { row[f] = JSON.parse(row[f] || 'null'); } catch (e) { apiError('VALIDATION', 'รูปแบบข้อมูล ' + f + ' ไม่ถูกต้อง'); } }
-      if (row[f] === null) row[f] = Array.isArray(ent.json[f]) ? [] : {};
-    });
+    const row = normalizeRecord(ent, rec);
+    requireFields(ent, row);
 
     if (entName === 'period' && !id && (row.seq === undefined || row.seq === null)) {
       const ps = await selectWhere(db, 'TT_PERIOD', 'term_id', term);
