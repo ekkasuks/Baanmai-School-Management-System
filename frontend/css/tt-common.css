@@ -1,0 +1,23 @@
+/* ส่วนที่ใช้ร่วมกันของหน้าระบบจัดตารางสอน (timetable.html / timetable-view.html) — เฟส 6 */
+.app-header { position: relative; }
+.tt-hdr-tools { margin-left: auto; display: flex; align-items: center; gap: 6px; }
+.tt-hdr-btn { display: inline-flex; align-items: center; gap: 6px; height: 36px; min-width: 36px; padding: 0 10px; border: 0; border-radius: 999px;
+  background: rgba(255,255,255,0.18); color: #fff; font: inherit; font-size: 14px; font-weight: 600; cursor: pointer; text-decoration: none; justify-content: center; }
+.tt-hdr-btn:hover { background: rgba(255,255,255,0.30); }
+.tt-user { position: relative; }
+.tt-user-btn span { max-width: 140px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tt-user-menu { position: absolute; right: 0; top: 44px; min-width: 220px; background: var(--card, #fff); color: var(--ink); border-radius: 12px;
+  box-shadow: 0 10px 30px rgba(0,0,0,0.2); overflow: hidden; z-index: 50; }
+.tt-user-menu button { display: flex; gap: 8px; width: 100%; padding: 10px 14px; border: 0; background: none; color: inherit; font: inherit; text-align: left; cursor: pointer; }
+.tt-user-menu button:hover { background: var(--primary-light); }
+
+.tt-auth { position: fixed; inset: 0; z-index: 900; display: grid; place-items: center; padding: 16px; background: var(--bg, #F4FBFF); overflow: auto; }
+body.tt-locked > main, body.tt-locked > .container { visibility: hidden; }
+.tt-auth-card { width: 100%; max-width: 400px; margin: 0; }
+.tt-auth-logo { font-size: 44px; text-align: center; }
+.tt-auth-links { text-align: center; font-size: 14px; margin-top: 14px; }
+
+@media (max-width: 600px) {
+  .tt-user-btn span { display: none; }
+  .app-header .title { font-size: 17px; }
+}

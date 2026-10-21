@@ -1,0 +1,93 @@
+<!doctype html>
+<html lang="th">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ตารางเรียน / ตารางสอน — โรงเรียนบ้านใหม่</title>
+<meta name="theme-color" content="#0288D1">
+<script src="js/tt-theme.js"></script>
+<link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet">
+<link rel="stylesheet" href="css/style.css">
+<link rel="stylesheet" href="css/tt-common.css">
+<link rel="stylesheet" href="css/tt-dark.css">
+<style>
+  .tv-modes { display:flex; gap:6px; flex-wrap:wrap; margin-bottom:10px; }
+  .tv-modes .tab { margin:0; }
+  .tv-bar { display:flex; gap:8px; flex-wrap:wrap; align-items:center; }
+  .tv-bar .form-control { flex:1; min-width:200px; }
+  .tv-bar .btn { margin:0; }
+  .tv-head { text-align:center; margin:4px 0 12px; }
+  .tv-head .t { font-size:20px; font-weight:700; color:var(--primary-dark); }
+  .tv-table { border-collapse:collapse; width:100%; min-width:680px; font-size:14px; }
+  .tv-table th, .tv-table td { border:1px solid var(--border); padding:5px; text-align:center; vertical-align:middle; }
+  .tv-table thead th { background:var(--primary-light); color:var(--primary-dark); }
+  .tv-table td.brk { background:#F5F5F5; color:var(--muted); font-size:12px; }
+  .tv-table tr.today th { background:#0277BD; color:#fff; }
+  .tv-table td.now { box-shadow:inset 0 0 0 3px #0277BD; }
+  html[data-theme="dark"] .tv-table td.now, html[data-theme="dark"] .tv-row.now .tv-cell { box-shadow:inset 0 0 0 3px #4FC3F7; }
+  .tv-cell { border-radius:8px; padding:6px 4px; line-height:1.3; min-height:48px; display:flex; flex-direction:column; justify-content:center; }
+  .tv-cell .s { font-weight:700; }
+  .tv-cell .x { font-size:12px; color:var(--muted); }
+  .tv-cell.core { background:#E3F2FD; } .tv-cell.elective { background:#F3E5F5; } .tv-cell.activity { background:#E8F5E9; } .tv-cell.practical { background:#FFF3E0; }
+  .tv-legend { display:flex; gap:12px; flex-wrap:wrap; font-size:13px; color:var(--muted); margin-top:10px; }
+  .tv-legend span::before { content:''; display:inline-block; width:12px; height:12px; border-radius:3px; margin-right:5px; vertical-align:-1px; background:var(--c); }
+  .tv-days { display:none; }
+  .tv-day { margin-bottom:14px; }
+  .tv-day h4 { margin:0 0 6px; font-size:16px; }
+  .tv-day.today h4 { color:var(--primary-dark); }
+  .tv-row { display:flex; gap:10px; align-items:stretch; margin-bottom:6px; }
+  .tv-row .tm { flex:none; width:86px; font-size:12px; color:var(--muted); padding-top:6px; }
+  .tv-row .tv-cell { flex:1; text-align:left; padding:8px 10px; min-height:0; }
+  .tv-row.now .tv-cell { box-shadow:inset 0 0 0 3px var(--primary-dark); }
+  .tv-now { display:inline-block; font-size:11px; font-weight:700; background:var(--primary-dark); color:#fff; border-radius:999px; padding:1px 8px; margin-left:6px; }
+  html[data-theme="dark"] .tv-cell.core { background:#16344D; } html[data-theme="dark"] .tv-cell.elective { background:#33213D; }
+  html[data-theme="dark"] .tv-cell.activity { background:#1C3A24; } html[data-theme="dark"] .tv-cell.practical { background:#3D2C14; }
+  html[data-theme="dark"] .tv-table td.brk { background:#1B2733; }
+  @media (max-width:640px) { .tv-grid { display:none; } .tv-days { display:block; } }
+  @media print {
+    .app-header, .tv-controls, .tv-legend, .tt-hdr-tools { display:none !important; }
+    body { background:#fff; } .card { box-shadow:none; border:0; padding:0; }
+    .tv-grid { display:block !important; } .tv-days { display:none !important; }
+    .table-wrap { overflow:visible; } .tv-table { min-width:0; }
+    .tv-table td, .tv-table th { -webkit-print-color-adjust:exact; print-color-adjust:exact; }
+    @page { size: A4 landscape; margin: 10mm; }
+  }
+</style>
+</head>
+<body data-tt-page="view">
+
+<header class="app-header">
+  <a href="index.html" class="back">‹</a>
+  <span class="logo">🗓️</span>
+  <div>
+    <div class="title">ตารางเรียน / ตารางสอน</div>
+    <div style="font-size:13px;opacity:.9" id="tv-sub" data-no-i18n></div>
+  </div>
+</header>
+
+<main class="container">
+  <div class="card tv-controls">
+    <div class="tv-modes">
+      <button class="tab active" data-mode="class">🎒 ตารางเรียน</button>
+      <button class="tab" data-mode="teacher">👩‍🏫 ตารางสอน</button>
+      <button class="tab hidden" data-mine>⭐ ตารางของฉัน</button>
+    </div>
+    <div class="tv-bar">
+      <select class="form-control" id="tv-key"></select>
+      <button class="btn btn-secondary" id="tv-link"><i class="bi bi-link-45deg"></i> คัดลอกลิงก์</button>
+      <button class="btn btn-primary" id="tv-print"><i class="bi bi-printer"></i> พิมพ์</button>
+    </div>
+  </div>
+  <div class="card" id="tv-out"><div class="text-muted">กำลังโหลด...</div></div>
+</main>
+
+<script src="js/config.js"></script>
+<script src="js/auth.js"></script>
+<script src="js/api.js"></script>
+<script src="js/store.js"></script>
+<script src="js/utils.js"></script>
+<script src="js/tt-i18n.js"></script>
+<script src="js/tt-session.js"></script>
+<script src="js/modules/timetable-view.js"></script>
+</body>
+</html>

@@ -1,0 +1,78 @@
+/* โหมดมืด — ใช้เฉพาะหน้าระบบจัดตารางสอน (html[data-theme="dark"] ตั้งโดย js/tt-theme.js) */
+html[data-theme="dark"] {
+  --primary: #4FC3F7;
+  --primary-dark: #4FC3F7;
+  --primary-light: #12324A;
+  --green: #66BB6A;
+  --green-dark: #81C784;
+  --yellow: #FFD54F;
+  --ink: #E1E8ED;
+  --muted: #90A4AE;
+  --bg: #0F1A24;
+  --card: #172532;
+  --border: #26394A;
+  --shadow: 0 6px 18px rgba(0,0,0,0.35);
+  --shadow-hover: 0 10px 28px rgba(0,0,0,0.45);
+  color-scheme: dark;
+}
+html[data-theme="dark"] body { background: var(--bg); color: var(--ink); }
+html[data-theme="dark"] .app-header { background: linear-gradient(120deg, #0B4A6F, #0A2F47); }
+html[data-theme="dark"] .card,
+html[data-theme="dark"] .modal { background: var(--card); color: var(--ink); }
+html[data-theme="dark"] .form-control,
+html[data-theme="dark"] select.form-control,
+html[data-theme="dark"] textarea.form-control { background: #0F1A24; color: var(--ink); border-color: var(--border); }
+html[data-theme="dark"] .tab { background: var(--card); color: var(--muted); border-color: var(--border); }
+html[data-theme="dark"] .tab.active { background: #0277BD; border-color: #0277BD; color: #fff; }
+html[data-theme="dark"] .stat { background: #12324A; }
+html[data-theme="dark"] th { color: var(--ink); }
+html[data-theme="dark"] thead th { background: #12324A; color: #B3E5FC; }
+html[data-theme="dark"] tbody tr:hover { background: #1B2E3E; }
+html[data-theme="dark"] td, html[data-theme="dark"] th { border-color: var(--border); }
+html[data-theme="dark"] .alert-info { background: #12324A; color: #B3E5FC; border-color: #1E4D6E; }
+html[data-theme="dark"] .alert-success { background: #17331F; color: #A5D6A7; border-color: #275234; }
+html[data-theme="dark"] .alert-warning { background: #3A2E12; color: #FFCC80; border-color: #5C4716; }
+html[data-theme="dark"] .alert-danger { background: #3B1D21; color: #EF9A9A; border-color: #5E2A30; }
+html[data-theme="dark"] .badge-pass { background: #17331F; color: #A5D6A7; }
+html[data-theme="dark"] .badge-fail { background: #3B1D21; color: #EF9A9A; }
+html[data-theme="dark"] .btn-secondary { background: #37474F; }
+html[data-theme="dark"] .loading-overlay, html[data-theme="dark"] .loading { background: rgba(15,26,36,0.8); }
+html[data-theme="dark"] .modal-backdrop { background: rgba(0,0,0,0.6); }
+html[data-theme="dark"] .text-muted, html[data-theme="dark"] .tt-note { color: var(--muted); }
+html[data-theme="dark"] .text-danger { color: #EF9A9A; }
+
+/* ช่องตารางตามประเภทวิชา */
+html[data-theme="dark"] .tt-cell.core, html[data-theme="dark"] .tt-chip2.core, html[data-theme="dark"] .tt-rep-table td.ty-core { background: #16344D; }
+html[data-theme="dark"] .tt-cell.elective, html[data-theme="dark"] .tt-chip2.elective, html[data-theme="dark"] .tt-rep-table td.ty-elective { background: #33213D; }
+html[data-theme="dark"] .tt-cell.activity, html[data-theme="dark"] .tt-chip2.activity, html[data-theme="dark"] .tt-rep-table td.ty-activity { background: #1C3A24; }
+html[data-theme="dark"] .tt-cell.practical, html[data-theme="dark"] .tt-chip2.practical, html[data-theme="dark"] .tt-rep-table td.ty-practical { background: #3D2C14; }
+html[data-theme="dark"] .tt-cell .t { color: var(--muted); }
+html[data-theme="dark"] .tt-tt td.brk, html[data-theme="dark"] .tt-rep-table td.brk { background: #1B2733; color: var(--muted); }
+html[data-theme="dark"] .tt-tt thead th { background: #12324A; color: #B3E5FC; }
+html[data-theme="dark"] .tt-cell.st-error { background: #4A1E24; }
+html[data-theme="dark"] .tt-empty { border-color: var(--border); color: #546E7A; }
+html[data-theme="dark"] .tt-empty.st-warning { background: #33290F; }
+html[data-theme="dark"] .tt-edit td.drop-ok { background: #17331F; }
+html[data-theme="dark"] .tt-edit td.drop-bad { background: repeating-linear-gradient(45deg, #4A1E24 0 6px, #2E161A 6px 12px); }
+html[data-theme="dark"] .tt-selbar { background: #12324A; color: #B3E5FC; }
+html[data-theme="dark"] .tt-chip, html[data-theme="dark"] .tt-stat .ic { background: var(--card); border-color: var(--border); color: var(--ink); }
+html[data-theme="dark"] .tt-chip:has(input:checked) { background: #12324A; color: #B3E5FC; }
+html[data-theme="dark"] .tt-badge.err { background: #3B1D21; color: #EF9A9A; }
+html[data-theme="dark"] .tt-badge.warn { background: #3A2E12; color: #FFE082; }
+html[data-theme="dark"] .tt-badge.ok { background: #17331F; color: #A5D6A7; }
+html[data-theme="dark"] .tt-person.ok { background: #17331F; }
+html[data-theme="dark"] .tt-person.busy { background: #1B2733; }
+html[data-theme="dark"] .tt-common td.free { background: #17331F; color: #A5D6A7; }
+html[data-theme="dark"] .tt-common td.busy { background: #3B1D21; color: #EF9A9A; }
+html[data-theme="dark"] .tt-results tbody tr:hover { background: #12324A; }
+html[data-theme="dark"] .tt-results tr.row-err { background: #2E161A; }
+html[data-theme="dark"] .tt-drop { background: #12202C; border-color: #1E4D6E; color: #81D4FA; }
+html[data-theme="dark"] .tt-rep-table th { background: #0277BD; }
+html[data-theme="dark"] .tt-rep-table th, html[data-theme="dark"] .tt-rep-table td { border-color: #37474F; }
+html[data-theme="dark"] .tt-trash { border-color: #8E3B44; color: #EF9A9A; }
+html[data-theme="dark"] .tt-trash.over { background: #3B1D21; }
+html[data-theme="dark"] .tt-pill { background: #12324A; color: #B3E5FC; }
+html[data-theme="dark"] .tt-pill.combo { background: #3D2C14; color: #FFCC80; }
+html[data-theme="dark"] .ticker { background: #2B2410; border-color: #8D6E00; }
+html[data-theme="dark"] .ticker-item { color: #FFE0B2; }
+html[data-theme="dark"] .ticker-at { color: #BCAAA4; }

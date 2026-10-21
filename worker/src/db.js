@@ -36,6 +36,9 @@ export const TABLES = {
   TT_SLOT:       { pk: 'slot_id',    cols: ['slot_id', 'term_id', 'version_id', 'class_id', 'day', 'period_id', 'subject_id', 'teacher_id', 'room_id', 'locked', 'updated_at'] },
   TT_VERSION:    { pk: 'version_id', cols: ['version_id', 'term_id', 'label', 'status', 'stats', 'created_by', 'created_at'] },
   TT_CHANGE:     { pk: 'change_id',  cols: ['change_id', 'term_id', 'version_id', 'message', 'detail', 'created_by', 'created_at'] },
+  // secret = ไม่รวมใน settings.backup/restore และ admin.import (รหัสผ่าน/ session ห้ามหลุดออกหรือถูกเขียนทับจากไฟล์)
+  TT_USER:       { pk: 'user_id',    secret: true, cols: ['user_id', 'username', 'display_name', 'role', 'password_hash', 'teacher_id', 'class_id', 'active', 'failed_count', 'locked_until', 'last_login', 'created_at', 'updated_at'] },
+  TT_SESSION:    { pk: 'token_hash', secret: true, cols: ['token_hash', 'user_id', 'created_at', 'expires_at'] },
 };
 
 export function apiError(code, message) {

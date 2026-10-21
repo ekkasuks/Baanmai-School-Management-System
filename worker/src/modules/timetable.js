@@ -4,6 +4,7 @@
  * action: tt.bootstrap · tt.list · tt.save · tt.remove · tt.dashboard · tt.sync_classes · tt.seed_periods
  * เฟส 2–3: tt.constraints_* · tt.save_version · tt.get_version · tt.update_slots (Auto Save) · tt.version_meta · tt.duplicate_version · tt.delete_version · tt.changes
  * เฟส 5: tt.import_entities · tt.ticker (หน้าหลัก) · tt.announce · tt.ticker_hide
+ * เฟส 6: tt.public_view + ผู้ใช้/สิทธิ์ (tt-auth.js) — ทุก action ผ่าน guard() ตรวจสิทธิ์ตามตาราง NEED
  */
 import {
   TABLES, readAll, getBy, selectWhere, insertRows, insertStmts, updateWhere, deleteWhere, upsert,
@@ -11,6 +12,7 @@ import {
 } from '../db.js';
 import { gradeSortKey } from '../shared.js';
 import { getSetting } from './settings.js';
+import { AuthActions, ROLES, currentUser, requireCap, can } from './tt-auth.js';
 
 const DAYS = 5; // จันทร์–ศุกร์
 
@@ -336,6 +338,7 @@ const DEFAULT_CONFIG = {
   time_limit_sec: 6,             // เวลาค้นหาของ AI Engine
   ticker_enabled: true,          // ข้อความวิ่งที่หน้าหลัก (เฟส 5)
   ticker_days: 7,                // แสดงการเปลี่ยนแปลงย้อนหลังกี่วัน
+  public_view: true,             // เฟส 6: ดูตารางที่เผยแพร่แล้วได้โดยไม่ต้องเข้าสู่ระบบ
 };
 const CONFIG_INT = { teacher_max_consecutive: [1, 10], subject_max_per_day: [1, 10], time_limit_sec: [1, 30], ticker_days: [1, 60] };
 const IMPORT_MAX = 500;
@@ -415,7 +418,7 @@ const DEFAULT_PERIODS = [
   ['คาบ 7', '14:30', '15:20', 'afternoon', '0'],
 ];
 
-export const TimetableAPI = {
+const API = {
 
   /** โหลดทุกอย่างที่หน้าเว็บต้องใช้ในคำขอเดียว */
   bootstrap: async function (params, ctx) {
@@ -588,6 +591,10 @@ export const TimetableAPI = {
     }
     if (!Object.keys(fields).length) apiError('VALIDATION', 'ไม่มีข้อมูลที่จะแก้');
     await updateWhere(db, 'TT_VERSION', 'version_id', v.version_id, fields);
+    // เผยแพร่ได้ทีละฉบับ: ฉบับที่เคยเผยแพร่อยู่ → กลับเป็น "อนุมัติแล้ว"
+    if (fields.status === 'published') {
+      await db.prepare("UPDATE TT_VERSION SET status='approved' WHERE term_id=? AND status='published' AND version_id<>?").bind(term, v.version_id).run();
+    }
     await ttLog(db, term, 'UPDATE', 'version', v.version_id, params.recorded_by, { version_id: v.version_id, detail: fields });
     return Object.assign({ version_id: v.version_id }, fields);
   },
@@ -904,4 +911,85 @@ export const TimetableAPI = {
     if (inserts.length) await insertRows(db, 'TT_CLASS', inserts);
     return { created: inserts.length, updated: updated };
   },
+
+  /**
+   * ตารางที่เผยแพร่แล้ว สำหรับหน้า "ดูตารางเรียน/ตารางสอน" (นักเรียน · ผู้ปกครอง · ครู)
+   * เปิดให้ดูโดยไม่ต้องเข้าสู่ระบบ (ปิดได้ด้วย config.public_view = false) · ส่งเฉพาะข้อมูลที่อยู่บนตารางจริง (ชื่อครู/วิชา/ห้อง)
+   */
+  public_view: async function (params, ctx) {
+    const db = ctx.db;
+    const term = await activeTerm(db, params);
+    const cfg = await getConfig(db, term);
+    const u = await currentUser(ctx);
+    if (cfg.public_view === false && !u) apiError('AUTH_REQUIRED', 'ต้องเข้าสู่ระบบเพื่อดูตาราง');
+    const termRow = await getBy(db, 'TT_TERM', 'term_id', term);
+    const published = (await listVersions(db, term)).filter(function (v) { return v.status === 'published'; });
+    const v = published[0] || null;
+    const data = await loadAll(db, term);
+    const slots = v ? (await selectWhere(db, 'TT_SLOT', 'version_id', v.version_id)).map(function (s) {
+      return { class_id: s.class_id, day: Number(s.day), period_id: s.period_id, subject_id: s.subject_id || '', teacher_id: s.teacher_id || '', room_id: s.room_id || '' };
+    }) : [];
+    return {
+      school: (await getSetting(db, 'school_name')) || '', term: termRow ? termRow.label : term,
+      version: v ? { version_id: v.version_id, label: v.label, updated_at: v.stats.edited_at || v.created_at } : null,
+      units: teachingUnits(data.classes).map(function (x) { return { unit_id: x.unit_id, label: x.label, class_ids: x.class_ids, combined: x.combined }; }),
+      classes: data.classes.map(function (c) { return { class_id: c.class_id, grade: c.grade, room: c.room || '' }; }),
+      teachers: data.teachers.map(function (t) { return { teacher_id: t.teacher_id, title: t.title || '', name: t.name }; }),
+      subjects: data.subjects.map(function (s) { return { subject_id: s.subject_id, name: s.name, type: s.type || 'core' }; }),
+      rooms: data.rooms.map(function (r) { return { room_id: r.room_id, name: r.name }; }),
+      periods: data.periods.map(function (p) { return { period_id: p.period_id, seq: p.seq, label: p.label, start_time: p.start_time, end_time: p.end_time, is_break: p.is_break }; }),
+      slots: slots, me: u ? { role: u.role, teacher_id: u.teacher_id || '', class_id: u.class_id || '', display_name: u.display_name || u.username } : null,
+    };
+  },
 };
+
+/* ════ เฟส 6: ตรวจสิทธิ์ทุก action (ค่าเริ่มต้น = ปฏิเสธ) ════
+   ค่า = ความสามารถที่ต้องมี · ฟังก์ชัน = คำนวณจาก params (คืน array ของเงื่อนไข; เงื่อนไขเป็น array = มีอย่างใดอย่างหนึ่ง) */
+const OPEN = ['auth_status', 'setup_admin', 'login', 'logout', 'me', 'change_password', 'users_list', 'user_save', 'user_reset_password', 'public_view'];
+const NEED = {
+  bootstrap: 'view', dashboard: 'view', list: 'view', versions: 'view', get_version: 'view', changes: 'view', constraints_get: 'view',
+  save: 'edit_data', remove: 'edit_data', combine: 'edit_data', uncombine: 'edit_data', seed_periods: 'edit_data', sync_classes: 'edit_data', import_entities: 'edit_data',
+  save_version: 'edit_timetable', update_slots: 'edit_timetable', duplicate_version: 'edit_timetable', delete_version: 'edit_timetable',
+  announce: 'announce', ticker_hide: 'announce',
+  ticker: function (p) { return p.all === true ? ['announce'] : null; },          // null = สาธารณะ (หน้าหลัก)
+  version_meta: function (p) {
+    const need = [];
+    if (p.label !== undefined) need.push('edit_timetable');
+    if (p.status === 'approved' || p.status === 'published') need.push('approve');
+    else if (p.status !== undefined) need.push(['approve', 'edit_timetable']);
+    return need.length ? need : ['edit_timetable'];
+  },
+  constraints_save: function (p) {
+    const need = {};
+    Object.keys((p && p.config) || {}).forEach(function (k) {
+      need[/^ticker_/.test(k) ? 'announce' : k === 'public_view' ? 'manage_users' : 'edit_data'] = 1;
+    });
+    const list = Object.keys(need);
+    return list.length ? list : ['edit_data'];
+  },
+};
+
+function guard(api) {
+  const out = {};
+  Object.keys(api).forEach(function (name) {
+    const fn = api[name];
+    out[name] = async function (params, ctx) {
+      params = params || {};
+      if (OPEN.indexOf(name) >= 0) return fn(params, ctx);
+      const rule = NEED[name];
+      if (rule === undefined) apiError('FORBIDDEN', 'ไม่อนุญาต: tt.' + name);
+      const need = typeof rule === 'function' ? rule(params) : [rule];
+      if (need === null) return fn(params, ctx);
+      const u = await requireCap(ctx, null);
+      need.forEach(function (n) {
+        const alts = Array.isArray(n) ? n : [n];
+        if (!alts.some(function (c) { return can(u, c); })) apiError('FORBIDDEN', 'บัญชี "' + (ROLES[u.role] ? ROLES[u.role].label : u.role) + '" ไม่มีสิทธิ์ทำรายการนี้');
+      });
+      params.recorded_by = u.username;   // ประวัติใช้ชื่อผู้ใช้จริง ไม่เชื่อค่าจากหน้าเว็บ
+      return fn(params, ctx);
+    };
+  });
+  return out;
+}
+
+export const TimetableAPI = guard(Object.assign({}, API, AuthActions));

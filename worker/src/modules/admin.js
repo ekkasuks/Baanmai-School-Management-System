@@ -26,6 +26,7 @@ export const AdminAPI = {
     const report = {};
     for (const table of Object.keys(data)) {
       if (!TABLES[table]) { report[table] = 'ข้าม (ไม่รู้จักตาราง)'; continue; }
+      if (TABLES[table].secret) { report[table] = 'ข้าม (ข้อมูลผู้ใช้/รหัสผ่าน)'; continue; }
       if (only && only.indexOf(table) < 0) continue;
       const rows = data[table] || [];
       await clearTable(ctx.db, table);

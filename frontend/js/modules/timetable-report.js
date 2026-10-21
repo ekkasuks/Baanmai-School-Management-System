@@ -468,9 +468,11 @@
       await LazyLib.script(H2C_URL);
       const el = document.getElementById('tt-rep-preview');
       el.classList.add('tt-capture');
+      const theme = document.documentElement.getAttribute('data-theme');
+      document.documentElement.setAttribute('data-theme', 'light');   // รูปที่ส่งออกเป็นพื้นขาวเสมอ แม้หน้าจอเป็นโหมดมืด
       let canvas;
       try { canvas = await window.html2canvas(el, { scale: 2, backgroundColor: '#ffffff', useCORS: true }); }
-      finally { el.classList.remove('tt-capture'); }
+      finally { el.classList.remove('tt-capture'); if (theme) document.documentElement.setAttribute('data-theme', theme); }
       await new Promise(function (res) { canvas.toBlob(function (b) { download(b, rep.file + '.png'); res(); }, 'image/png'); });
     } finally { Loading.hide(); }
   }
@@ -480,7 +482,13 @@
     if (!st) { st = document.createElement('style'); st.id = 'tt-print-page'; document.head.appendChild(st); }
     st.textContent = '@page { size: A4 ' + (rep.orientation === 'l' ? 'landscape' : 'portrait') + '; margin: 10mm; }';
     document.body.classList.add('tt-printing');
-    const done = function () { document.body.classList.remove('tt-printing'); window.removeEventListener('afterprint', done); };
+    const theme = document.documentElement.getAttribute('data-theme');
+    document.documentElement.setAttribute('data-theme', 'light');     // พิมพ์เป็นพื้นขาวเสมอ
+    const done = function () {
+      document.body.classList.remove('tt-printing');
+      if (theme) document.documentElement.setAttribute('data-theme', theme);
+      window.removeEventListener('afterprint', done);
+    };
     window.addEventListener('afterprint', done);
     window.print();
     setTimeout(done, 1500);

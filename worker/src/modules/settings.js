@@ -71,7 +71,7 @@ export const SettingsAPI = {
   /** สำรองข้อมูลทุกตาราง → { version, created_at, data:{TABLE:[...]} } (ฝั่ง frontend เอาไปดาวน์โหลดเป็นไฟล์) */
   backup: async function (params, ctx) {
     const data = {};
-    for (const table of Object.keys(TABLES)) data[table] = await readAll(ctx.db, table);
+    for (const table of Object.keys(TABLES)) { if (!TABLES[table].secret) data[table] = await readAll(ctx.db, table); }
     return { version: 2, source: 'cloudflare-d1', created_at: now(), data: data };
   },
 
@@ -82,7 +82,7 @@ export const SettingsAPI = {
     if (params.confirm !== true) apiError('VALIDATION', 'ต้องยืนยันก่อนกู้คืน (confirm=true)');
     const report = {};
     for (const table of Object.keys(backup.data)) {
-      if (!TABLES[table]) continue;
+      if (!TABLES[table] || TABLES[table].secret) continue;
       const rows = backup.data[table] || [];
       await clearTable(ctx.db, table);
       let n = 0;

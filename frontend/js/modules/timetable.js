@@ -437,8 +437,12 @@
     isBusy: function () { return !!document.querySelector('.modal-backdrop'); } };
 
   setInterval(function () {
-    if (document.visibilityState === 'visible' && activeTab === 'dashboard' && !document.querySelector('.modal-backdrop') && !window.TT_AI_RUNNING) reload({ quiet: true });
+    if (TTAuth.user() && document.visibilityState === 'visible' && activeTab === 'dashboard' && !document.querySelector('.modal-backdrop') && !window.TT_AI_RUNNING) reload({ quiet: true });
   }, 60000);
 
-  reload();
+  // เฟส 6: ต้องเข้าสู่ระบบก่อน · แสดงเฉพาะแท็บที่บทบาทนี้มีสิทธิ์ (server ตรวจซ้ำทุกคำสั่ง)
+  TTAuth.require({ caps: ['view'] }).then(function () {
+    document.querySelectorAll('#tt-tabs .tab[data-cap]').forEach(function (t) { t.classList.toggle('hidden', !TTAuth.can(t.dataset.cap)); });
+    reload();
+  });
 })();

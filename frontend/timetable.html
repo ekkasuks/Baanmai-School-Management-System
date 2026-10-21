@@ -4,8 +4,12 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>จัดตารางสอนอัจฉริยะ — โรงเรียนบ้านใหม่</title>
+<meta name="theme-color" content="#0288D1">
+<script src="js/tt-theme.js"></script>
 <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet">
 <link rel="stylesheet" href="css/style.css">
+<link rel="stylesheet" href="css/tt-common.css">
+<link rel="stylesheet" href="css/tt-dark.css">
 <style>
   .tt-stat { display:flex; align-items:center; gap:12px; text-align:left; }
   .tt-stat .ic { width:44px; height:44px; border-radius:12px; display:grid; place-items:center; font-size:22px; flex:none;
@@ -128,7 +132,7 @@
   @media (max-width:600px) { .tt-form { grid-template-columns:1fr; } .tt-stat .value { font-size:20px; } }
 </style>
 </head>
-<body>
+<body data-tt-page="admin">
 
 <header class="app-header">
   <a href="index.html" class="back">‹</a>
@@ -141,19 +145,21 @@
 
 <main class="container">
   <div class="tabs" id="tt-tabs">
-    <button class="tab active" data-tab="dashboard">📊 Dashboard</button>
-    <button class="tab" data-tab="teacher">👩‍🏫 ครู</button>
-    <button class="tab" data-tab="subject">📚 วิชา</button>
-    <button class="tab" data-tab="room">🏫 ห้องเรียน</button>
-    <button class="tab" data-tab="class">🎒 ชั้นเรียน / ควบชั้น</button>
-    <button class="tab" data-tab="period">⏰ คาบเรียน</button>
-    <button class="tab" data-tab="constraints">⚙️ เงื่อนไข</button>
-    <button class="tab" data-tab="ai">🤖 จัดตาราง AI</button>
-    <button class="tab" data-tab="edit">✏️ ตรวจสอบ / แก้ไขตาราง</button>
-    <button class="tab" data-tab="search">🔎 ค้นหา</button>
-    <button class="tab" data-tab="report">📑 รายงาน / ส่งออก</button>
-    <button class="tab" data-tab="import">📥 นำเข้า</button>
-    <button class="tab" data-tab="ticker">📢 ข้อความวิ่ง</button>
+    <!-- data-cap = ความสามารถที่ต้องมีจึงเห็นแท็บ (เฟส 6: ตรวจซ้ำที่ server ทุกคำสั่ง) -->
+    <button class="tab active" data-tab="dashboard" data-cap="view">📊 Dashboard</button>
+    <button class="tab" data-tab="teacher" data-cap="edit_data">👩‍🏫 ครู</button>
+    <button class="tab" data-tab="subject" data-cap="edit_data">📚 วิชา</button>
+    <button class="tab" data-tab="room" data-cap="edit_data">🏫 ห้องเรียน</button>
+    <button class="tab" data-tab="class" data-cap="edit_data">🎒 ชั้นเรียน / ควบชั้น</button>
+    <button class="tab" data-tab="period" data-cap="edit_data">⏰ คาบเรียน</button>
+    <button class="tab" data-tab="constraints" data-cap="edit_data">⚙️ เงื่อนไข</button>
+    <button class="tab" data-tab="ai" data-cap="edit_timetable">🤖 จัดตาราง AI</button>
+    <button class="tab" data-tab="edit" data-cap="view">✏️ ตรวจสอบ / แก้ไขตาราง</button>
+    <button class="tab" data-tab="search" data-cap="view">🔎 ค้นหา</button>
+    <button class="tab" data-tab="report" data-cap="view">📑 รายงาน / ส่งออก</button>
+    <button class="tab" data-tab="import" data-cap="edit_data">📥 นำเข้า</button>
+    <button class="tab" data-tab="ticker" data-cap="announce">📢 ข้อความวิ่ง</button>
+    <button class="tab" data-tab="users" data-cap="manage_users">👥 ผู้ใช้</button>
   </div>
 
   <!-- Dashboard -->
@@ -241,6 +247,9 @@
   <!-- นำเข้า (โมดูล 7) / ข้อความวิ่ง (โมดูล 9) — สร้างเนื้อหาโดย timetable-import.js / timetable-ticker.js -->
   <section class="tab-pane hidden" id="tab-import"></section>
   <section class="tab-pane hidden" id="tab-ticker"></section>
+
+  <!-- ผู้ใช้และสิทธิ์ (โมดูล 12) — timetable-users.js -->
+  <section class="tab-pane hidden" id="tab-users"></section>
 </main>
 
 <script src="js/config.js"></script>
@@ -248,6 +257,8 @@
 <script src="js/api.js"></script>
 <script src="js/store.js"></script>
 <script src="js/utils.js"></script>
+<script src="js/tt-i18n.js"></script>
+<script src="js/tt-session.js"></script>
 <script src="js/modules/timetable.js"></script>
 <script src="js/modules/timetable-ai.js"></script>
 <script src="js/tt-check.js"></script>
@@ -258,5 +269,6 @@
 <script src="js/tt-ticker.js"></script>
 <script src="js/modules/timetable-import.js"></script>
 <script src="js/modules/timetable-ticker.js"></script>
+<script src="js/modules/timetable-users.js"></script>
 </body>
 </html>

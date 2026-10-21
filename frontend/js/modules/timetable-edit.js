@@ -99,6 +99,11 @@
     return n ? n.msg : null;
   }
 
+  /* ════ สิทธิ์ (เฟส 6) — บัญชีที่ไม่มีสิทธิ์จัดตาราง = ดู/ตรวจสอบได้อย่างเดียว ════ */
+  function canEdit() { return !window.TTAuth || TTAuth.can('edit_timetable'); }
+  function canApprove() { return !window.TTAuth || TTAuth.can('approve'); }
+  function readOnly() { Toast.show('บัญชีนี้ดูและตรวจสอบตารางได้อย่างเดียว', 'warning'); }
+
   /* ════ การแก้ไข + Undo/Redo ════ */
   function apply(op, dir) {
     op.changes.forEach(function (c) {
@@ -107,6 +112,7 @@
     });
   }
   function commit(label, uid, changes) {
+    if (!canEdit()) { readOnly(); return; }
     changes = changes.filter(function (c) { return !same(c.before, c.after); });
     if (!changes.length) return;
     const op = { label: label, u: uid, changes: changes };
@@ -117,6 +123,7 @@
     changed(label);
   }
   function undo() {
+    if (!canEdit()) return;
     const op = ED.undo.pop();
     if (!op) return;
     apply(op, -1); ED.redo.push(op);
@@ -124,6 +131,7 @@
     Toast.show('↶ ย้อนกลับ: ' + op.label, 'info');
   }
   function redo() {
+    if (!canEdit()) return;
     const op = ED.redo.pop();
     if (!op) return;
     apply(op, 1); ED.undo.push(op);
@@ -297,15 +305,17 @@
         '<div class="tt-toolbar">' +
           '<select class="form-control" data-mode style="max-width:150px"><option value="unit">✏️ รายชั้น</option><option value="teacher">👩‍🏫 รายครู</option></select>' +
           '<select class="form-control" data-key></select>' +
-          '<button class="btn btn-secondary" data-undo title="ย้อนกลับ (Ctrl+Z)"><i class="bi bi-arrow-counterclockwise"></i></button>' +
-          '<button class="btn btn-secondary" data-redo title="ทำซ้ำ (Ctrl+Shift+Z)"><i class="bi bi-arrow-clockwise"></i></button>' +
+          (canEdit() ? '<button class="btn btn-secondary" data-undo title="ย้อนกลับ (Ctrl+Z)"><i class="bi bi-arrow-counterclockwise"></i></button>' +
+          '<button class="btn btn-secondary" data-redo title="ทำซ้ำ (Ctrl+Shift+Z)"><i class="bi bi-arrow-clockwise"></i></button>' : '') +
           '<span class="tt-save" data-status></span>' +
         '</div>' +
         '<div class="tt-summary" data-summary></div>' +
       '</div>' +
       '<div class="tt-ed">' +
         '<div class="card tt-ed-main"><div data-selbar></div><div data-grid></div>' +
-          '<div class="tt-note" style="margin-top:8px">ลากคาบไปช่องว่าง = ย้าย · ลากทับคาบอื่น = สลับ · แตะคาบแล้วแตะช่องปลายทางก็ได้ · แตะช่องว่างเพื่อเพิ่มวิชา · 🔒 = ล็อกไม่ให้ย้าย</div></div>' +
+          '<div class="tt-note" style="margin-top:8px">' + (canEdit()
+            ? 'ลากคาบไปช่องว่าง = ย้าย · ลากทับคาบอื่น = สลับ · แตะคาบแล้วแตะช่องปลายทางก็ได้ · แตะช่องว่างเพื่อเพิ่มวิชา · 🔒 = ล็อกไม่ให้ย้าย'
+            : '👁️ ดูและตรวจสอบได้อย่างเดียว (ชี้ที่คาบเพื่อดูผลตรวจ)' + (canApprove() ? ' · เปลี่ยนสถานะฉบับเป็น "อนุมัติแล้ว" / "เผยแพร่แล้ว" ได้ที่ด้านบน' : '')) + '</div></div>' +
         '<div class="card tt-ed-side"><h3 class="card-title" style="font-size:16px">📚 วิชาของชั้นนี้</h3><div data-palette></div>' +
           '<div class="tt-trash" data-trash><i class="bi bi-trash"></i> ลากคาบมาที่นี่เพื่อเอาออก</div></div>' +
       '</div>' +
@@ -316,8 +326,10 @@
 
     host.querySelector('[data-mode]').onchange = function () { ED.mode = this.value; ED.sel = null; render(); };
     host.querySelector('[data-key]').onchange = function () { if (ED.mode === 'unit') ED.unitId = this.value; else ED.teacherId = this.value; ED.sel = null; render(); };
-    host.querySelector('[data-undo]').onclick = undo;
-    host.querySelector('[data-redo]').onclick = redo;
+    if (canEdit()) {
+      host.querySelector('[data-undo]').onclick = undo;
+      host.querySelector('[data-redo]').onclick = redo;
+    }
     host.querySelector('[data-scope]').onchange = function () { ED.issueScope = this.value; renderIssues(); };
     const trash = host.querySelector('[data-trash]');
     trash.addEventListener('dragover', function (e) { if (drag && drag.from) { e.preventDefault(); trash.classList.add('over'); } });
@@ -354,14 +366,16 @@
       '<select class="form-control" data-ver><option value="">— เลือกฉบับตาราง —</option>' + vs.map(function (x) {
         return '<option value="' + esc(x.version_id) + '"' + (x.version_id === ED.vid ? ' selected' : '') + '>' + esc(x.label) + ' · ' + esc(STATUS[x.status] || x.status) + '</option>';
       }).join('') + '</select>' +
-      (v ? '<select class="form-control" data-vstatus style="max-width:170px" title="สถานะฉบับ">' + Object.keys(STATUS).map(function (k) {
-        return '<option value="' + k + '"' + (k === v.status ? ' selected' : '') + '>' + STATUS[k] + '</option>';
+      (v ? '<select class="form-control" data-vstatus style="max-width:170px" title="สถานะฉบับ"' + (canEdit() || canApprove() ? '' : ' disabled') + '>' + Object.keys(STATUS).map(function (k) {
+        const locked = (k === 'approved' || k === 'published') && !canApprove();   // อนุมัติ/เผยแพร่ = ผู้บริหาร/ผู้ดูแล
+        return '<option value="' + k + '"' + (k === v.status ? ' selected' : '') + (locked ? ' disabled' : '') + '>' + STATUS[k] + '</option>';
       }).join('') + '</select>' +
-      '<button class="btn btn-secondary" data-rename title="เปลี่ยนชื่อฉบับ"><i class="bi bi-pencil"></i></button>' +
-      '<button class="btn btn-secondary" data-dup title="ทำสำเนาเป็นฉบับใหม่ (เก็บฉบับนี้ไว้เป็นประวัติ)"><i class="bi bi-files"></i> ทำสำเนา</button>' : '');
+      (canEdit() ? '<button class="btn btn-secondary" data-rename title="เปลี่ยนชื่อฉบับ"><i class="bi bi-pencil"></i></button>' +
+      '<button class="btn btn-secondary" data-dup title="ทำสำเนาเป็นฉบับใหม่ (เก็บฉบับนี้ไว้เป็นประวัติ)"><i class="bi bi-files"></i> ทำสำเนา</button>' : '') : '');
     bar.querySelector('[data-ver]').onchange = function () { if (this.value) open(this.value); };
     if (!v) return;
     bar.querySelector('[data-vstatus]').onchange = function () { setMeta({ status: this.value }); };
+    if (!canEdit()) return;
     bar.querySelector('[data-rename]').onclick = function () {
       const label = prompt('ชื่อฉบับตาราง', v.label);
       if (label && label.trim() && label.trim() !== v.label) setMeta({ label: label.trim() });
@@ -409,6 +423,7 @@
     }
     sel.innerHTML = opts.map(function (o) { return '<option value="' + esc(o[0]) + '">' + esc(o[1]) + '</option>'; }).join('');
     sel.value = ED.mode === 'unit' ? ED.unitId : ED.teacherId;
+    if (!canEdit()) return;
     host.querySelector('[data-undo]').disabled = !ED.undo.length;
     host.querySelector('[data-redo]').disabled = !ED.redo.length;
     host.querySelector('[data-undo]').title = ED.undo.length ? 'ย้อนกลับ: ' + ED.undo[ED.undo.length - 1].label + ' (Ctrl+Z)' : 'ย้อนกลับ (Ctrl+Z)';
@@ -457,7 +472,7 @@
 
   function renderSelBar() {
     const bar = host.querySelector('[data-selbar]');
-    if (!ED.sel || ED.mode !== 'unit') { bar.innerHTML = ''; return; }
+    if (!ED.sel || ED.mode !== 'unit' || !canEdit()) { bar.innerHTML = ''; return; }
     if (ED.sel.sid) {
       bar.innerHTML = '<div class="tt-selbar">➕ วาง <strong>' + esc(shortSubject(subj(ED.sel.sid).name)) + '</strong> — แตะช่องที่ต้องการ <button class="btn btn-secondary" data-x>ยกเลิก</button></div>';
     } else {
@@ -521,7 +536,7 @@
           if (!c) return '<td data-drop="' + esc(k) + '"><div class="tt-empty' + (st ? ' st-' + st : '') + selCls + '" data-k="' + esc(k) + '" title="' + esc((msgs[key] || ['แตะเพื่อเพิ่มวิชา']).join('\n')) + '">+</div></td>';
           const s = subj(c.subject_id) || {}, t = teacher(c.teacher_id), r = room(c.room_id);
           return '<td data-drop="' + esc(k) + '"><div class="tt-cell ' + esc(s.type || 'core') + ' st-' + st + selCls + '" data-k="' + esc(k) + '"' +
-            (c.locked ? '' : ' draggable="true"') + ' title="' + esc((msgs[key] || ['✅ ไม่มีปัญหา']).join('\n')) + '">' +
+            (c.locked || !canEdit() ? '' : ' draggable="true"') + ' title="' + esc((msgs[key] || ['✅ ไม่มีปัญหา']).join('\n')) + '">' +
             (c.locked ? '<span class="tt-lock">🔒</span>' : '') +
             '<div class="s">' + esc(shortSubject(s.name)) + '</div>' +
             '<div class="t">' + (t ? 'ครู' + esc(shortTeacher(t)) : '<span class="text-danger">ไม่ระบุครู</span>') + (r ? ' · ' + esc(r.name) : '') + '</div></div></td>';
@@ -535,12 +550,13 @@
       return;
     }
     bindGrid(grid, u.unit_id);
-    if (ED.sel) showHints(grid, u.unit_id, ED.sel);
+    if (ED.sel && canEdit()) showHints(grid, u.unit_id, ED.sel);
   }
 
   /* ════ Drag & Drop + แตะเพื่อย้าย ════ */
   let drag = null;
   function bindGrid(grid, uid) {
+    if (!canEdit()) return;   // ดูอย่างเดียว: ชี้ที่คาบเพื่อดูผลตรวจได้ แต่ไม่มีการเลือก/ลาก/แก้
     grid.querySelectorAll('.tt-cell[data-k], .tt-empty[data-k]').forEach(function (el) {
       el.addEventListener('click', function () { clickCell(uid, el.dataset.k); });
       el.addEventListener('dblclick', function () { if (cell(uid, el.dataset.k)) editCell(uid, el.dataset.k); });
@@ -615,7 +631,7 @@
   function renderPalette() {
     const pal = host.querySelector('[data-palette]');
     const side = host.querySelector('.tt-ed-side');
-    if (ED.mode !== 'unit') { side.classList.add('hidden'); return; }
+    if (ED.mode !== 'unit' || !canEdit()) { side.classList.add('hidden'); return; }
     side.classList.remove('hidden');
     const u = unitById(ED.unitId);
     const cnt = ED.check.unitCount[ED.unitId] || {};

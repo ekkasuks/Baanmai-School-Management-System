@@ -30,6 +30,8 @@ function readSharedToken() {
 const Auth = {
 
   getToken: function (action) {
+    // ระบบจัดตารางสอน (tt.*) ใช้ session ผู้ใช้ของตัวเอง (js/tt-session.js) — แยกจาก PIN เดิม
+    if (String(action).indexOf('tt.') === 0) return window.TTAuth ? TTAuth.token() : null;
     // ส่ง token เฉพาะ action ของโมดูลที่ต้อง PIN
     if (!actionToModule(action)) return null;
     return readSharedToken();
