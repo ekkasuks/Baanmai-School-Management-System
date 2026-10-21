@@ -196,7 +196,10 @@
           ms: st.ms, attempts: st.attempts, engine: st.engine, metrics: lastResult.metrics },
       }, { loadingMsg: 'กำลังบันทึกตาราง...', noRetry: true });
       Toast.show('บันทึกแล้ว (' + r.slots + ' ช่อง' + (r.conflicts ? ', พบข้อขัดแย้ง ' + r.conflicts : ', ไม่มีข้อขัดแย้ง') + ')', r.conflicts ? 'warning' : 'success');
-      TT.reload({ quiet: true });
+      await TT.reload({ quiet: true });
+      const btn = document.getElementById('tt-save');
+      btn.innerHTML = '<i class="bi bi-pencil-square"></i> ตรวจสอบ / แก้ไขฉบับนี้';
+      btn.onclick = function () { window.TTEdit.open(r.version_id); };
     } catch (e) { /* toast แสดงแล้ว */ }
   }
 
@@ -276,7 +279,7 @@
     const vs = TT.S.versions || [];
     const host = document.getElementById('tt-versions');
     if (!vs.length) { host.innerHTML = '<div class="text-muted">ยังไม่มีฉบับที่บันทึก</div>'; return; }
-    const stTh = { draft: 'ร่าง', generated: 'จัดเสร็จ', approved: 'อนุมัติแล้ว', published: 'เผยแพร่แล้ว' };
+    const stTh = { draft: 'ร่าง', generated: 'จัดเสร็จ', edited: 'แก้ไขแล้ว', approved: 'อนุมัติแล้ว', published: 'เผยแพร่แล้ว' };
     host.innerHTML = '<div class="table-wrap"><table><thead><tr><th>ฉบับ</th><th>สถานะ</th><th>คาบ</th><th>คุณภาพ</th><th>ข้อขัดแย้ง</th><th>บันทึกเมื่อ</th><th></th></tr></thead><tbody>' +
       vs.map(function (v) {
         const s = v.stats || {};
@@ -285,7 +288,8 @@
           '<td>' + (s.quality != null ? s.quality + '%' : '-') + '</td>' +
           '<td>' + (Number(s.conflicts) ? '<span class="badge badge-fail">' + s.conflicts + '</span>' : '<span class="badge badge-pass">0</span>') + '</td>' +
           '<td>' + esc(Utils.fmtDateTime(v.created_at)) + '</td>' +
-          '<td class="tt-actions"><button class="btn btn-secondary" data-view="' + esc(v.version_id) + '"><i class="bi bi-eye"></i></button>' +
+          '<td class="tt-actions"><button class="btn btn-primary" data-editv="' + esc(v.version_id) + '" title="ตรวจสอบ / แก้ไข"><i class="bi bi-pencil-square"></i></button>' +
+          '<button class="btn btn-secondary" data-view="' + esc(v.version_id) + '" title="ดูตาราง"><i class="bi bi-eye"></i></button>' +
           '<button class="btn btn-danger" data-delv="' + esc(v.version_id) + '"><i class="bi bi-trash"></i></button></td></tr>';
       }).join('') + '</tbody></table></div><div class="card" id="tt-version-view" style="margin-top:12px;display:none"></div>';
     host.querySelectorAll('[data-view]').forEach(function (b) {
@@ -298,6 +302,9 @@
           box.scrollIntoView({ behavior: 'smooth', block: 'start' });
         } catch (e) { /* toast */ }
       };
+    });
+    host.querySelectorAll('[data-editv]').forEach(function (b) {
+      b.onclick = function () { window.TTEdit.open(b.dataset.editv); };
     });
     host.querySelectorAll('[data-delv]').forEach(function (b) {
       b.onclick = async function () {

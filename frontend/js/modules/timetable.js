@@ -179,7 +179,7 @@
     if (!d) return;
     const c = d.counts;
     const st = d.latest;
-    const statusTh = { draft: 'ร่าง', generated: 'จัดเสร็จ', approved: 'อนุมัติแล้ว', published: 'เผยแพร่แล้ว' };
+    const statusTh = { draft: 'ร่าง', generated: 'จัดเสร็จ', edited: 'แก้ไขแล้ว', approved: 'อนุมัติแล้ว', published: 'เผยแพร่แล้ว' };
     document.getElementById('tt-stats').innerHTML = [
       stat('👩‍🏫', 'ครูทั้งหมด', Utils.fmtInt(c.teachers)),
       stat('📚', 'จำนวนรายวิชา', Utils.fmtInt(c.subjects)),

@@ -72,17 +72,21 @@ export async function selectWhere(db, table, col, val) {
 
 /** INSERT หลายแถว (batch atomic) — คืนจำนวนที่เพิ่ม · orReplace=true → INSERT OR REPLACE (กัน PK ซ้ำตอน import) */
 export async function insertRows(db, table, objects, orReplace) {
-  const d = def(table);
   if (!objects || !objects.length) return 0;
+  await db.batch(insertStmts(db, table, objects, orReplace));
+  return objects.length;
+}
+
+/** statement INSERT ของแต่ละแถว (ยังไม่รัน) — ใช้รวมกับ statement อื่นใน db.batch เดียวให้ atomic */
+export function insertStmts(db, table, objects, orReplace) {
+  const d = def(table);
   const placeholders = '(' + d.cols.map(function () { return '?'; }).join(',') + ')';
   const verb = orReplace ? 'INSERT OR REPLACE INTO ' : 'INSERT INTO ';
   const sql = verb + table + ' (' + d.cols.join(',') + ') VALUES ' + placeholders;
-  const stmts = objects.map(function (o) {
+  return objects.map(function (o) {
     const st = db.prepare(sql);
     return st.bind.apply(st, d.cols.map(function (c) { return norm(o[c]); }));
   });
-  await db.batch(stmts);
-  return objects.length;
 }
 
 /** INSERT ... ON CONFLICT(pk) DO UPDATE — upsert ตาม primary key */

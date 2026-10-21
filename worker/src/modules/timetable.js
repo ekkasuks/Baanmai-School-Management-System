@@ -2,9 +2,10 @@
  * AI Smart Timetable — เฟส 1: ข้อมูลพื้นฐาน (ครู/วิชา/ห้อง/ชั้น/คาบ) + Dashboard
  * เขียนเฉพาะตาราง TT_* เท่านั้น · อ่าน STUDENTS/SETTINGS แบบอ่านอย่างเดียว (ห้ามกระทบข้อมูลเดิม)
  * action: tt.bootstrap · tt.list · tt.save · tt.remove · tt.dashboard · tt.sync_classes · tt.seed_periods
+ * เฟส 2–3: tt.constraints_* · tt.save_version · tt.get_version · tt.update_slots (Auto Save) · tt.version_meta · tt.duplicate_version · tt.delete_version
  */
 import {
-  TABLES, readAll, getBy, selectWhere, insertRows, updateWhere, deleteWhere, upsert,
+  TABLES, readAll, getBy, selectWhere, insertRows, insertStmts, updateWhere, deleteWhere, upsert,
   now, genId, apiError,
 } from '../db.js';
 import { gradeSortKey } from '../shared.js';
@@ -13,11 +14,12 @@ import { getSetting } from './settings.js';
 const DAYS = 5; // จันทร์–ศุกร์
 
 /** บันทึกประวัติของโมดูลนี้ลง TT_CHANGE (ไม่ใช้ AUDIT_LOG เดิม — แยกข้อมูลขาดจากระบบเดิม) */
-async function ttLog(db, term, action, entity, id, by) {
+async function ttLog(db, term, action, entity, id, by, extra) {
   try {
     await insertRows(db, 'TT_CHANGE', [{
-      change_id: genId('TTC'), term_id: term, version_id: '',
-      message: '', detail: { kind: 'data', action: action, entity: entity, id: id },
+      change_id: genId('TTC'), term_id: term, version_id: (extra && extra.version_id) || '',
+      message: String((extra && extra.message) || '').slice(0, 300),
+      detail: Object.assign({ kind: 'data', action: action, entity: entity, id: id }, (extra && extra.detail) || {}),
       created_by: by || 'admin', created_at: now(),
     }]);
   } catch (e) { /* log ไม่ควรทำให้คำขอหลักล้ม */ }
@@ -157,7 +159,7 @@ async function buildDashboard(db, term, data) {
   const latest = versions[0] || null;
   const slots = latest ? await selectWhere(db, 'TT_SLOT', 'version_id', latest.version_id) : [];
 
-  const doneVersions = versions.filter(function (v) { return ['generated', 'approved', 'published'].indexOf(v.status) >= 0; });
+  const doneVersions = versions.filter(function (v) { return ['generated', 'edited', 'approved', 'published'].indexOf(v.status) >= 0; });
   const conflictVersions = versions.filter(function (v) { return Number(v.stats && v.stats.conflicts) > 0; });
 
   // ความพร้อม: คาบที่ต้องเรียน vs คาบที่มี, วิชาไม่มีครู, ครูไม่มีวิชา
@@ -307,6 +309,59 @@ async function getConfig(db, term) {
   return Object.assign({}, DEFAULT_CONFIG, row ? parseJson(row.config, {}) : {});
 }
 
+const VERSION_STATUS = ['generated', 'edited', 'draft', 'approved', 'published'];
+
+/** ตัวช่วยตรวจ slot ที่ส่งมาจากหน้าเว็บ (ใช้ทั้ง save_version และ update_slots) */
+function slotChecker(data) {
+  const ids = function (list, pk) { const m = {}; list.forEach(function (x) { m[x[pk]] = x; }); return m; };
+  const C = ids(data.classes, 'class_id'), Sb = ids(data.subjects, 'subject_id'), T = ids(data.teachers, 'teacher_id'), R = ids(data.rooms, 'room_id');
+  const teach = data.periods.filter(function (p) { return String(p.is_break) !== '1'; });
+  const Pd = ids(teach, 'period_id');
+  const unitOf = {};
+  teachingUnits(data.classes).forEach(function (u) { u.class_ids.forEach(function (c) { unitOf[c] = u.unit_id; }); });
+  return {
+    R: R, unitOf: unitOf, maxSlots: data.classes.length * teach.length * DAYS,
+    /** ตรวจ ref + แปลงวันเป็นตัวเลข → {class_id, day, period_id, subject_id, teacher_id, room_id, locked} */
+    clean: function (s) {
+      const day = Math.round(Number(s && s.day));
+      if (!C[s.class_id]) apiError('VALIDATION', 'อ้างอิงชั้นเรียนไม่ถูกต้อง');
+      if (!(day >= 1 && day <= DAYS)) apiError('VALIDATION', 'วันไม่ถูกต้อง');
+      if (!Pd[s.period_id]) apiError('VALIDATION', 'อ้างอิงคาบเรียนไม่ถูกต้อง');
+      if (s.subject_id && !Sb[s.subject_id]) apiError('VALIDATION', 'อ้างอิงวิชาไม่ถูกต้อง');
+      if (s.teacher_id && !T[s.teacher_id]) apiError('VALIDATION', 'อ้างอิงครูไม่ถูกต้อง');
+      if (s.room_id && !R[s.room_id]) apiError('VALIDATION', 'อ้างอิงห้องไม่ถูกต้อง');
+      return { class_id: s.class_id, day: day, period_id: s.period_id, subject_id: s.subject_id || '',
+        teacher_id: s.teacher_id || '', room_id: s.room_id || '', locked: (s.locked === true || String(s.locked) === '1') ? '1' : '' };
+    },
+  };
+}
+
+/** นับครู/ห้องชนข้ามหน่วยการเรียน (ครู/ห้องเดียวกันในกลุ่มควบชั้นเดียวกัน = สอนครั้งเดียว ไม่นับชน) */
+function slotConflicts(slots, chk) {
+  const tUse = {}, rUse = {};
+  slots.forEach(function (s) {
+    const t = s.day + '|' + s.period_id, u = chk.unitOf[s.class_id] || s.class_id;
+    if (s.teacher_id) ((tUse[s.teacher_id + '|' + t] = tUse[s.teacher_id + '|' + t] || {})[u] = 1);
+    if (s.room_id) ((rUse[s.room_id + '|' + t] = rUse[s.room_id + '|' + t] || {})[u] = 1);
+  });
+  const conflicts = [];
+  Object.keys(tUse).forEach(function (k) {
+    const n = Object.keys(tUse[k]).length;
+    if (n > 1) conflicts.push({ type: 'teacher', key: k, units: n });
+  });
+  Object.keys(rUse).forEach(function (k) {
+    const r = chk.R[k.split('|')[0]];
+    if (Object.keys(rUse[k]).length > Math.max(1, Number(r && r.max_concurrent) || 1)) conflicts.push({ type: 'room', key: k, units: Object.keys(rUse[k]).length });
+  });
+  return conflicts;
+}
+
+async function versionOf(db, term, id) {
+  const v = id ? await getBy(db, 'TT_VERSION', 'version_id', String(id)) : null;
+  if (!v || String(v.term_id) !== term) apiError('NOT_FOUND', 'ไม่พบฉบับตาราง');
+  return Object.assign({}, v, { stats: parseJson(v.stats, {}) });
+}
+
 async function listVersions(db, term) {
   return (await selectWhere(db, 'TT_VERSION', 'term_id', term))
     .map(function (v) { return Object.assign({}, v, { stats: parseJson(v.stats, {}) }); })
@@ -373,16 +428,15 @@ export const TimetableAPI = {
   get_version: async function (params, ctx) {
     const db = ctx.db;
     const term = await activeTerm(db, params);
-    const v = params.version_id ? await getBy(db, 'TT_VERSION', 'version_id', String(params.version_id)) : null;
-    if (!v || String(v.term_id) !== term) apiError('NOT_FOUND', 'ไม่พบฉบับตาราง');
+    const v = await versionOf(db, term, params.version_id);
     const slots = (await selectWhere(db, 'TT_SLOT', 'version_id', v.version_id)).map(function (s) {
-      return { class_id: s.class_id, day: Number(s.day), period_id: s.period_id, subject_id: s.subject_id || '', teacher_id: s.teacher_id || '', room_id: s.room_id || '', locked: s.locked || '' };
+      return { class_id: s.class_id, day: Number(s.day), period_id: s.period_id, subject_id: s.subject_id || '', teacher_id: s.teacher_id || '', room_id: s.room_id || '', locked: String(s.locked || '') === '1' ? '1' : '' };
     });
-    return { version: Object.assign({}, v, { stats: parseJson(v.stats, {}) }), slots: slots };
+    return { version: v, slots: slots };
   },
 
   /**
-   * บันทึกผลจาก AI Engine เป็นฉบับใหม่ — params = { label?, slots:[{class_id,day,period_id,subject_id,teacher_id,room_id}], stats }
+   * บันทึกผลจาก AI Engine เป็นฉบับใหม่ — params = { label?, slots:[{class_id,day,period_id,subject_id,teacher_id,room_id,locked?}], stats, status? }
    * ตรวจซ้ำฝั่ง server: ข้อมูลอ้างอิงถูกภาคเรียน, ห้องเรียนไม่ซ้ำช่อง, นับครู/ห้องชน (ยกเว้นกลุ่มควบชั้นเดียวกัน)
    */
   save_version: async function (params, ctx) {
@@ -390,72 +444,144 @@ export const TimetableAPI = {
     const term = await activeTerm(db, params);
     const slots = params.slots;
     if (!Array.isArray(slots) || !slots.length) apiError('VALIDATION', 'ไม่มีข้อมูลตารางให้บันทึก');
-    const data = await loadAll(db, term);
-    const ids = function (list, pk) { const m = {}; list.forEach(function (x) { m[x[pk]] = x; }); return m; };
-    const C = ids(data.classes, 'class_id'), Sb = ids(data.subjects, 'subject_id'), T = ids(data.teachers, 'teacher_id'), R = ids(data.rooms, 'room_id');
-    const teach = data.periods.filter(function (p) { return String(p.is_break) !== '1'; });
-    const Pd = ids(teach, 'period_id');
-    if (slots.length > data.classes.length * teach.length * DAYS) apiError('VALIDATION', 'จำนวนช่องตารางเกินกว่าที่เป็นไปได้');
+    const chk = slotChecker(await loadAll(db, term));
+    if (slots.length > chk.maxSlots) apiError('VALIDATION', 'จำนวนช่องตารางเกินกว่าที่เป็นไปได้');
 
-    const unitOf = {};
-    teachingUnits(data.classes).forEach(function (u) { u.class_ids.forEach(function (c) { unitOf[c] = u.unit_id; }); });
-    const seen = {}, tUse = {}, rUse = {};
+    const seen = {};
     const rows = slots.map(function (s) {
-      const day = Math.round(Number(s.day));
-      if (!C[s.class_id]) apiError('VALIDATION', 'อ้างอิงชั้นเรียนไม่ถูกต้อง');
-      if (!(day >= 1 && day <= DAYS)) apiError('VALIDATION', 'วันไม่ถูกต้อง');
-      if (!Pd[s.period_id]) apiError('VALIDATION', 'อ้างอิงคาบเรียนไม่ถูกต้อง');
-      if (s.subject_id && !Sb[s.subject_id]) apiError('VALIDATION', 'อ้างอิงวิชาไม่ถูกต้อง');
-      if (s.teacher_id && !T[s.teacher_id]) apiError('VALIDATION', 'อ้างอิงครูไม่ถูกต้อง');
-      if (s.room_id && !R[s.room_id]) apiError('VALIDATION', 'อ้างอิงห้องไม่ถูกต้อง');
-      const k = s.class_id + '|' + day + '|' + s.period_id;
+      const c = chk.clean(s);
+      const k = c.class_id + '|' + c.day + '|' + c.period_id;
       if (seen[k]) apiError('VALIDATION', 'มีชั้นเรียนซ้ำในช่องเวลาเดียวกัน');
       seen[k] = 1;
-      const t = day + '|' + s.period_id, u = unitOf[s.class_id];
-      if (s.teacher_id) ((tUse[s.teacher_id + '|' + t] = tUse[s.teacher_id + '|' + t] || {})[u] = 1);
-      if (s.room_id) ((rUse[s.room_id + '|' + t] = rUse[s.room_id + '|' + t] || {})[u] = 1);
-      return { day: day, s: s };
+      return c;
     });
-
-    const conflicts = [];
-    Object.keys(tUse).forEach(function (k) {
-      const n = Object.keys(tUse[k]).length;
-      if (n > 1) conflicts.push({ type: 'teacher', key: k, units: n });
-    });
-    Object.keys(rUse).forEach(function (k) {
-      const r = R[k.split('|')[0]];
-      if (Object.keys(rUse[k]).length > Math.max(1, Number(r && r.max_concurrent) || 1)) conflicts.push({ type: 'room', key: k, units: Object.keys(rUse[k]).length });
-    });
+    const conflicts = slotConflicts(rows, chk);
 
     const vid = genId('VER');
     const n = (await selectWhere(db, 'TT_VERSION', 'term_id', term)).length + 1;
-    const stats = Object.assign({}, params.stats || {}, { slots: slots.length, conflicts: conflicts.length, conflict_list: conflicts.slice(0, 30) });
+    const stats = Object.assign({}, params.stats || {}, { slots: rows.length, conflicts: conflicts.length, conflict_list: conflicts.slice(0, 30), rev: 0 });
+    const status = VERSION_STATUS.indexOf(params.status) >= 0 ? params.status : 'generated';
     const ts = now();
     await insertRows(db, 'TT_VERSION', [{
-      version_id: vid, term_id: term, label: String(params.label || ('ฉบับที่ ' + n + ' (AI)')).slice(0, 80),
-      status: 'generated', stats: stats, created_by: params.recorded_by || 'admin', created_at: ts,
+      version_id: vid, term_id: term, label: String(params.label || ('ฉบับที่ ' + n + (status === 'generated' ? ' (AI)' : ''))).slice(0, 80),
+      status: status, stats: stats, created_by: params.recorded_by || 'admin', created_at: ts,
     }]);
-    const slotRows = rows.map(function (x) {
-      return { slot_id: genId('SL'), term_id: term, version_id: vid, class_id: x.s.class_id, day: x.day, period_id: x.s.period_id,
-        subject_id: x.s.subject_id || '', teacher_id: x.s.teacher_id || '', room_id: x.s.room_id || '', locked: '', updated_at: ts };
-    });
+    const slotRows = rows.map(function (c) { return Object.assign({ slot_id: genId('SL'), term_id: term, version_id: vid, updated_at: ts }, c); });
     for (let i = 0; i < slotRows.length; i += 50) await insertRows(db, 'TT_SLOT', slotRows.slice(i, i + 50));
-    await ttLog(db, term, 'GENERATE', 'version', vid, params.recorded_by);
+    await ttLog(db, term, 'GENERATE', 'version', vid, params.recorded_by, { version_id: vid });
     return { version_id: vid, label: 'ฉบับที่ ' + n, slots: slotRows.length, conflicts: conflicts.length };
+  },
+
+  /**
+   * บันทึกการแก้ไขตาราง (Auto Save จาก Drag & Drop) — เขียนเฉพาะช่องที่เปลี่ยน
+   * params = { version_id, rev, changes:[{class_id,day,period_id,subject_id,teacher_id,room_id,locked}], message? }
+   *   subject_id ว่าง = ลบคาบออกจากช่องนั้น · rev ต้องตรงกับฉบับล่าสุด (กันแก้ทับกันจากหลายเครื่อง)
+   */
+  update_slots: async function (params, ctx) {
+    const db = ctx.db;
+    const term = await activeTerm(db, params);
+    const v = await versionOf(db, term, params.version_id);
+    const rev = Number(v.stats.rev) || 0;
+    if (params.rev !== undefined && Number(params.rev) !== rev) {
+      apiError('CONFLICT', 'ฉบับนี้ถูกแก้ไขจากเครื่องอื่นแล้ว — โหลดฉบับล่าสุดก่อนแก้ต่อ');
+    }
+    const changes = params.changes;
+    if (!Array.isArray(changes) || !changes.length) apiError('VALIDATION', 'ไม่มีการเปลี่ยนแปลง');
+    const chk = slotChecker(await loadAll(db, term));
+    if (changes.length > chk.maxSlots) apiError('VALIDATION', 'จำนวนการเปลี่ยนแปลงเกินกว่าที่เป็นไปได้');
+
+    const existing = await selectWhere(db, 'TT_SLOT', 'version_id', v.version_id);
+    const byKey = {};
+    existing.forEach(function (s) { byKey[s.class_id + '|' + Number(s.day) + '|' + s.period_id] = s; });
+    const ts = now();
+    const del = [], ins = [], touched = {};
+    changes.forEach(function (raw) {
+      const c = chk.clean(raw);
+      const k = c.class_id + '|' + c.day + '|' + c.period_id;
+      if (touched[k]) apiError('VALIDATION', 'มีการแก้ช่องเดียวกันซ้ำในคำขอเดียว');
+      touched[k] = 1;
+      if (byKey[k]) del.push(byKey[k].slot_id);
+      if (c.subject_id) {
+        const row = Object.assign({ slot_id: genId('SL'), term_id: term, version_id: v.version_id, updated_at: ts }, c);
+        ins.push(row);
+        byKey[k] = row;
+      } else {
+        delete byKey[k];
+      }
+    });
+
+    const all = Object.keys(byKey).map(function (k) { const s = byKey[k]; return { class_id: s.class_id, day: Number(s.day), period_id: s.period_id, teacher_id: s.teacher_id, room_id: s.room_id }; });
+    const conflicts = slotConflicts(all, chk);
+    const stats = Object.assign({}, v.stats, {
+      slots: all.length, conflicts: conflicts.length, conflict_list: conflicts.slice(0, 30), rev: rev + 1,
+      edits: (Number(v.stats.edits) || 0) + changes.length, edited_at: ts, edited_by: params.recorded_by || 'admin',
+    });
+    if (params.stats && typeof params.stats === 'object') {
+      ['errors', 'warnings', 'quality'].forEach(function (f) { if (params.stats[f] !== undefined) stats[f === 'quality' ? 'quality' : 'check_' + f] = Number(params.stats[f]) || 0; });
+    }
+    // ลบ + เพิ่ม + อัปเดตสถิติฉบับ ใน batch เดียว (atomic: สำเร็จทั้งหมดหรือไม่เปลี่ยนเลย)
+    const stmts = del.map(function (id) { return db.prepare('DELETE FROM TT_SLOT WHERE slot_id=?').bind(id); })
+      .concat(insertStmts(db, 'TT_SLOT', ins))
+      .concat([db.prepare('UPDATE TT_VERSION SET stats=?, status=? WHERE version_id=?').bind(
+        JSON.stringify(stats), v.status === 'generated' ? 'edited' : v.status, v.version_id)]);
+    await db.batch(stmts);
+    await ttLog(db, term, 'EDIT', 'version', v.version_id, params.recorded_by, {
+      version_id: v.version_id, message: params.message || '', detail: { cells: changes.length },
+    });
+    return { rev: rev + 1, slots: all.length, conflicts: conflicts.length, status: v.status === 'generated' ? 'edited' : v.status };
+  },
+
+  /** เปลี่ยนชื่อ/สถานะฉบับ — params = { version_id, label?, status? } */
+  version_meta: async function (params, ctx) {
+    const db = ctx.db;
+    const term = await activeTerm(db, params);
+    const v = await versionOf(db, term, params.version_id);
+    const fields = {};
+    if (params.label !== undefined) {
+      const label = String(params.label || '').trim().slice(0, 80);
+      if (!label) apiError('VALIDATION', 'กรุณาระบุชื่อฉบับ');
+      fields.label = label;
+    }
+    if (params.status !== undefined) {
+      if (VERSION_STATUS.indexOf(params.status) < 0) apiError('VALIDATION', 'สถานะไม่ถูกต้อง');
+      if (params.status === 'published' && Number(v.stats.conflicts) > 0) apiError('VALIDATION', 'ฉบับนี้ยังมีครู/ห้องชนกัน ' + v.stats.conflicts + ' จุด — แก้ก่อนเผยแพร่');
+      fields.status = params.status;
+    }
+    if (!Object.keys(fields).length) apiError('VALIDATION', 'ไม่มีข้อมูลที่จะแก้');
+    await updateWhere(db, 'TT_VERSION', 'version_id', v.version_id, fields);
+    await ttLog(db, term, 'UPDATE', 'version', v.version_id, params.recorded_by, { version_id: v.version_id, detail: fields });
+    return Object.assign({ version_id: v.version_id }, fields);
+  },
+
+  /** ทำสำเนาฉบับ (คัดลอกทุกช่องฝั่ง server) — params = { version_id, label? } */
+  duplicate_version: async function (params, ctx) {
+    const db = ctx.db;
+    const term = await activeTerm(db, params);
+    const v = await versionOf(db, term, params.version_id);
+    const src = await selectWhere(db, 'TT_SLOT', 'version_id', v.version_id);
+    const vid = genId('VER'), ts = now();
+    const stats = Object.assign({}, v.stats, { rev: 0, edits: 0, copied_from: v.version_id });
+    delete stats.edited_at; delete stats.edited_by;
+    await insertRows(db, 'TT_VERSION', [{
+      version_id: vid, term_id: term, label: String(params.label || ('สำเนา ' + v.label)).slice(0, 80),
+      status: 'draft', stats: stats, created_by: params.recorded_by || 'admin', created_at: ts,
+    }]);
+    const rows = src.map(function (s) { return Object.assign({}, s, { slot_id: genId('SL'), version_id: vid, updated_at: ts }); });
+    for (let i = 0; i < rows.length; i += 50) await insertRows(db, 'TT_SLOT', rows.slice(i, i + 50));
+    await ttLog(db, term, 'COPY', 'version', vid, params.recorded_by, { version_id: vid, detail: { from: v.version_id } });
+    return { version_id: vid, slots: rows.length };
   },
 
   /** ลบฉบับตาราง (เฉพาะ TT_SLOT/TT_VERSION ของฉบับนั้น) */
   delete_version: async function (params, ctx) {
     const db = ctx.db;
     const term = await activeTerm(db, params);
-    const v = params.version_id ? await getBy(db, 'TT_VERSION', 'version_id', String(params.version_id)) : null;
-    if (!v || String(v.term_id) !== term) apiError('NOT_FOUND', 'ไม่พบฉบับตาราง');
+    const v = await versionOf(db, term, params.version_id);
     await deleteWhere(db, 'TT_SLOT', 'version_id', v.version_id);
     await deleteWhere(db, 'TT_VERSION', 'version_id', v.version_id);
     await ttLog(db, term, 'DELETE', 'version', v.version_id, params.recorded_by);
     return { ok: true };
   },
-
   dashboard: async function (params, ctx) {
     const term = await activeTerm(ctx.db, params);
     return buildDashboard(ctx.db, term, await loadAll(ctx.db, term));

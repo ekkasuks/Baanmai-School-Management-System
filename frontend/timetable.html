@@ -42,6 +42,40 @@
   .tt-cell .t { font-size:11px; color:var(--muted); }
   .tt-cell.core { background:#E3F2FD; } .tt-cell.elective { background:#F3E5F5; } .tt-cell.activity { background:#E8F5E9; } .tt-cell.practical { background:#FFF3E0; }
   .tt-kpi { display:grid; grid-template-columns:repeat(auto-fit,minmax(140px,1fr)); gap:10px; margin-bottom:12px; }
+  /* ── แก้ไขตาราง (เฟส 3) ── */
+  .tt-ed { display:grid; grid-template-columns:minmax(0,1fr) 250px; gap:16px; align-items:start; }
+  .tt-ed > .card { margin-bottom:0; }
+  .tt-ed + .card { margin-top:16px; }
+  .tt-save { font-size:13px; margin-left:auto; }
+  .text-danger { color:#C62828; }
+  .tt-summary { display:flex; flex-wrap:wrap; gap:8px; align-items:center; }
+  .tt-badge { padding:4px 12px; border-radius:999px; font-size:14px; font-weight:600; }
+  .tt-badge.err { background:#FFEBEE; color:#C62828; } .tt-badge.warn { background:#FFF8E1; color:#8D6E00; } .tt-badge.ok { background:#E8F5E9; color:var(--green-dark); }
+  .tt-edit td { height:62px; padding:3px; }
+  .tt-edit .tt-cell { cursor:grab; position:relative; border:2px solid transparent; min-height:52px; display:flex; flex-direction:column; justify-content:center; }
+  .tt-edit .tt-cell:active { cursor:grabbing; }
+  .tt-cell.st-ok { border-color:#A5D6A7; }
+  .tt-cell.st-warning { border-color:var(--yellow); box-shadow:inset 0 0 0 1px var(--yellow); }
+  .tt-cell.st-error { border-color:var(--red); background:#FFEBEE; box-shadow:inset 0 0 0 1px var(--red); }
+  .tt-cell.sel, .tt-empty.sel { outline:3px solid var(--primary-dark); outline-offset:1px; }
+  .tt-lock { position:absolute; top:1px; right:3px; font-size:11px; }
+  .tt-empty { min-height:52px; border:2px dashed var(--border); border-radius:8px; color:#B0BEC5; display:grid; place-items:center; cursor:pointer; font-size:18px; }
+  .tt-empty:hover { border-color:var(--primary); color:var(--primary-dark); }
+  .tt-empty.st-warning { border-color:var(--yellow); background:#FFFDE7; }
+  .tt-edit td.drop-ok { background:#E8F5E9; }
+  .tt-edit td.drop-bad { background:repeating-linear-gradient(45deg,#FFCDD2 0 6px,#FFEBEE 6px 12px); }
+  .tt-edit td.drop-bad > div { opacity:.6; }
+  .tt-edit td.over { outline:3px dashed var(--primary-dark); outline-offset:-3px; }
+  .tt-selbar { display:flex; flex-wrap:wrap; gap:6px; align-items:center; background:var(--primary-light); color:var(--primary-dark); border-radius:12px; padding:8px 12px; margin-bottom:10px; font-size:14px; }
+  .tt-selbar .btn { padding:4px 10px; font-size:13px; margin:0; }
+  .tt-chip2 { display:flex; justify-content:space-between; gap:6px; padding:6px 10px; border-radius:10px; margin-bottom:6px; font-size:14px; cursor:grab; border:2px solid transparent; user-select:none; }
+  .tt-chip2.core { background:#E3F2FD; } .tt-chip2.elective { background:#F3E5F5; } .tt-chip2.activity { background:#E8F5E9; } .tt-chip2.practical { background:#FFF3E0; }
+  .tt-chip2 .n { font-weight:700; white-space:nowrap; }
+  .tt-chip2.full { opacity:.55; } .tt-chip2.need .n { color:#C62828; } .tt-chip2.over { border-color:var(--yellow); }
+  .tt-chip2.sel { border-color:var(--primary-dark); opacity:1; }
+  .tt-trash { margin-top:10px; padding:12px; border:2px dashed #EF9A9A; border-radius:12px; text-align:center; color:#C62828; font-size:13px; cursor:pointer; }
+  .tt-trash.over { background:#FFEBEE; }
+  @media (max-width:900px) { .tt-ed { grid-template-columns:minmax(0,1fr); } .tt-save { margin-left:0; width:100%; } }
   @media (max-width:600px) { .tt-form { grid-template-columns:1fr; } .tt-stat .value { font-size:20px; } }
 </style>
 </head>
@@ -66,6 +100,7 @@
     <button class="tab" data-tab="period">⏰ คาบเรียน</button>
     <button class="tab" data-tab="constraints">⚙️ เงื่อนไข</button>
     <button class="tab" data-tab="ai">🤖 จัดตาราง AI</button>
+    <button class="tab" data-tab="edit">✏️ ตรวจสอบ / แก้ไขตาราง</button>
   </div>
 
   <!-- Dashboard -->
@@ -142,6 +177,9 @@
       <div id="tt-versions" class="text-muted">ยังไม่มี</div>
     </div>
   </section>
+
+  <!-- ตรวจสอบ + แก้ไข Drag & Drop (โมดูล 5–6) — สร้างเนื้อหาโดย timetable-edit.js -->
+  <section class="tab-pane hidden" id="tab-edit"></section>
 </main>
 
 <script src="js/config.js"></script>
@@ -151,5 +189,7 @@
 <script src="js/utils.js"></script>
 <script src="js/modules/timetable.js"></script>
 <script src="js/modules/timetable-ai.js"></script>
+<script src="js/tt-check.js"></script>
+<script src="js/modules/timetable-edit.js"></script>
 </body>
 </html>
