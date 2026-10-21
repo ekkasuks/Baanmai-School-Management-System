@@ -100,6 +100,7 @@ const TTi18n = (function () {
     'ล้างเงื่อนไข': 'Clear filters', 'ยังไม่ระบุครู (': 'No teacher (',
     'คาบว่างร่วมของครู (เช่น ประชุม PLC)': 'Common free periods for teachers (e.g. PLC meeting)', 'ครูทุกคน': 'All teachers', 'เลือกครู': 'Choose teachers',
     'เพิ่มคาบว่างร่วม': 'Add common free period', 'ยังไม่มีคาบว่างร่วม': 'No common free periods yet', 'ครูสอนสูงสุดต่อวัน (คาบ)': 'Max periods per teacher per day', 'ชื่อ': 'Name',
+    'ล็อกคาบ / วันเรียน': 'Locked periods / days', 'วันเรียนของแต่ละวิชา': 'Teaching days per subject',
     'ล็อกคาบ': 'Locked periods', 'ล็อกวิชาในคาบ (ทั้งโรงเรียน)': 'Lock subjects to periods (whole school)', 'วิชาที่ล็อกไว้': 'Locked subjects',
     'คาบที่ล็อก': 'Locked periods', 'ครูดูแลร่วม': 'Shared supervision', 'ครูดูแลร่วมได้ (ครูคนเดียวดูแลหลายชั้นพร้อมกัน)': 'Shared supervision (one teacher for several classes)',
     'มอบหมายการสอน': 'Teaching assignments', 'มอบหมายการสอน (วิชา × ชั้น → ครู)': 'Teaching assignments (subject × class → teacher)', 'อัตโนมัติ': 'Auto',

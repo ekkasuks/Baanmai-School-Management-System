@@ -4,11 +4,13 @@
  *   "ครูดูแลร่วมได้" = ครูคนเดียวดูแลหลายชั้นพร้อมกันในคาบล็อกนี้ได้ (ไม่นับเป็นครูสอนชน)
  *   เก็บใน TT_SUBJECT.rules.fixed_slots / rules.shared · บันทึกผ่าน tt.import_entities (ครั้งเดียว ตรวจซ้ำที่ server)
  *   AI Engine วางคาบล็อกก่อนทุกวิชาและไม่ย้าย · ตารางที่ได้จะเป็นช่อง 🔒
+ * วันเรียนของแต่ละวิชา (rules.allowed_days — ว่าง = ทุกวัน): ติ๊กรายวันทุกวิชาในหน้าเดียว เช่น พลศึกษาไม่เรียนวันพฤหัส (ชุดลูกเสือ)
  */
 (function () {
   const esc = Utils.esc;
   const host = document.getElementById('tab-lock');
-  let draft = {}, sel = null;   // draft: subject_id → { fixed_slots:[{day,period_id}], shared }
+  let draft = {}, sel = null;   // draft: subject_id → { fixed_slots:[{day,period_id}], shared, days:[1..5] (ว่าง = ทุกวัน) }
+  const ALL = [1, 2, 3, 4, 5];
 
   function S() { return TT.S; }
   function short(n) { return String(n || '').replace(/\s*\(ป\.[^)]*\)$/, ''); }
@@ -29,21 +31,23 @@
   }
   function gradeText(gs) { return gs.length > 2 ? gs[0] + '–' + gs[gs.length - 1] : gs.join(', '); }
   function periods() { return S().periods.slice().sort(function (a, b) { return (a.seq || 0) - (b.seq || 0); }); }
+  function normDays(list) {
+    const d = (list || []).map(Number).filter(function (x) { return x >= 1 && x <= 5; }).filter(function (x, i, a) { return a.indexOf(x) === i; }).sort();
+    return d.length === 5 ? [] : d;
+  }
+  function fromRules(r) {
+    r = r || {};
+    return { fixed_slots: (r.fixed_slots || []).map(function (x) { return { day: Number(x.day), period_id: x.period_id }; }), shared: r.shared !== false, days: normDays(r.allowed_days) };
+  }
   function loadDraft() {
     draft = {};
-    S().subjects.forEach(function (s) {
-      const r = s.rules || {};
-      draft[s.subject_id] = { fixed_slots: (r.fixed_slots || []).map(function (x) { return { day: Number(x.day), period_id: x.period_id }; }), shared: r.shared !== false };
-    });
+    S().subjects.forEach(function (s) { draft[s.subject_id] = fromRules(s.rules); });
   }
   /** วิชาที่เพิ่งเพิ่ม (หลังโหลดร่าง) → ใส่ค่าเริ่มต้นจากข้อมูลจริง */
   function ensure() {
-    S().subjects.forEach(function (s) {
-      if (draft[s.subject_id]) return;
-      const r = s.rules || {};
-      draft[s.subject_id] = { fixed_slots: (r.fixed_slots || []).map(function (x) { return { day: Number(x.day), period_id: x.period_id }; }), shared: r.shared !== false };
-    });
+    S().subjects.forEach(function (s) { if (!draft[s.subject_id]) draft[s.subject_id] = fromRules(s.rules); });
   }
+  function daysOf(g) { const d = draft[g.subjects[0].subject_id].days; return d.length ? d : ALL; }
   function slotsOf(g) { return draft[g.subjects[0].subject_id].fixed_slots; }
   function has(list, d, pid) { return list.some(function (x) { return x.day === d && x.period_id === pid; }); }
   function changed() {
@@ -52,7 +56,8 @@
       if (!d) return false;
       const a = JSON.stringify((r.fixed_slots || []).map(function (x) { return Number(x.day) + '|' + x.period_id; }).sort());
       const b = JSON.stringify(d.fixed_slots.map(function (x) { return x.day + '|' + x.period_id; }).sort());
-      return a !== b || (d.fixed_slots.length && (r.shared !== false) !== d.shared);
+      return a !== b || (d.fixed_slots.length && (r.shared !== false) !== d.shared) ||
+        JSON.stringify(normDays(r.allowed_days)) !== JSON.stringify(d.days);
     });
   }
   /** ปัญหา: วิชาล็อกช่องเดียวกันในชั้นที่ซ้อนกัน · วันที่วิชาไม่อนุญาต · ล็อกเกินจำนวนคาบ */
@@ -61,9 +66,12 @@
     gs.forEach(function (g) {
       slotsOf(g).forEach(function (x) { (bySlot[x.day + '|' + x.period_id] = bySlot[x.day + '|' + x.period_id] || []).push(g); });
       if (slotsOf(g).length > g.max) out.push({ level: 'error', msg: g.name + ' ล็อก ' + slotsOf(g).length + ' คาบ เกินจำนวนที่เรียน (' + g.max + ' คาบ/สัปดาห์)' });
+      const days = daysOf(g);
+      slotsOf(g).forEach(function (x) { if (days.indexOf(x.day) < 0) out.push({ level: 'error', msg: g.name + ' ล็อกไว้วัน' + TT.DAY_NAMES[x.day] + ' แต่ไม่ได้ติ๊กวันนี้ในวันเรียน' }); });
+      // วันเรียนน้อยเกินไปสำหรับจำนวนคาบ (วันละไม่เกิน n คาบ)
       g.subjects.forEach(function (s) {
-        const days = ((s.rules || {}).allowed_days || []).map(Number);
-        slotsOf(g).forEach(function (x) { if (days.length && days.indexOf(x.day) < 0) out.push({ level: 'warning', msg: s.name + ' ตั้ง "จัดได้เฉพาะวัน" ไว้ แต่ล็อกวัน' + TT.DAY_NAMES[x.day] }); });
+        const r = s.rules || {}, perDay = Math.max(Number(r.max_per_day) > 0 ? Number(r.max_per_day) : (Number((S().config || {}).subject_max_per_day) || 2), Number(r.consecutive) || 1);
+        if (days.length * perDay < (Number(s.periods_week) || 0)) out.push({ level: 'error', msg: s.name + ' เรียน ' + s.periods_week + ' คาบ/สัปดาห์ แต่เลือกไว้ ' + days.length + ' วัน (วันละไม่เกิน ' + perDay + ' คาบ) — เพิ่มวันเรียน' });
       });
     });
     const bad = {};
@@ -118,7 +126,10 @@
         }).join('') + '</tbody></table></div>' +
         (pr.list.length ? '<div style="margin-top:10px">' + pr.list.map(function (x) { return '<div class="tt-issue ' + (x.level === 'error' ? 'alert-danger' : 'alert-warning') + '"><span>' + (x.level === 'error' ? '⛔' : '⚠️') + '</span><span>' + esc(x.msg) + '</span></div>'; }).join('') + '</div>' : '') +
       '</div>' +
-      '<div class="card"><h3 class="card-title">📋 วิชาที่ล็อกไว้</h3>' + summary(gs) + '</div>';
+      '<div class="card"><h3 class="card-title">📋 วิชาที่ล็อกไว้</h3>' + summary(gs) + '</div>' +
+      '<div class="card"><div class="flex" style="justify-content:space-between;flex-wrap:wrap;gap:8px;margin-bottom:6px"><h3 class="card-title" style="margin:0">📅 วันเรียนของแต่ละวิชา</h3>' +
+        '<button class="btn btn-primary" data-save2' + (ch ? '' : ' disabled') + '><i class="bi bi-save"></i> บันทึก' + (ch ? ' (' + ch + ' วิชา)' : '') + '</button></div>' +
+        '<p class="tt-note" style="margin:0 0 10px">เอาติ๊กออก = AI จะไม่จัดวิชานั้นในวันนั้น (ทุกชั้น) เช่น พลศึกษาไม่เรียนวันพฤหัสบดี เพราะชุดพละชนกับชุดลูกเสือ</p>' + daysTable(gs) + '</div>';
 
     host.querySelector('[data-sel]').onchange = function () { sel = this.value; render(); };
     host.querySelector('[data-shared]').onchange = function () { const v = this.checked; g.subjects.forEach(function (s) { draft[s.subject_id].shared = v; }); render(); };
@@ -140,6 +151,34 @@
     host.querySelectorAll('[data-pick]').forEach(function (b) { b.onclick = function () { sel = b.dataset.pick; render(); host.scrollIntoView({ behavior: 'smooth' }); }; });
     host.querySelector('[data-reset]').onclick = function () { loadDraft(); render(); };
     host.querySelector('[data-save]').onclick = function () { save(pr); };
+    host.querySelector('[data-save2]').onclick = function () { save(pr); };
+    host.querySelectorAll('[data-day]').forEach(function (cb) {
+      cb.onchange = function () {
+        const g = gs[Number(cb.dataset.g)], d = Number(cb.dataset.day);
+        let days = daysOf(g).slice();
+        if (cb.checked) days.push(d); else days = days.filter(function (x) { return x !== d; });
+        if (!days.length) { Toast.show('ต้องเรียนอย่างน้อย 1 วัน', 'warning'); cb.checked = true; return; }
+        g.subjects.forEach(function (s) { draft[s.subject_id].days = normDays(days); });
+        render();
+      };
+    });
+  }
+
+  function periodsText(g) {
+    const n = g.subjects.map(function (s) { return Number(s.periods_week) || 0; });
+    const lo = Math.min.apply(null, n), hi = Math.max.apply(null, n);
+    return lo === hi ? String(lo) : lo + '–' + hi;
+  }
+  function daysTable(gs) {
+    return '<div class="table-wrap"><table class="tt-results tt-days"><thead><tr><th>วิชา</th><th>ชั้น</th>' +
+      ALL.map(function (d) { return '<th style="text-align:center">' + TT.DAY_NAMES[d] + '</th>'; }).join('') + '<th>คาบ/สัปดาห์</th></tr></thead><tbody>' +
+      gs.map(function (g, i) {
+        const days = daysOf(g), limited = days.length < 5;
+        const dirty = g.subjects.some(function (s) { return JSON.stringify(normDays((s.rules || {}).allowed_days)) !== JSON.stringify(draft[s.subject_id].days); });
+        return '<tr class="' + (dirty ? 'chg' : '') + '"><td><strong>' + esc(g.name) + '</strong>' + (limited ? ' <span class="tt-pill combo">' + days.length + ' วัน</span>' : '') + '</td><td class="tt-note">' + esc(gradeText(g.grades)) + '</td>' +
+          ALL.map(function (d) { return '<td style="text-align:center"><input type="checkbox" data-g="' + i + '" data-day="' + d + '"' + (days.indexOf(d) >= 0 ? ' checked' : '') + ' style="width:20px;height:20px" aria-label="' + esc(g.name + ' วัน' + TT.DAY_NAMES[d]) + '"></td>'; }).join('') +
+          '<td class="tt-note" style="text-align:center">' + periodsText(g) + '</td></tr>';
+      }).join('') + '</tbody></table></div>';
   }
 
   function summary(gs) {
@@ -164,11 +203,12 @@
       const d = draft[s.subject_id], rules = Object.assign({}, s.rules || {});
       if (d.fixed_slots.length) { rules.fixed_slots = d.fixed_slots; rules.shared = d.shared; }
       else { delete rules.fixed_slots; delete rules.shared; }
+      if (d.days.length) rules.allowed_days = d.days; else delete rules.allowed_days;
       return { subject_id: s.subject_id, rules: rules };
     });
     try {
       await api('tt.import_entities', { entity: 'subject', rows: rows }, { loadingMsg: 'กำลังบันทึก...', noRetry: true });
-      Toast.show('บันทึกการล็อกคาบแล้ว (' + rows.length + ' วิชา) — กดจัดตาราง AI ใหม่เพื่อใช้', 'success');
+      Toast.show('บันทึกแล้ว (' + rows.length + ' วิชา) — กดจัดตาราง AI ใหม่เพื่อใช้', 'success');
       await TT.reload({ quiet: true });
       loadDraft();
       render();
