@@ -84,8 +84,9 @@
   <section class="tab-pane hidden" id="tab-pin">
     <div class="card">
       <h3 class="card-title">🔒 ตั้งค่า PIN</h3>
-      <div class="alert alert-info">PIN ใช้เข้าโมดูล <strong>ธนาคาร · เช็คการมาเรียน</strong> · ค่าเริ่มต้น = <code>127</code> · กรอกวันละ 1 ครั้ง</div>
+      <div class="alert alert-info">PIN ใช้เข้าโมดูล <strong>ธนาคาร</strong> และ<strong>ตั้งค่าระบบ</strong> (บันทึก · สำรอง/กู้คืน · เลื่อนชั้น) · กรอกวันละ 1 ครั้ง · ถ้ายังไม่ตั้ง PIN ตั้งค่าระบบ จะใช้ PIN ธนาคารแทน</div>
       <form id="pin-form">
+        <div class="form-group"><label>PIN ตั้งค่าระบบ (ผู้ดูแล)</label><input class="form-control" type="password" name="pin_settings" inputmode="numeric" placeholder="ว่าง = ไม่เปลี่ยน"></div>
         <div class="form-row">
           <div class="form-group"><label>PIN ธนาคาร</label><input class="form-control" type="password" name="pin_bank" inputmode="numeric" placeholder="ว่าง = ไม่เปลี่ยน"></div>
           <div class="form-group"><label>PIN เช็คการมาเรียน</label><input class="form-control" type="password" name="pin_attendance" inputmode="numeric" placeholder="ว่าง = ไม่เปลี่ยน"></div>

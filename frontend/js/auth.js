@@ -1,26 +1,32 @@
 /**
- * PIN session — เก็บ token ร่วมกัน 1 ค่า (ทุกโมดูลใช้ token เดียวกัน)
- * โมดูลที่ต้อง PIN: bank, attendance · กรอก PIN แค่ครั้งเดียวต่อวัน (หมดอายุเที่ยงคืน)
- * ปลดล็อกโมดูลใดก็ได้ครั้งเดียว → เข้าโมดูลอื่นที่ต้อง PIN ได้เลยโดยไม่ถามซ้ำ
+ * PIN session — token แยกต่อโมดูล (backend ผูก token กับโมดูลที่กรอก PIN)
+ * โมดูลที่ต้อง PIN: bank, settings · กรอก PIN แค่ครั้งเดียวต่อวัน (หมดอายุเที่ยงคืน)
+ * settings ใช้ PIN ของตัวเอง (pin_settings) — ถ้ายังไม่ตั้ง backend ใช้ PIN ธนาคารแทน
  */
 
-const PIN_MODULES = ['bank'];
-const TOKEN_KEY = 'baanmai_token';
+const PIN_MODULES = ['bank', 'settings'];
+const TOKEN_KEY = 'baanmai_token';   // bank ใช้คีย์เดิม · โมดูลอื่น = baanmai_token_<module>
+
+// action ของ settings ที่อ่านได้โดยไม่ต้อง PIN (หน้าหลักใช้ settings.get ดึงชื่อโรงเรียน)
+const PUBLIC_ACTIONS = ['settings.get', 'settings.init', 'settings.promote_preview'];
+
+function tokenKey(mod) { return mod === 'bank' ? TOKEN_KEY : TOKEN_KEY + '_' + mod; }
 
 function actionToModule(action) {
-  if (!action) return null;
+  if (!action || PUBLIC_ACTIONS.indexOf(String(action)) >= 0) return null;
   const prefix = String(action).split('.')[0];
   return PIN_MODULES.indexOf(prefix) >= 0 ? prefix : null;
 }
 
-/** อ่าน token ร่วม — คืน null ถ้าไม่มีหรือหมดอายุ (ลบทิ้งให้ด้วย) */
-function readSharedToken() {
-  const raw = localStorage.getItem(TOKEN_KEY);
+/** อ่าน token ของโมดูล — คืน null ถ้าไม่มีหรือหมดอายุ (ลบทิ้งให้ด้วย) */
+function readToken(mod) {
+  const key = tokenKey(mod);
+  const raw = localStorage.getItem(key);
   if (!raw) return null;
   try {
     const data = JSON.parse(raw);
     if (new Date(data.expires_at).getTime() <= Date.now()) {
-      localStorage.removeItem(TOKEN_KEY);
+      localStorage.removeItem(key);
       return null;
     }
     return data.token;
@@ -33,20 +39,35 @@ const Auth = {
     // ระบบจัดตารางสอน (tt.*) ใช้ session ผู้ใช้ของตัวเอง (js/tt-session.js) — แยกจาก PIN เดิม
     if (String(action).indexOf('tt.') === 0) return window.TTAuth ? TTAuth.token() : null;
     // ส่ง token เฉพาะ action ของโมดูลที่ต้อง PIN
-    if (!actionToModule(action)) return null;
-    return readSharedToken();
+    const mod = actionToModule(action);
+    return mod ? readToken(mod) : null;
   },
 
   setToken: function (mod, token, ttlSec) {
     const midnight = new Date(); midnight.setHours(24, 0, 0, 0);
     const byTtl = Date.now() + (ttlSec || 43200) * 1000;
     const expires_at = new Date(Math.min(midnight.getTime(), byTtl)).toISOString();
-    localStorage.setItem(TOKEN_KEY, JSON.stringify({ token: token, expires_at: expires_at }));
+    localStorage.setItem(tokenKey(mod), JSON.stringify({ token: token, expires_at: expires_at }));
   },
 
-  clear: function () { localStorage.removeItem(TOKEN_KEY); },
+  /** ล้าง token ของโมดูล · ไม่ระบุ = ล้างทุกโมดูล */
+  clear: function (mod) {
+    (mod ? [mod] : PIN_MODULES).forEach(function (m) { localStorage.removeItem(tokenKey(m)); });
+  },
 
-  hasValid: function () { return !!readSharedToken(); },
+  hasValid: function (mod) { return !!readToken(mod || 'bank'); },
+
+  /** เรียก action ที่ต้อง PIN — ถามก่อนถ้ายังไม่มี token · token หมดอายุกลางทาง → ถามใหม่แล้วลองอีกครั้ง */
+  withPin: async function (mod, fn) {
+    await this.requirePin(mod);
+    try { return await fn(); }
+    catch (e) {
+      if (e.code !== 'TOKEN_EXPIRED') throw e;
+      this.clear(mod);
+      await this.requirePin(mod);
+      return await fn();
+    }
+  },
 
   /** เปิด modal กรอก PIN ถ้ายังไม่มี token — คืน Promise */
   requirePin: function (mod) {
@@ -58,7 +79,7 @@ const Auth = {
   },
 
   openPinModal: function (mod, onSuccess, onCancel) {
-    const labels = { bank: 'ธนาคารโรงเรียน', attendance: 'เช็คการมาเรียน' };
+    const labels = { bank: 'ธนาคารโรงเรียน', attendance: 'เช็คการมาเรียน', settings: 'ตั้งค่าระบบ' };
     const el = document.createElement('div');
     el.className = 'modal-backdrop show';
     el.innerHTML =

@@ -42,7 +42,7 @@ const Toast = {
  * (ยกเว้น error code 'METHOD' ที่การันตีว่า doPost ไม่ได้ทำงาน — retry ได้เสมอ)
  */
 function isWriteAction(action) {
-  return /\.(deposit|withdraw|save|record|create|update|remove|restore|delete|master_save|master_delete|import_dmc)$/.test(String(action));
+  return /\.(deposit|withdraw|save|record|create|update|remove|restore|promote|delete|master_save|master_delete|import_dmc)$/.test(String(action));
 }
 
 /**

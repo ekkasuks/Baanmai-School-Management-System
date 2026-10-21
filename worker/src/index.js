@@ -70,7 +70,7 @@ export default {
     const action = req && req.action;
     if (!action) return json(false, null, { code: 'VALIDATION', message: 'ไม่ได้ระบุ action' });
 
-    const base = { db: env.DB, env: env, token: req.token };
+    const base = { db: env.DB, env: env, token: req.token, ip: request.headers.get('CF-Connecting-IP') || '' };
 
     // batch — เรียกหลาย action ในคำขอเดียว (สูงสุด 10) · แต่ละรายการล้มเหลวอิสระ
     if (action === 'batch') {
@@ -98,7 +98,7 @@ async function runOne(action, params, base) {
     return { ok: false, data: null, error: { code: 'NOT_FOUND', message: 'ไม่รู้จักคำสั่ง: ' + action } };
   }
   try {
-    const data = await method(params, { db: base.db, env: base.env, token: base.token, action: action });
+    const data = await method(params, { db: base.db, env: base.env, token: base.token, ip: base.ip, action: action });
     return { ok: true, data: data === undefined ? null : data, error: null };
   } catch (err) {
     return { ok: false, data: null, error: { code: (err && err.code) || 'INTERNAL', message: (err && err.message) || String(err) } };

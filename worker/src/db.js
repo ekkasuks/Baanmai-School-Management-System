@@ -23,7 +23,7 @@ export const TABLES = {
   SCOUT_SCORE:       { pk: 'score_id',      cols: ['score_id', 'activity_id', 'group_id', 'score', 'note', 'recorded_by', 'date', 'created_at'] },
   USERS:             { pk: 'user_id',       cols: ['user_id', 'name', 'role', 'active', 'created_at'] },
   AUDIT_LOG:         { pk: 'log_id',        cols: ['log_id', 'timestamp', 'action', 'module', 'target_id', 'details', 'recorded_by'] },
-  SESSIONS:          { pk: 'token',         cols: ['token', 'module', 'issued_at', 'expires_at'] },
+  SESSIONS:          { pk: 'token',         secret: true, cols: ['token', 'module', 'issued_at', 'expires_at'] },
 
   // ── ระบบจัดตารางสอน (schema-timetable.sql) — แยกจากข้อมูลเดิมทั้งหมด ──
   TT_TERM:       { pk: 'term_id',    cols: ['term_id', 'school_id', 'year', 'semester', 'label', 'is_active', 'created_at'] },

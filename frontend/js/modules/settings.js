@@ -15,6 +15,9 @@
 
   const SCHOOL_KEYS = ['school_code','school_name','address','phone','email','website','director','current_year','current_semester'];
 
+  // บันทึก/สำรอง/กู้คืน/เลื่อนชั้น ต้องกรอก PIN ตั้งค่าระบบก่อน (backend ตรวจซ้ำทุกครั้ง)
+  function withPin(fn) { return Auth.withPin('settings', fn); }
+
   // ── โหลดค่าตั้งต้น ──
   async function loadSettings() {
     try {
@@ -39,9 +42,11 @@
     e.preventDefault();
     const form = e.target;
     try {
-      for (const k of SCHOOL_KEYS) {
-        await api('settings.update', { key: k, value: form[k].value, recorded_by: 'admin' }, { loading: false, silent: true });
-      }
+      await withPin(async function () {
+        for (const k of SCHOOL_KEYS) {
+          await api('settings.update', { key: k, value: form[k].value, recorded_by: 'admin' }, { loading: false, silent: true });
+        }
+      });
       AppSettings.clear();   // ล้าง cache ชื่อโรงเรียน เพื่อให้หน้าอื่นดึงค่าใหม่
       if (window.Store) Store.invalidate('home:');   // ล้าง cache หน้าหลัก (ชื่อ/ปีการศึกษา)
       Toast.show('บันทึกข้อมูลโรงเรียนเรียบร้อย', 'success');
@@ -55,10 +60,13 @@
     const form = e.target;
     const updated = [];
     try {
-      for (const k of ['pin_bank','pin_attendance']) {
-        const v = form[k].value.trim();
-        if (v) { await api('settings.update', { key: k, value: v, recorded_by: 'admin' }, { loading: false, silent: true }); updated.push(k); }
-      }
+      await withPin(async function () {
+        // pin_settings ทำท้ายสุด — เปลี่ยนแล้ว backend ยกเลิก session settings ทันที
+        for (const k of ['pin_bank','pin_attendance','pin_settings']) {
+          const v = form[k].value.trim();
+          if (v && updated.indexOf(k) < 0) { await api('settings.update', { key: k, value: v, recorded_by: 'admin' }, { loading: false, silent: true }); updated.push(k); }
+        }
+      });
       if (updated.length) {
         Toast.show('อัปเดต PIN เรียบร้อย (' + updated.length + ' รายการ)', 'success');
         form.reset(); Auth.clear();
@@ -149,7 +157,7 @@
   // ── Backup ──
   document.getElementById('btn-backup').addEventListener('click', async function () {
     try {
-      const d = await api('settings.backup', {}, { loadingMsg: 'กำลังสำรองข้อมูล...' });
+      const d = await withPin(function () { return api('settings.backup', {}, { loadingMsg: 'กำลังสำรองข้อมูล...' }); });
       const blob = new Blob([JSON.stringify(d, null, 2)], { type: 'application/json' });
       const a = document.createElement('a');
       a.href = URL.createObjectURL(blob);
@@ -169,7 +177,7 @@
     reader.onload = async function (ev) {
       try {
         const backup = JSON.parse(ev.target.result);
-        const d = await api('settings.restore', { backup: backup, confirm: true, recorded_by: 'admin' }, { loadingMsg: 'กำลังกู้คืน...' });
+        const d = await withPin(function () { return api('settings.restore', { backup: backup, confirm: true, recorded_by: 'admin' }, { loadingMsg: 'กำลังกู้คืน...' }); });
         const summary = Object.keys(d.restored).map(function (k) { return k + ': ' + d.restored[k]; }).join(', ');
         Toast.show('กู้คืนสำเร็จ — ' + summary, 'success');
         loadSettings();
@@ -214,7 +222,7 @@
     if (!document.getElementById('promote-ack').checked) return;
     if (!confirm('ยืนยันเลื่อนชั้นนักเรียนทุกคน และเปลี่ยนปีการศึกษา?\n\nการกระทำนี้ย้อนกลับได้ด้วยการกู้คืนไฟล์สำรองเท่านั้น')) return;
     try {
-      const d = await api('settings.promote', { confirm: true, bump_year: true, recorded_by: 'admin' }, { loadingMsg: 'กำลังเลื่อนชั้น...' });
+      const d = await withPin(function () { return api('settings.promote', { confirm: true, bump_year: true, recorded_by: 'admin' }, { loadingMsg: 'กำลังเลื่อนชั้น...' }); });
       const res = document.getElementById('promote-result');
       res.className = 'alert alert-success mt-2';
       res.innerHTML = '✅ เลื่อนชั้นสำเร็จ — เลื่อนขึ้น <strong>' + d.promoted + '</strong> คน, จบการศึกษา <strong>' + d.graduated + '</strong> คน' +
