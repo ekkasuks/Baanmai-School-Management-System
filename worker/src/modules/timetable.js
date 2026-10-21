@@ -2,7 +2,7 @@
  * AI Smart Timetable — เฟส 1: ข้อมูลพื้นฐาน (ครู/วิชา/ห้อง/ชั้น/คาบ) + Dashboard
  * เขียนเฉพาะตาราง TT_* เท่านั้น · อ่าน STUDENTS/SETTINGS แบบอ่านอย่างเดียว (ห้ามกระทบข้อมูลเดิม)
  * action: tt.bootstrap · tt.list · tt.save · tt.remove · tt.dashboard · tt.sync_classes · tt.seed_periods
- * เฟส 2–3: tt.constraints_* · tt.save_version · tt.get_version · tt.update_slots (Auto Save) · tt.version_meta · tt.duplicate_version · tt.delete_version
+ * เฟส 2–3: tt.constraints_* · tt.save_version · tt.get_version · tt.update_slots (Auto Save) · tt.version_meta · tt.duplicate_version · tt.delete_version · tt.changes
  */
 import {
   TABLES, readAll, getBy, selectWhere, insertRows, insertStmts, updateWhere, deleteWhere, upsert,
@@ -570,6 +570,22 @@ export const TimetableAPI = {
     for (let i = 0; i < rows.length; i += 50) await insertRows(db, 'TT_SLOT', rows.slice(i, i + 50));
     await ttLog(db, term, 'COPY', 'version', vid, params.recorded_by, { version_id: vid, detail: { from: v.version_id } });
     return { version_id: vid, slots: rows.length };
+  },
+
+  /** ประวัติการเปลี่ยนแปลง (อ่านอย่างเดียว) — params = { version_id?, limit? } ใหม่สุดก่อน */
+  changes: async function (params, ctx) {
+    const db = ctx.db;
+    const term = await activeTerm(db, params);
+    const limit = Math.min(500, Math.max(1, Math.round(Number(params.limit) || 200)));
+    let rows = await selectWhere(db, 'TT_CHANGE', 'term_id', term);
+    if (params.version_id) rows = rows.filter(function (r) { return r.version_id === String(params.version_id); });
+    rows.sort(function (a, b) { return String(b.created_at).localeCompare(String(a.created_at)); });
+    return {
+      total: rows.length,
+      items: rows.slice(0, limit).map(function (r) {
+        return { change_id: r.change_id, version_id: r.version_id || '', message: r.message || '', detail: parseJson(r.detail, {}), created_by: r.created_by, created_at: r.created_at };
+      }),
+    };
   },
 
   /** ลบฉบับตาราง (เฉพาะ TT_SLOT/TT_VERSION ของฉบับนั้น) */

@@ -75,6 +75,50 @@
   .tt-chip2.sel { border-color:var(--primary-dark); opacity:1; }
   .tt-trash { margin-top:10px; padding:12px; border:2px dashed #EF9A9A; border-radius:12px; text-align:center; color:#C62828; font-size:13px; cursor:pointer; }
   .tt-trash.over { background:#FFEBEE; }
+  /* ── ค้นหา / รายงาน (เฟส 4) ── */
+  .tt-filters { display:grid; grid-template-columns:repeat(auto-fill,minmax(180px,1fr)); gap:4px 12px; }
+  .tt-filters label { font-size:13px; margin-bottom:2px; }
+  .tt-results { width:100%; font-size:14px; }
+  .tt-results tbody tr { cursor:pointer; }
+  .tt-results tbody tr:hover { background:var(--primary-light); }
+  .tt-dot { display:inline-block; width:10px; height:10px; border-radius:50%; margin-right:6px; background:#90CAF9; }
+  .tt-dot.ty-elective { background:#CE93D8; } .tt-dot.ty-activity { background:#A5D6A7; } .tt-dot.ty-practical { background:#FFCC80; }
+  .tt-free { display:grid; grid-template-columns:1fr 1fr; gap:16px; }
+  .tt-person { display:flex; flex-direction:column; padding:8px 12px; border-radius:10px; margin-bottom:6px; font-size:14px; }
+  .tt-person.ok { background:#E8F5E9; } .tt-person.busy { background:#F5F5F5; }
+  .tt-common td.free { background:#E8F5E9; color:var(--green-dark); font-weight:600; }
+  .tt-common td.busy { background:#FFEBEE; color:#C62828; font-size:12px; cursor:help; }
+  .tt-export .btn { margin:0; }
+  .tt-rep-sec { margin-bottom:28px; }
+  .tt-rep-head { text-align:center; margin-bottom:10px; }
+  .tt-rep-head .school { font-weight:700; font-size:17px; }
+  .tt-rep-head .title { font-weight:700; font-size:16px; color:var(--primary-dark); }
+  .tt-rep-table { border-collapse:collapse; width:100%; font-size:13px; }
+  .tt-rep-table th, .tt-rep-table td { border:1px solid #B0BEC5; padding:5px 6px; vertical-align:middle; }
+  .tt-rep-table th { background:#4FC3F7; color:#fff; text-align:center; }
+  .tt-rep-table th .tt-note { color:#E1F5FE; font-size:11px; }
+  .tt-rep-table.grid { min-width:720px; }
+  .tt-rep-table.grid td { text-align:center; height:58px; }
+  .tt-rep-table td.first { font-weight:700; white-space:nowrap; }
+  .tt-rep-table td.brk { background:#F5F5F5; color:var(--muted); }
+  .tt-rep-table td.ty-core { background:#E3F2FD; } .tt-rep-table td.ty-elective { background:#F3E5F5; }
+  .tt-rep-table td.ty-activity { background:#E8F5E9; } .tt-rep-table td.ty-practical { background:#FFF3E0; }
+  .tt-rep-table td.bad { color:#C62828; font-weight:700; }
+  .tt-sign { display:flex; flex-wrap:wrap; gap:12px; justify-content:space-around; text-align:center; margin-top:28px; font-size:14px; line-height:2; }
+  .tt-sign > div { min-width:0; word-break:break-all; }
+  #tt-rep-preview.tt-capture { width:1100px; padding:16px; background:#fff; }
+  #tt-rep-preview.tt-capture .table-wrap { overflow:visible; }
+  @media print {
+    body.tt-printing * { visibility:hidden; }
+    body.tt-printing #tt-rep-preview, body.tt-printing #tt-rep-preview * { visibility:visible; }
+    body.tt-printing #tt-rep-preview { position:absolute; left:0; top:0; width:100%; }
+    body.tt-printing .table-wrap { overflow:visible; }
+    body.tt-printing .tt-rep-table.grid { min-width:0; }
+    body.tt-printing .tt-rep-sec { page-break-after:always; break-after:page; }
+    body.tt-printing .tt-rep-sec:last-child { page-break-after:auto; break-after:auto; }
+    body.tt-printing td, body.tt-printing th { -webkit-print-color-adjust:exact; print-color-adjust:exact; }
+  }
+  @media (max-width:600px) { .tt-free { grid-template-columns:1fr; } }
   @media (max-width:900px) { .tt-ed { grid-template-columns:minmax(0,1fr); } .tt-save { margin-left:0; width:100%; } }
   @media (max-width:600px) { .tt-form { grid-template-columns:1fr; } .tt-stat .value { font-size:20px; } }
 </style>
@@ -101,6 +145,8 @@
     <button class="tab" data-tab="constraints">⚙️ เงื่อนไข</button>
     <button class="tab" data-tab="ai">🤖 จัดตาราง AI</button>
     <button class="tab" data-tab="edit">✏️ ตรวจสอบ / แก้ไขตาราง</button>
+    <button class="tab" data-tab="search">🔎 ค้นหา</button>
+    <button class="tab" data-tab="report">📑 รายงาน / ส่งออก</button>
   </div>
 
   <!-- Dashboard -->
@@ -180,6 +226,10 @@
 
   <!-- ตรวจสอบ + แก้ไข Drag & Drop (โมดูล 5–6) — สร้างเนื้อหาโดย timetable-edit.js -->
   <section class="tab-pane hidden" id="tab-edit"></section>
+
+  <!-- ค้นหา (โมดูล 10) / รายงาน + ส่งออก (โมดูล 8, 11) — สร้างเนื้อหาโดย timetable-search.js / timetable-report.js -->
+  <section class="tab-pane hidden" id="tab-search"></section>
+  <section class="tab-pane hidden" id="tab-report"></section>
 </main>
 
 <script src="js/config.js"></script>
@@ -191,5 +241,8 @@
 <script src="js/modules/timetable-ai.js"></script>
 <script src="js/tt-check.js"></script>
 <script src="js/modules/timetable-edit.js"></script>
+<script src="js/pdf.js"></script>
+<script src="js/modules/timetable-report.js"></script>
+<script src="js/modules/timetable-search.js"></script>
 </body>
 </html>

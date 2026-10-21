@@ -278,6 +278,11 @@
       Object.assign(ED, { vid: vid, version: d.version, rev: Number(d.version.stats.rev) || 0, cells: buildCells(d.slots),
         undo: [], redo: [], msgs: [], dirty: {}, conflict: false, error: null, lastSaved: null, sel: null });
       const us = units();
+      if (openAt && us.some(function (u) { return u.unit_id === openAt.unit; })) {
+        ED.mode = 'unit'; ED.unitId = openAt.unit;
+        ED.sel = openAt.k && cell(openAt.unit, openAt.k) ? { k: openAt.k } : null;
+      }
+      openAt = null;
       if (!us.some(function (u) { return u.unit_id === ED.unitId; })) ED.unitId = us.length ? us[0].unit_id : null;
       runCheck();
       render();
@@ -759,13 +764,19 @@
 
   /* ════ เชื่อมกับส่วนอื่นของหน้า ════ */
   // ออกจากแท็บแก้ไข → บันทึกที่ค้างทันที · เข้าแท็บครั้งแรก → เปิดฉบับล่าสุด
-  let openOnEnter = null;
+  let openOnEnter = null, openAt = null;
   document.querySelectorAll('#tt-tabs .tab').forEach(function (t) {
     t.addEventListener('click', function () {
       if (t.dataset.tab !== 'edit') { flush(); return; }
       const vid = openOnEnter || (!ED.vid && (S().versions || []).length ? S().versions[0].version_id : null);
       openOnEnter = null;
-      if (vid && vid !== ED.vid) open(vid); else render();
+      if (vid && (vid !== ED.vid || openAt)) {
+        if (vid === ED.vid && !hasPending()) {   // ฉบับเดิม → แค่ไปที่ช่องนั้น ไม่ต้องโหลดใหม่
+          if (cell(openAt.unit, openAt.k)) { ED.mode = 'unit'; ED.unitId = openAt.unit; ED.sel = { k: openAt.k }; }
+          openAt = null;
+          render();
+        } else open(vid);
+      } else render();
     });
   });
   window.addEventListener('tt:loaded', function () {
@@ -777,9 +788,16 @@
   });
 
   window.TTEdit = {
-    open: function (vid) {
+    /** เปิดฉบับในแท็บแก้ไข · at = { unit, k:'day|period_id' } เพื่อไปที่ช่องนั้นทันที */
+    open: function (vid, at) {
       openOnEnter = vid;
+      openAt = at || null;
       document.querySelector('#tt-tabs .tab[data-tab="edit"]').click();
+    },
+    /** รอให้การแก้ไขที่ค้างบันทึกเสร็จ (ก่อนอ่านข้อมูลจาก server ไปทำรายงาน) — สูงสุด ~8 วินาที */
+    whenSaved: async function () {
+      if (Object.keys(ED.dirty).length && !ED.saving) await flush();
+      for (let i = 0; i < 40 && hasPending() && !ED.conflict && !ED.error; i++) await new Promise(function (r) { setTimeout(r, 200); });
     },
   };
 })();
