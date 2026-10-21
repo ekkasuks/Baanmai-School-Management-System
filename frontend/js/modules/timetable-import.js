@@ -101,6 +101,7 @@
         { k: 'subjects', h: 'วิชาที่สอนได้', a: ['subjects', 'วิชา', 'วิชาที่สอน'], p: P.subjectRefs, ex: 'คณิตศาสตร์, วิทยาศาสตร์และเทคโนโลยี', note: 'ชื่อหรือรหัสวิชา คั่นด้วย ,' },
         { k: 'min_periods', h: 'คาบขั้นต่ำ', a: ['min', 'min_periods'], p: P.int, ex: '18' },
         { k: 'max_periods', h: 'คาบสูงสุด', a: ['max', 'max_periods'], p: P.int, ex: '25' },
+        { k: 'prefs.max_per_day', h: 'สอนสูงสุดต่อวัน', a: ['max_per_day', 'คาบสูงสุดต่อวัน'], p: P.int, ex: '5' },
         { k: 'off_days', h: 'วันหยุดประจำ', a: ['off_days', 'วันหยุด'], p: P.days, ex: '', note: 'เช่น ศุกร์ หรือ จันทร์,ศุกร์' },
         { k: 'extra_duty', h: 'ภาระงานพิเศษ', a: ['extra_duty'], p: P.text, ex: '' },
       ],
@@ -262,6 +263,7 @@
         res.rec[def.pk] = cur[def.pk];
         // rules.* เป็น object เดียว → รวมกับค่าเดิมไม่ให้กฎอื่นหาย
         if (res.rec.rules) res.rec.rules = Object.assign({}, cur.rules || {}, res.rec.rules);
+        if (res.rec.prefs) res.rec.prefs = Object.assign({}, cur.prefs || {}, res.rec.prefs);
       } else {
         def.cols.forEach(function (c) { if (c.req && (res.rec[c.k] === undefined || res.rec[c.k] === '')) res.errors.push('ไม่มี' + c.h); });
       }

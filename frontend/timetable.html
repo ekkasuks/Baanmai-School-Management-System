@@ -233,7 +233,7 @@
       <h3 class="card-title">⚙️ เงื่อนไขการจัดตาราง</h3>
       <div class="alert alert-info" style="font-size:14px">
         เงื่อนไขเฉพาะรายการตั้งที่ข้อมูลนั้นโดยตรง:
-        <strong>ครู</strong> (คาบสูงสุด · วันหยุด · ช่วงสอนไม่ได้ · ไม่สอนคาบแรก/สุดท้าย · สอนติดกัน),
+        <strong>ครู</strong> (คาบสูงสุด/สัปดาห์ · สอนสูงสุดต่อวัน · วันหยุด · ช่วงสอนไม่ได้ · ไม่สอนคาบแรก/สุดท้าย · สอนติดกัน),
         <strong>วิชา</strong> (เรียนต่อเนื่อง · ไม่เกินวันละ · จัดเฉพาะบางวัน · ห้องที่ต้องใช้),
         <strong>ห้อง</strong> (ใช้เฉพาะบางวิชา · ใช้พร้อมกันได้),
         <strong>ช่วงเวลา</strong> (แท็บคาบเรียน: รายนาที · พัก · ภาคเช้า/บ่าย)
@@ -242,6 +242,8 @@
       <button class="btn btn-primary mt-2" id="tt-cfg-save"><i class="bi bi-save"></i> บันทึกเงื่อนไข</button>
       <button class="btn btn-secondary mt-2" id="tt-cfg-reset"><i class="bi bi-arrow-counterclockwise"></i> คืนค่าเริ่มต้น</button>
     </div>
+    <!-- คาบว่างร่วมของครู — timetable-free.js -->
+    <div class="card" id="tt-free"></div>
   </section>
 
   <!-- ล็อกวิชาในคาบ (ทั้งโรงเรียน) — timetable-lock.js -->
@@ -291,6 +293,7 @@
 <script src="js/modules/timetable-ai.js"></script>
 <script src="js/modules/timetable-assign.js"></script>
 <script src="js/modules/timetable-lock.js"></script>
+<script src="js/modules/timetable-free.js"></script>
 <script src="js/tt-check.js"></script>
 <script src="js/modules/timetable-edit.js"></script>
 <script src="js/pdf.js"></script>

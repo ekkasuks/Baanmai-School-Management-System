@@ -1,7 +1,7 @@
 /**
  * ตรวจสอบความถูกต้องของตาราง (โมดูล 5) — ใช้กติกาชุดเดียวกับ AI Engine (tt-solver.js)
  *
- *   error   (แดง)    : ครู/ห้องชน, วันหยุด/ช่วงสอนไม่ได้/ไม่สอนคาบแรก-สุดท้าย, เกินคาบสูงสุด, สอนติดกันเกิน,
+ *   error   (แดง)    : ครู/ห้องชน, วันหยุด/ช่วงสอนไม่ได้/คาบว่างร่วม/ไม่สอนคาบแรก-สุดท้าย, เกินคาบสูงสุด (สัปดาห์/วัน), สอนติดกันเกิน,
  *                      วิชาเกินวันละ, วิชาอยู่ผิดวัน
  *   warning (เหลือง) : คาบที่ล็อกไว้ไม่ใช่วิชานั้น, จำนวนคาบไม่ตรงหลักสูตร, ยังไม่ระบุครู, ครูไม่ตรงกับที่มอบหมาย, ครูไม่ได้ถูกกำหนดให้สอนวิชานี้, ห้องไม่ตรงประเภท,
  *                      วิชาไม่อยู่ในชั้นนี้, คาบว่างแทรก, ครูต่ำกว่าคาบขั้นต่ำ
@@ -79,11 +79,16 @@
       const t = T[tid], m = tOcc[tid];
       teacherLoad[tid] = Object.keys(m).length;
       if (!t) return;
-      const off = {}, un = {};
+      const off = {}, un = {}, fr = {};
       (t.off_days || []).forEach(function (d) { off[Number(d)] = 1; });
       (t.unavailable || []).forEach(function (x) { const pi = pIdx[x.period_id]; if (pi !== undefined) un[Number(x.day) + '|' + pi] = 1; });
+      (cfg.common_free || []).forEach(function (x) {   // คาบว่างร่วม (เช่น PLC) — teachers ว่าง = ครูทุกคน
+        if ((x.teachers || []).length && x.teachers.indexOf(tid) < 0) return;
+        const pi = pIdx[x.period_id];
+        if (pi !== undefined) fr[Number(x.day) + '|' + pi] = x.label || 'คาบว่างร่วม';
+      });
       const pr = t.prefs || {};
-      const offCells = {}, unCells = [], prefCells = [];
+      const offCells = {}, unCells = [], prefCells = [], frCells = {}, perDayT = {};
       Object.keys(m).forEach(function (dp) {
         const d = Number(dp.split('|')[0]), p = Number(dp.split('|')[1]);
         const us = Object.keys(m[dp]);
@@ -93,10 +98,18 @@
         }
         if (off[d]) (offCells[d] = offCells[d] || []).push.apply(offCells[d], keys);
         if (un[d + '|' + p]) unCells.push.apply(unCells, keys);
+        if (fr[d + '|' + p]) (frCells[fr[d + '|' + p]] = frCells[fr[d + '|' + p]] || []).push.apply(frCells[fr[d + '|' + p]], keys);
+        (perDayT[d] = perDayT[d] || []).push.apply(perDayT[d], keys);
         if ((pr.no_first && p === 0) || (pr.no_last && p === np - 1)) prefCells.push.apply(prefCells, keys);
       });
       Object.keys(offCells).forEach(function (d) { add('error', 't_off', 'ครู' + tName(t) + ' มีสอนในวันหยุด (วัน' + DAYS[d] + ')', offCells[d], { teacher_id: tid }); });
       if (unCells.length) add('error', 't_unav', 'ครู' + tName(t) + ' มีสอนในช่วงที่แจ้งว่าสอนไม่ได้ ' + unCells.length + ' ช่อง', unCells, { teacher_id: tid });
+      Object.keys(frCells).forEach(function (lb) { add('error', 't_free', 'ครู' + tName(t) + ' มีสอนในคาบว่างร่วม "' + lb + '"', frCells[lb], { teacher_id: tid }); });
+      const dayMax = Number(pr.max_per_day) > 0 ? Number(pr.max_per_day) : (Number(cfg.teacher_max_per_day) > 0 ? Number(cfg.teacher_max_per_day) : 0);
+      if (dayMax) for (let d = 1; d <= 5; d++) {
+        const n = Object.keys(m).filter(function (dp) { return Number(dp.split('|')[0]) === d; }).length;   // นับช่องเวลา (ควบชั้น/ดูแลร่วม = ครั้งเดียว)
+        if (n > dayMax) add('error', 't_day', 'ครู' + tName(t) + ' สอนวัน' + DAYS[d] + ' ' + n + ' คาบ เกินสูงสุดวันละ ' + dayMax + ' คาบ', perDayT[d] || [], { teacher_id: tid });
+      }
       if (prefCells.length) add('error', 't_pref', 'ครู' + tName(t) + ' ไม่สอน' + (pr.no_first && pr.no_last ? 'คาบแรก/คาบสุดท้าย' : pr.no_first ? 'คาบแรก' : 'คาบสุดท้าย') + ' แต่มีสอน ' + prefCells.length + ' ช่อง', prefCells, { teacher_id: tid });
 
       const load = teacherLoad[tid];

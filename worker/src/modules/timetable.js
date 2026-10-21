@@ -340,6 +340,7 @@ async function loadAll(db, term) {
 /* ── เฟส 2: เงื่อนไขรวม (โมดูล 3) — ค่าตั้งของ AI Engine ต่อภาคเรียน ── */
 const DEFAULT_CONFIG = {
   teacher_max_consecutive: 4,    // ครูสอนติดกันได้สูงสุด (ใช้เมื่อครูไม่ได้ตั้งเอง)
+  teacher_max_per_day: 0,        // ครูสอนสูงสุดต่อวัน (ใช้เมื่อครูไม่ได้ตั้งเอง) · 0 = ไม่จำกัด
   subject_max_per_day: 2,        // วิชาเดียวกันไม่เกินวันละ (ใช้เมื่อวิชาไม่ได้ตั้งเอง)
   spread_subjects: true,         // กระจายวิชาไม่ให้ซ้ำวันเดียวกัน
   prefer_core_morning: true,     // วิชาพื้นฐานช่วงเช้า
@@ -350,12 +351,29 @@ const DEFAULT_CONFIG = {
   ticker_enabled: true,          // ข้อความวิ่งที่หน้าหลัก (เฟส 5)
   ticker_days: 7,                // แสดงการเปลี่ยนแปลงย้อนหลังกี่วัน
   public_view: true,             // เฟส 6: ดูตารางที่เผยแพร่แล้วได้โดยไม่ต้องเข้าสู่ระบบ
+  common_free: [],               // คาบว่างร่วมของครู (เช่น PLC): [{ label, day, period_id, teachers:[] (ว่าง = ครูทุกคน) }]
 };
-const CONFIG_INT = { teacher_max_consecutive: [1, 10], subject_max_per_day: [1, 10], time_limit_sec: [1, 30], ticker_days: [1, 60] };
+const CONFIG_INT = { teacher_max_per_day: [0, 10], teacher_max_consecutive: [1, 10], subject_max_per_day: [1, 10], time_limit_sec: [1, 30], ticker_days: [1, 60] };
 const IMPORT_MAX = 500;
 
 /** เวลาไทยย้อนหลัง n วัน ในรูปแบบเดียวกับ now() — ใช้เทียบ created_at แบบ string */
 function bkkDaysAgo(n) { return new Date(Date.now() + 7 * 3600 * 1000 - n * 86400000).toISOString().slice(0, 19); }
+
+/** คาบว่างร่วมของครู: ตรวจรูปแบบ (วัน 1–5 · คาบ · รายชื่อครู · ชื่อกิจกรรม) */
+function cleanCommonFree(list) {
+  if (!Array.isArray(list)) apiError('VALIDATION', 'รูปแบบคาบว่างร่วมไม่ถูกต้อง');
+  if (list.length > 50) apiError('VALIDATION', 'คาบว่างร่วมได้ไม่เกิน 50 รายการ');
+  const seen = {};
+  return list.map(function (x) {
+    const day = Math.round(Number(x && x.day));
+    if (!(day >= 1 && day <= DAYS) || !x.period_id) apiError('VALIDATION', 'คาบว่างร่วม: วัน/คาบไม่ถูกต้อง');
+    const k = day + '|' + x.period_id;
+    if (seen[k]) apiError('VALIDATION', 'คาบว่างร่วมซ้ำช่องเดียวกัน');
+    seen[k] = 1;
+    const teachers = Array.isArray(x.teachers) ? x.teachers.map(String).filter(Boolean) : [];
+    return { label: String(x.label || '').trim().slice(0, 40), day: day, period_id: String(x.period_id), teachers: teachers };
+  });
+}
 
 async function getConfig(db, term) {
   const row = await getBy(db, 'TT_CONSTRAINT', 'term_id', term);
@@ -469,6 +487,7 @@ const API = {
     const cur = await getConfig(db, term);
     Object.keys(DEFAULT_CONFIG).forEach(function (k) {
       if (input[k] === undefined) return;
+      if (k === 'common_free') { cur[k] = cleanCommonFree(input[k]); return; }
       if (CONFIG_INT[k]) {
         const n = Math.round(Number(input[k]));
         if (!isFinite(n) || n < CONFIG_INT[k][0] || n > CONFIG_INT[k][1]) apiError('VALIDATION', 'ค่า ' + k + ' ต้องอยู่ระหว่าง ' + CONFIG_INT[k][0] + '–' + CONFIG_INT[k][1]);

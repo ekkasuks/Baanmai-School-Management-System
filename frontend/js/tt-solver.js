@@ -6,6 +6,7 @@
  *          → ปรับปรุงต่อด้วย local search (ย้าย/สลับคาบ) → วิเคราะห์สาเหตุคาบที่จัดไม่ได้
  * กติกาเด็ดขาด (hard): ชั้น/ครูไม่ชน, วันหยุด-ช่วงสอนไม่ได้-ไม่สอนคาบแรก/สุดท้าย, คาบสูงสุด, สอนติดกัน,
  *                     ห้องพิเศษ/จำนวนผู้ใช้พร้อมกัน, คาบต่อวัน, วันที่อนุญาต, คาบต่อเนื่องไม่ข้ามพัก
+ * ครู: คาบว่างร่วม (cfg.common_free เช่น PLC) · สอนสูงสุดต่อวัน (prefs.max_per_day หรือ cfg.teacher_max_per_day)
  * ล็อกคาบ: วิชาที่ระบุ rules.fixed_slots วางที่ตำแหน่งนั้นก่อนเสมอและไม่ถูกย้าย (rules.shared = ครูดูแลหลายชั้นพร้อมกันได้)
  * ความชอบ (soft): กระจายวิชา, วิชาพื้นฐานช่วงเช้า, กิจกรรมช่วงบ่าย, ไม่มีคาบว่างแทรก, ภาระครูสมดุลรายวัน
  * หน่วยการเรียน = ห้องเดียว หรือกลุ่มเรียนควบชั้น (จัดครั้งเดียว ใช้กับทุกห้องในกลุ่ม)
@@ -47,22 +48,32 @@ function model(input) {
   const tIdx = {};
   T.forEach(function (t, i) { tIdx[t.teacher_id] = i; });
   const defConsec = Number(cfg.teacher_max_consecutive) > 0 ? Number(cfg.teacher_max_consecutive) : 99;
+  const defDay = Number(cfg.teacher_max_per_day) > 0 ? Number(cfg.teacher_max_per_day) : 99;   // 0 = ไม่จำกัด
+  const commonFree = cfg.common_free || [];   // คาบว่างร่วม (เช่น PLC): teachers ว่าง = ครูทุกคน
 
   const tin = T.map(function (t) {
-    const off = {}, un = {};
+    const off = {}, un = {}, fr = {};
     (t.off_days || []).forEach(function (d) { off[Number(d)] = 1; });
     (t.unavailable || []).forEach(function (x) { const pi = pIdx[x.period_id]; if (pi !== undefined) un[Number(x.day) + '|' + pi] = 1; });
+    commonFree.forEach(function (x) {
+      if ((x.teachers || []).length && x.teachers.indexOf(t.teacher_id) < 0) return;
+      const pi = pIdx[x.period_id];
+      if (pi !== undefined) fr[Number(x.day) + '|' + pi] = 1;
+    });
     const pr = t.prefs || {};
     const mx = (t.max_periods === null || t.max_periods === undefined || t.max_periods === '') ? Infinity : Number(t.max_periods);
-    return { off: off, un: un, max: mx, noFirst: !!pr.no_first, noLast: !!pr.no_last,
-      consec: Number(pr.max_consecutive) > 0 ? Number(pr.max_consecutive) : defConsec };
+    return { off: off, un: un, fr: fr, max: mx, noFirst: !!pr.no_first, noLast: !!pr.no_last,
+      consec: Number(pr.max_consecutive) > 0 ? Number(pr.max_consecutive) : defConsec,
+      dayMax: Number(pr.max_per_day) > 0 ? Number(pr.max_per_day) : defDay };
   });
   // ช่องที่ครูแต่ละคนสอนได้จริง (ใช้ถ่วงภาระตอนมอบหมาย)
   const cap = tin.map(function (ti) {
     let c = 0;
     for (let d = 1; d <= 5; d++) {
       if (ti.off[d]) continue;
-      for (let p = 0; p < np; p++) if (!ti.un[d + '|' + p] && !(ti.noFirst && p === 0) && !(ti.noLast && p === np - 1)) c++;
+      let cd = 0;
+      for (let p = 0; p < np; p++) if (!ti.un[d + '|' + p] && !ti.fr[d + '|' + p] && !(ti.noFirst && p === 0) && !(ti.noLast && p === np - 1)) cd++;
+      c += Math.min(cd, ti.dayMax);
     }
     return Math.min(c, ti.max);
   });
@@ -122,7 +133,7 @@ function model(input) {
     if ((rules.fixed_slots || []).length > fixedSlots.length) warnings.push({ level: 'warning', code: 'fixed_bad', msg: 'วิชา "' + pr.s.name + '" มีคาบล็อกที่ไม่มีอยู่จริง (คาบถูกลบ/เป็นช่วงพัก) — ข้าม' });
     if (fixedSlots.length > n) warnings.push({ level: 'warning', code: 'fixed_over', msg: 'วิชา "' + pr.s.name + '" ล็อกไว้ ' + fixedSlots.length + ' คาบ แต่เรียน ' + n + ' คาบ/สัปดาห์ — ใช้ ' + n + ' คาบแรก' });
     fixedSlots.slice(0, n).forEach(function (fx) {
-      if (ti >= 0 && (tin[ti].off[fx.d] || tin[ti].un[fx.d + '|' + fx.p])) warnings.push({ level: 'warning', code: 'fixed_teacher', msg: 'วิชา "' + pr.s.name + '" ชั้น ' + u.label + ' ล็อกไว้ในเวลาที่ครู' + tName(T[ti]) + ' แจ้งว่าไม่ว่าง — ยังจัดตามที่ล็อก' });
+      if (ti >= 0 && (tin[ti].off[fx.d] || tin[ti].un[fx.d + '|' + fx.p] || tin[ti].fr[fx.d + '|' + fx.p])) warnings.push({ level: 'warning', code: 'fixed_teacher', msg: 'วิชา "' + pr.s.name + '" ชั้น ' + u.label + ' ล็อกไว้ในเวลาที่ครู' + tName(T[ti]) + ' แจ้งว่าไม่ว่าง — ยังจัดตามที่ล็อก' });
       lessons.push({ id: lessons.length, ui: pr.ui, si: S.indexOf(pr.s), s: pr.s, ti: ti, len: 1, rooms: rooms, maxDay: 99, days: null, type: pr.s.type || 'core',
         fixed: fx, shared: rules.shared !== false });
       left--;
@@ -176,10 +187,12 @@ function fits(M, st, L, d, p0) {
     for (let k = 0; k < len; k++) {
       const p = p0 + k;
       if (ti.un[d + '|' + p]) return { why: 't_unav' };
+      if (ti.fr[d + '|' + p]) return { why: 't_free' };
       if ((ti.noFirst && p === 0) || (ti.noLast && p === np - 1)) return { why: 't_pref' };
       if (tb[p] >= 0) return { why: 't_busy' };
     }
     if (st.tload[L.ti] + len > ti.max) return { why: 't_max' };
+    if (st.tday[L.ti][d] + len > ti.dayMax) return { why: 't_day' };
     let run = len, q = p0 - 1;
     while (q >= 0 && M.seg[q] === M.seg[p0] && tb[q] >= 0) { run++; q--; }
     q = p0 + len;
