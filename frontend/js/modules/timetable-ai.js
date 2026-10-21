@@ -215,6 +215,8 @@
     const periods = S.periods.slice().sort(function (a, b) { return (a.seq || 0) - (b.seq || 0); });
     const usedUnits = units.filter(function (u) { return slots.some(function (s) { return u.class_ids.indexOf(s.class_id) >= 0; }); });
     const usedTeachers = S.teachers.filter(function (t) { return slots.some(function (s) { return s.teacher_id === t.teacher_id; }); });
+    const NONE = '__none__';
+    const noTeacher = slots.filter(function (s) { return !s.teacher_id; }).length;
 
     host.innerHTML = '<h3 class="card-title">' + title + '</h3>' +
       '<div class="tt-toolbar"><select class="form-control" data-mode style="max-width:160px"><option value="unit">รายชั้นเรียน</option><option value="teacher">รายครู</option></select>' +
@@ -224,7 +226,8 @@
     function fillKeys() {
       const opts = modeSel.value === 'unit'
         ? usedUnits.map(function (u) { return [u.unit_id, u.label + (u.combined ? ' (ควบชั้น)' : '')]; })
-        : usedTeachers.map(function (t) { return [t.teacher_id, TT.teacherName(t)]; });
+        : usedTeachers.map(function (t) { return [t.teacher_id, TT.teacherName(t)]; })
+            .concat(noTeacher ? [[NONE, '— ยังไม่ระบุครู (' + noTeacher + ' ช่อง) —']] : []);
       keySel.innerHTML = opts.length ? opts.map(function (o) { return '<option value="' + esc(o[0]) + '">' + esc(o[1]) + '</option>'; }).join('') : '<option value="">— ไม่มีข้อมูล —</option>';
       draw();
     }
@@ -238,10 +241,12 @@
         const cid = u ? u.class_ids[0] : null;
         slots.forEach(function (s) { if (s.class_id === cid) { cell[s.day + '|' + s.period_id] = s; count++; } });
       } else {
+        // หนึ่งช่องอาจมีหลายหน่วย (กลุ่ม "ยังไม่ระบุครู" หรือครูสอนชน) → แสดงทุกหน่วย ไม่ซ้ำ
         slots.forEach(function (s) {
-          if (s.teacher_id !== key) return;
-          const k = s.day + '|' + s.period_id;
-          if (!cell[k]) { cell[k] = Object.assign({}, s, { unit: unitOf[s.class_id] }); count++; }
+          if ((s.teacher_id || NONE) !== key) return;
+          const k = s.day + '|' + s.period_id, u = unitOf[s.class_id];
+          if (!cell[k]) { cell[k] = Object.assign({}, s, { units: [] }); count++; }
+          if (u && cell[k].units.indexOf(u) < 0) cell[k].units.push(u);
         });
       }
       grid.innerHTML = '<div class="tt-note" style="margin-bottom:6px">' + count + ' คาบ/สัปดาห์</div><div class="table-wrap"><table class="tt-tt"><thead><tr><th>วัน</th>' +
@@ -252,7 +257,10 @@
             const s = cell[d + '|' + p.period_id];
             if (!s) return '<td></td>';
             const sb = subj[s.subject_id] || {};
-            const sub2 = modeSel.value === 'unit' ? (s.teacher_id ? 'ครู' + shortTeacher(tch[s.teacher_id]) : 'ยังไม่ระบุครู') : (s.unit ? s.unit.label : '');
+            if (modeSel.value !== 'unit' && s.units.length > 1) {
+              return '<td><div class="tt-cell"><div class="t">' + s.units.map(function (u) { return esc(u.label); }).join('<br>') + '</div></div></td>';
+            }
+            const sub2 = modeSel.value === 'unit' ? (s.teacher_id ? 'ครู' + shortTeacher(tch[s.teacher_id]) : 'ยังไม่ระบุครู') : (s.units[0] ? s.units[0].label : '');
             return '<td><div class="tt-cell ' + esc(sb.type || 'core') + '"><div class="s">' + esc(shortSubject(sb.name)) + '</div><div class="t">' + esc(sub2) + '</div></div></td>';
           }).join('') + '</tr>';
         }).join('') + '</tbody></table></div>';
