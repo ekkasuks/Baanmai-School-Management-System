@@ -1,0 +1,108 @@
+<!doctype html>
+<html lang="th">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>จัดตารางสอนอัจฉริยะ — โรงเรียนบ้านใหม่</title>
+<link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet">
+<link rel="stylesheet" href="css/style.css">
+<style>
+  .tt-stat { display:flex; align-items:center; gap:12px; text-align:left; }
+  .tt-stat .ic { width:44px; height:44px; border-radius:12px; display:grid; place-items:center; font-size:22px; flex:none;
+    background:#fff; color:var(--primary-dark); box-shadow:0 2px 8px rgba(2,136,209,.12); }
+  .tt-stat .value { font-size:24px; }
+  .tt-stat .sub { font-size:12px; color:var(--muted); }
+  .tt-toolbar { display:flex; gap:8px; flex-wrap:wrap; align-items:center; margin-bottom:12px; }
+  .tt-toolbar .form-control { flex:1; min-width:180px; }
+  .tt-actions { white-space:nowrap; text-align:right; }
+  .tt-actions .btn { padding:5px 10px; font-size:14px; margin:0 0 0 4px; }
+  .modal.wide { max-width:760px; max-height:92vh; overflow:auto; }
+  .tt-form { display:grid; grid-template-columns:1fr 1fr; gap:4px 14px; }
+  .tt-form .full { grid-column:1 / -1; }
+  .tt-checks { display:flex; flex-wrap:wrap; gap:6px; }
+  .tt-chip { display:inline-flex; align-items:center; gap:6px; padding:5px 10px; border:2px solid var(--border);
+    border-radius:999px; font-size:14px; cursor:pointer; background:#fff; user-select:none; }
+  .tt-chip input { width:16px; height:16px; margin:0; }
+  .tt-chip:has(input:checked) { border-color:var(--primary); background:var(--primary-light); color:var(--primary-dark); font-weight:600; }
+  .tt-grid { border-collapse:collapse; font-size:13px; }
+  .tt-grid th, .tt-grid td { border:1px solid var(--border); padding:4px 6px; text-align:center; }
+  .tt-grid td input { width:18px; height:18px; }
+  .tt-pill { display:inline-block; padding:2px 8px; border-radius:999px; font-size:12px; font-weight:600;
+    background:var(--primary-light); color:var(--primary-dark); margin:1px 2px; }
+  .tt-pill.combo { background:#FFF3E0; color:#E65100; }
+  .tt-issue { padding:8px 12px; border-radius:10px; margin-bottom:6px; font-size:14px; display:flex; gap:8px; }
+  .tt-charts { display:grid; grid-template-columns:repeat(auto-fit,minmax(300px,1fr)); gap:16px; }
+  .tt-note { font-size:13px; color:var(--muted); }
+  @media (max-width:600px) { .tt-form { grid-template-columns:1fr; } .tt-stat .value { font-size:20px; } }
+</style>
+</head>
+<body>
+
+<header class="app-header">
+  <a href="index.html" class="back">‹</a>
+  <span class="logo">🗓️</span>
+  <div>
+    <div class="title">จัดตารางสอนอัจฉริยะ</div>
+    <div style="font-size:13px;opacity:.9" id="tt-term">AI Smart Timetable System</div>
+  </div>
+</header>
+
+<main class="container">
+  <div class="tabs" id="tt-tabs">
+    <button class="tab active" data-tab="dashboard">📊 Dashboard</button>
+    <button class="tab" data-tab="teacher">👩‍🏫 ครู</button>
+    <button class="tab" data-tab="subject">📚 วิชา</button>
+    <button class="tab" data-tab="room">🏫 ห้องเรียน</button>
+    <button class="tab" data-tab="class">🎒 ชั้นเรียน / ควบชั้น</button>
+    <button class="tab" data-tab="period">⏰ คาบเรียน</button>
+  </div>
+
+  <!-- Dashboard -->
+  <section class="tab-pane" id="tab-dashboard">
+    <div class="card">
+      <div class="flex" style="justify-content:space-between;flex-wrap:wrap;gap:8px;margin-bottom:12px">
+        <h3 class="card-title" style="margin:0">📊 ภาพรวมระบบจัดตาราง</h3>
+        <span class="tt-note" id="tt-updated"></span>
+      </div>
+      <div class="stat-grid" id="tt-stats"></div>
+    </div>
+    <div class="card">
+      <h3 class="card-title">🩺 ความพร้อมก่อนจัดตาราง</h3>
+      <div id="tt-issues" class="text-muted">กำลังโหลด...</div>
+    </div>
+    <div class="card">
+      <h3 class="card-title">📈 กราฟ</h3>
+      <div id="tt-chart-note" class="tt-note" style="margin-bottom:10px"></div>
+      <div class="tt-charts">
+        <div><div class="tt-note">จำนวนคาบสอนของแต่ละครู</div><canvas id="ch-teacher" height="220"></canvas></div>
+        <div><div class="tt-note">การใช้ห้องเรียน (%)</div><canvas id="ch-room" height="220"></canvas></div>
+        <div><div class="tt-note">อัตราการใช้ทรัพยากร (%)</div><canvas id="ch-util" height="220"></canvas></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ครู / วิชา / ห้อง / ชั้น / คาบ : ใช้โครงเดียวกัน -->
+  <section class="tab-pane hidden" id="tab-teacher"><div class="card" data-entity="teacher"></div></section>
+  <section class="tab-pane hidden" id="tab-subject"><div class="card" data-entity="subject"></div></section>
+  <section class="tab-pane hidden" id="tab-room"><div class="card" data-entity="room"></div></section>
+  <section class="tab-pane hidden" id="tab-class">
+    <div class="card">
+      <h3 class="card-title">🔗 เรียนควบชั้น</h3>
+      <p class="tt-note" style="margin-top:-6px">ห้องที่จัดกลุ่มไว้จะ<strong>เรียนรวมกันทุกวิชา</strong> (วิชา/ครู/ห้อง/เวลาเดียวกัน) และถูกจัดตารางเป็นหน่วยเดียว เช่น ป.5 + ป.6</p>
+      <div id="tt-combos"></div>
+      <div style="margin-top:10px"><label>เลือกห้องที่จะเรียนควบกัน (อย่างน้อย 2 ห้อง)</label><div class="tt-checks" id="tt-combine-pick"></div></div>
+      <button class="btn btn-warning mt-2" id="tt-combine-btn"><i class="bi bi-link-45deg"></i> จัดเป็นกลุ่มควบชั้น</button>
+    </div>
+    <div class="card" data-entity="class"></div>
+  </section>
+  <section class="tab-pane hidden" id="tab-period"><div class="card" data-entity="period"></div></section>
+</main>
+
+<script src="js/config.js"></script>
+<script src="js/auth.js"></script>
+<script src="js/api.js"></script>
+<script src="js/store.js"></script>
+<script src="js/utils.js"></script>
+<script src="js/modules/timetable.js"></script>
+</body>
+</html>
