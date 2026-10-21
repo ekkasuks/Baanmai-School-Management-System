@@ -159,10 +159,12 @@
       const d = await api('tt.bootstrap', {}, { loading: !(opts && opts.quiet), silent: !!(opts && opts.quiet), loadingMsg: 'กำลังโหลดข้อมูล...' });
       S.teachers = d.teachers; S.subjects = d.subjects; S.rooms = d.rooms; S.classes = d.classes; S.periods = d.periods;
       S.dashboard = d.dashboard; S.term = d.term;
+      S.config = d.config; S.config_defaults = d.config_defaults; S.versions = d.versions || [];
       document.getElementById('tt-term').textContent = (d.term && d.term.label) || '';
       renderDashboard();
       Object.keys(ENT).forEach(renderEntity);
       renderCombos();
+      window.dispatchEvent(new CustomEvent('tt:loaded'));   // ให้โมดูล AI (timetable-ai.js) อัปเดตตาม
     } catch (e) { /* toast แสดงแล้ว */ }
   }
 
@@ -430,8 +432,12 @@
     });
   });
 
+  // ใช้ร่วมกับ timetable-ai.js
+  window.TT = { S: S, reload: reload, teacherName: teacherName, classLabel: classLabel, DAY_NAMES: DAY_NAMES,
+    isBusy: function () { return !!document.querySelector('.modal-backdrop'); } };
+
   setInterval(function () {
-    if (document.visibilityState === 'visible' && activeTab === 'dashboard' && !document.querySelector('.modal-backdrop')) reload({ quiet: true });
+    if (document.visibilityState === 'visible' && activeTab === 'dashboard' && !document.querySelector('.modal-backdrop') && !window.TT_AI_RUNNING) reload({ quiet: true });
   }, 60000);
 
   reload();

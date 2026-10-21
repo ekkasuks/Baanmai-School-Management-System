@@ -33,6 +33,15 @@
   .tt-issue { padding:8px 12px; border-radius:10px; margin-bottom:6px; font-size:14px; display:flex; gap:8px; }
   .tt-charts { display:grid; grid-template-columns:repeat(auto-fit,minmax(300px,1fr)); gap:16px; }
   .tt-note { font-size:13px; color:var(--muted); }
+  .tt-tt { border-collapse:collapse; width:100%; font-size:13px; min-width:640px; }
+  .tt-tt th, .tt-tt td { border:1px solid var(--border); padding:5px; text-align:center; vertical-align:middle; }
+  .tt-tt thead th { background:var(--primary-light); color:var(--primary-dark); }
+  .tt-tt td.brk { background:#F5F5F5; color:var(--muted); font-size:12px; }
+  .tt-cell { border-radius:8px; padding:4px; line-height:1.3; }
+  .tt-cell .s { font-weight:700; }
+  .tt-cell .t { font-size:11px; color:var(--muted); }
+  .tt-cell.core { background:#E3F2FD; } .tt-cell.elective { background:#F3E5F5; } .tt-cell.activity { background:#E8F5E9; } .tt-cell.practical { background:#FFF3E0; }
+  .tt-kpi { display:grid; grid-template-columns:repeat(auto-fit,minmax(140px,1fr)); gap:10px; margin-bottom:12px; }
   @media (max-width:600px) { .tt-form { grid-template-columns:1fr; } .tt-stat .value { font-size:20px; } }
 </style>
 </head>
@@ -55,6 +64,8 @@
     <button class="tab" data-tab="room">🏫 ห้องเรียน</button>
     <button class="tab" data-tab="class">🎒 ชั้นเรียน / ควบชั้น</button>
     <button class="tab" data-tab="period">⏰ คาบเรียน</button>
+    <button class="tab" data-tab="constraints">⚙️ เงื่อนไข</button>
+    <button class="tab" data-tab="ai">🤖 จัดตาราง AI</button>
   </div>
 
   <!-- Dashboard -->
@@ -96,6 +107,41 @@
     <div class="card" data-entity="class"></div>
   </section>
   <section class="tab-pane hidden" id="tab-period"><div class="card" data-entity="period"></div></section>
+
+  <!-- เงื่อนไข (โมดูล 3) -->
+  <section class="tab-pane hidden" id="tab-constraints">
+    <div class="card">
+      <h3 class="card-title">⚙️ เงื่อนไขการจัดตาราง</h3>
+      <div class="alert alert-info" style="font-size:14px">
+        เงื่อนไขเฉพาะรายการตั้งที่ข้อมูลนั้นโดยตรง:
+        <strong>ครู</strong> (คาบสูงสุด · วันหยุด · ช่วงสอนไม่ได้ · ไม่สอนคาบแรก/สุดท้าย · สอนติดกัน),
+        <strong>วิชา</strong> (เรียนต่อเนื่อง · ไม่เกินวันละ · จัดเฉพาะบางวัน · ห้องที่ต้องใช้),
+        <strong>ห้อง</strong> (ใช้เฉพาะบางวิชา · ใช้พร้อมกันได้),
+        <strong>ช่วงเวลา</strong> (แท็บคาบเรียน: รายนาที · พัก · ภาคเช้า/บ่าย)
+      </div>
+      <div class="tt-form" id="tt-cfg"></div>
+      <button class="btn btn-primary mt-2" id="tt-cfg-save"><i class="bi bi-save"></i> บันทึกเงื่อนไข</button>
+      <button class="btn btn-secondary mt-2" id="tt-cfg-reset"><i class="bi bi-arrow-counterclockwise"></i> คืนค่าเริ่มต้น</button>
+    </div>
+  </section>
+
+  <!-- จัดตาราง AI (โมดูล 4) -->
+  <section class="tab-pane hidden" id="tab-ai">
+    <div class="card">
+      <h3 class="card-title">🤖 AI จัดตารางอัตโนมัติ</h3>
+      <p class="tt-note" style="margin-top:-6px">วิเคราะห์ข้อจำกัดทั้งหมด → ค้นหาตารางที่ดีที่สุด → ปรับสมดุลภาระครู → กระจายวิชาทั้งสัปดาห์ (ประมวลผลในเครื่องของคุณ ข้อมูลเดิมไม่ถูกแก้ไข)</p>
+      <button class="btn btn-success" id="tt-run"><i class="bi bi-stars"></i> เริ่มจัดตารางอัตโนมัติ</button>
+      <div id="tt-progress" class="hidden mt-2">
+        <div class="progress"><div class="progress-bar" id="tt-progress-bar"></div></div>
+        <div class="tt-note text-center" id="tt-progress-text" style="margin-top:6px"></div>
+      </div>
+    </div>
+    <div id="tt-result"></div>
+    <div class="card">
+      <h3 class="card-title">🗂️ ฉบับตารางที่บันทึกไว้</h3>
+      <div id="tt-versions" class="text-muted">ยังไม่มี</div>
+    </div>
+  </section>
 </main>
 
 <script src="js/config.js"></script>
@@ -104,5 +150,6 @@
 <script src="js/store.js"></script>
 <script src="js/utils.js"></script>
 <script src="js/modules/timetable.js"></script>
+<script src="js/modules/timetable-ai.js"></script>
 </body>
 </html>
