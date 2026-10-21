@@ -179,5 +179,56 @@
     reader.readAsText(file);
   });
 
+  // ── เลื่อนชั้น ──
+  const KIND_BADGE = {
+    promote: '<span class="badge badge-pass">เลื่อนขึ้น</span>',
+    graduate: '<span class="badge" style="background:#FFF3E0;color:#E65100">จบการศึกษา</span>',
+    skip: '<span class="badge badge-fail">ไม่เลื่อน</span>',
+  };
+
+  document.getElementById('promote-preview-btn').addEventListener('click', async function () {
+    try {
+      const d = await api('settings.promote_preview', {}, { loadingMsg: 'กำลังคำนวณ...' });
+      const rows = d.moves.map(function (m) {
+        return '<tr><td>' + Utils.esc(m.grade) + '</td><td style="text-align:center">' + Utils.fmtInt(m.count) + '</td>' +
+          '<td style="text-align:center">→</td><td>' + Utils.esc(m.to) + '</td><td>' + (KIND_BADGE[m.kind] || '') + '</td></tr>';
+      }).join('');
+      document.getElementById('promote-preview').innerHTML =
+        '<div class="alert alert-info">ปีการศึกษา <strong>' + Utils.esc(d.from_year) + ' → ' + Utils.esc(d.to_year) + '</strong> · ' +
+        'เลื่อนขึ้น <strong>' + d.promoted + '</strong> คน · จบการศึกษา <strong>' + d.graduates + '</strong> คน' +
+        (d.skipped ? ' · ไม่เลื่อน ' + d.skipped : '') + '</div>' +
+        '<div class="table-wrap"><table><thead><tr><th>ชั้นเดิม</th><th>จำนวน</th><th></th><th>ชั้นใหม่</th><th>สถานะ</th></tr></thead><tbody>' + rows + '</tbody></table></div>';
+      document.getElementById('promote-preview').classList.remove('hidden');
+      document.getElementById('promote-confirm-box').classList.remove('hidden');
+      document.getElementById('promote-result').classList.add('hidden');
+      document.getElementById('promote-ack').checked = false;
+      document.getElementById('promote-apply-btn').disabled = true;
+    } catch (e) { /* toast แสดงแล้ว */ }
+  });
+
+  document.getElementById('promote-ack').addEventListener('change', function (e) {
+    document.getElementById('promote-apply-btn').disabled = !e.target.checked;
+  });
+
+  document.getElementById('promote-apply-btn').addEventListener('click', async function () {
+    if (!document.getElementById('promote-ack').checked) return;
+    if (!confirm('ยืนยันเลื่อนชั้นนักเรียนทุกคน และเปลี่ยนปีการศึกษา?\n\nการกระทำนี้ย้อนกลับได้ด้วยการกู้คืนไฟล์สำรองเท่านั้น')) return;
+    try {
+      const d = await api('settings.promote', { confirm: true, bump_year: true, recorded_by: 'admin' }, { loadingMsg: 'กำลังเลื่อนชั้น...' });
+      const res = document.getElementById('promote-result');
+      res.className = 'alert alert-success mt-2';
+      res.innerHTML = '✅ เลื่อนชั้นสำเร็จ — เลื่อนขึ้น <strong>' + d.promoted + '</strong> คน, จบการศึกษา <strong>' + d.graduated + '</strong> คน' +
+        (d.skipped ? ', ไม่เลื่อน ' + d.skipped : '') + ' · ปีการศึกษา <strong>' + Utils.esc(d.from_year) + ' → ' + Utils.esc(d.to_year) + '</strong>';
+      res.classList.remove('hidden');
+      document.getElementById('promote-confirm-box').classList.add('hidden');
+      document.getElementById('promote-preview').classList.add('hidden');
+      // ข้อมูลเปลี่ยนทั้งระบบ → ล้าง cache ทั้งหมด
+      try { AppSettings.clear(); } catch (e) {}
+      try { if (window.Store) Store.invalidate(''); } catch (e) {}
+      Toast.show('เลื่อนชั้นเรียบร้อย', 'success');
+      loadSettings();
+    } catch (e) { Toast.show('เลื่อนชั้นไม่สำเร็จ: ' + e.message, 'danger'); }
+  });
+
   loadSettings();
 })();

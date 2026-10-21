@@ -26,6 +26,7 @@
     <button class="tab" data-tab="dmc">📥 นำเข้า DMC</button>
     <button class="tab" data-tab="pin">🔒 PIN</button>
     <button class="tab" data-tab="backup">💾 สำรองข้อมูล</button>
+    <button class="tab" data-tab="promote">🎓 เลื่อนชั้น</button>
     <button class="tab" data-tab="system">🛠️ ระบบ</button>
   </div>
 
@@ -105,6 +106,33 @@
       <h3 class="card-title">♻️ กู้คืนข้อมูล (Restore)</h3>
       <div class="alert alert-warning"><strong>คำเตือน:</strong> การกู้คืนจะ<strong>เขียนทับ</strong>ข้อมูลปัจจุบันทั้งหมด ควรสำรองก่อนเสมอ</div>
       <div class="form-group"><label>เลือกไฟล์สำรอง (.json)</label><input type="file" id="restore-file" accept=".json" class="form-control"></div>
+    </div>
+  </section>
+
+  <!-- เลื่อนชั้น -->
+  <section class="tab-pane hidden" id="tab-promote">
+    <div class="card">
+      <h3 class="card-title">🎓 เลื่อนชั้นนักเรียน (สิ้นปีการศึกษา)</h3>
+      <div class="alert alert-warning">
+        <strong>⚠️ สำคัญ:</strong> คำสั่งนี้จะเลื่อนชั้นนักเรียน<strong>ทุกคนพร้อมกัน</strong> และเปลี่ยนปีการศึกษา
+        <strong>ควรกด "สำรองข้อมูล" ก่อนทุกครั้ง</strong> (ทำได้ที่แท็บ 💾 สำรองข้อมูล) เผื่อต้องย้อนกลับ
+      </div>
+      <ul class="text-muted" style="font-size:14px;margin:0 0 12px 18px">
+        <li>อ.2→อ.3→ป.1→…→ป.6 (เลื่อนขึ้น 1 ชั้น)</li>
+        <li>ป.6 → <strong>จบการศึกษา</strong> (เอาออกจากรายชื่อ แต่เก็บประวัติไว้)</li>
+        <li>ปีการศึกษา +1 อัตโนมัติ · ห้อง/ข้อมูลอื่นคงเดิม</li>
+      </ul>
+      <button class="btn btn-secondary" id="promote-preview-btn"><i class="bi bi-eye"></i> ดูตัวอย่างการเลื่อนชั้น</button>
+      <div id="promote-preview" class="hidden mt-2"></div>
+
+      <div id="promote-confirm-box" class="hidden mt-2">
+        <label class="flex" style="gap:8px;align-items:flex-start;cursor:pointer">
+          <input type="checkbox" id="promote-ack" style="margin-top:4px;width:18px;height:18px">
+          <span>ฉันได้<strong>สำรองข้อมูลแล้ว</strong> และเข้าใจว่าการเลื่อนชั้นจะแก้ข้อมูลนักเรียนทุกคน (ย้อนกลับได้ด้วยการกู้คืนไฟล์สำรองเท่านั้น)</span>
+        </label>
+        <button class="btn btn-danger mt-2" id="promote-apply-btn" disabled><i class="bi bi-mortarboard"></i> ยืนยันเลื่อนชั้นจริง</button>
+      </div>
+      <div id="promote-result" class="hidden alert alert-success mt-2"></div>
     </div>
   </section>
 
