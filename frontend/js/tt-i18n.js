@@ -98,6 +98,9 @@ const TTi18n = (function () {
     'ตารางเรียนรายชั้น': 'Class timetables', 'ตารางสอนรายครู': 'Teacher timetables', 'ตารางการใช้ห้อง': 'Room usage', 'ตารางรวมทั้งโรงเรียน (รายวัน)': 'Whole school (by day)',
     'สรุปภาระงานสอนครู': 'Teacher workload', 'คาบรายวิชาเทียบหลักสูตร': 'Periods vs curriculum', 'รายงานผลการตรวจสอบ': 'Validation report', 'ประวัติการเปลี่ยนแปลง': 'Change history',
     'ล้างเงื่อนไข': 'Clear filters', 'ยังไม่ระบุครู (': 'No teacher (',
+    'มอบหมายการสอน': 'Teaching assignments', 'มอบหมายการสอน (วิชา × ชั้น → ครู)': 'Teaching assignments (subject × class → teacher)', 'อัตโนมัติ': 'Auto',
+    'ทั้งแถว': 'Whole row', '— ทั้งแถว —': '— Whole row —', '— ทั้งชั้น —': '— Whole class —', 'ทั้งชั้น →': 'Whole class →', 'ครูประจำชั้น': 'Homeroom teacher',
+    'ล้าง (อัตโนมัติ)': 'Clear (auto)', 'ยกเลิกที่แก้': 'Discard changes', 'ภาระคาบตามที่มอบหมาย': 'Assigned workload', 'คาบ/สัปดาห์': 'Periods/week', 'วิชา · ชั้น': 'Subject · class',
   });
 
   const SPLIT = /^([^฀-๿A-Za-z0-9"(]*)([\s\S]*?)([\s:*]*)$/;

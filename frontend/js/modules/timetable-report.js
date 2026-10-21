@@ -41,7 +41,7 @@
         const m = (cells[u.unit_id] = {});
         u.class_ids.forEach(function (cid) { Object.keys(byClass[cid] || {}).forEach(function (k) { if (!m[k] && byClass[cid][k].subject_id) m[k] = byClass[cid][k]; }); });
       });
-      const check = TTCheck.check({ units: units, cells: cells, subjects: S().subjects, teachers: S().teachers, rooms: S().rooms, periods: S().periods, config: S().config || {} });
+      const check = TTCheck.check({ units: units, cells: cells, subjects: S().subjects, teachers: S().teachers, rooms: S().rooms, periods: S().periods, config: S().config || {}, assign: TT.assignMap().map });
       const pIdx = {}, ps = teachPeriods();
       ps.forEach(function (p, i) { pIdx[p.period_id] = i; });
       const find = function (list, pk, id) { return id ? list.find(function (x) { return x[pk] === id; }) : null; };

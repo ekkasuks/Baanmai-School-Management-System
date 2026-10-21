@@ -3,12 +3,12 @@
  *
  *   error   (แดง)    : ครู/ห้องชน, วันหยุด/ช่วงสอนไม่ได้/ไม่สอนคาบแรก-สุดท้าย, เกินคาบสูงสุด, สอนติดกันเกิน,
  *                      วิชาเกินวันละ, วิชาอยู่ผิดวัน
- *   warning (เหลือง) : จำนวนคาบไม่ตรงหลักสูตร, ยังไม่ระบุครู, ครูไม่ได้ถูกกำหนดให้สอนวิชานี้, ห้องไม่ตรงประเภท,
+ *   warning (เหลือง) : จำนวนคาบไม่ตรงหลักสูตร, ยังไม่ระบุครู, ครูไม่ตรงกับที่มอบหมาย, ครูไม่ได้ถูกกำหนดให้สอนวิชานี้, ห้องไม่ตรงประเภท,
  *                      วิชาไม่อยู่ในชั้นนี้, คาบว่างแทรก, ครูต่ำกว่าคาบขั้นต่ำ
  *   ช่องที่ไม่มีปัญหา = เขียว
  *
  * input: { units:[{unit_id,label,grades,class_ids}], cells:{unit_id:{'day|period_id':{subject_id,teacher_id,room_id,locked}}},
- *          subjects, teachers, rooms, periods, config }
+ *          subjects, teachers, rooms, periods, config, assign?:{'unit_id|subject_id': teacher_id} }
  * ใช้ได้ทั้งในเบราว์เซอร์ (window.TTCheck) และ Node (module.exports) สำหรับทดสอบ
  */
 (function (root) {
@@ -151,8 +151,10 @@
       const days = (rules.allowed_days || []).map(Number);
       if (days.length && days.indexOf(e.d) < 0) add('error', 'days', sName(s) + ' (' + u.label + ') จัดได้เฉพาะวัน' + days.map(function (d) { return DAYS[d]; }).join('/') + ' แต่อยู่วัน' + DAYS[e.d], [e.key]);
       if (!(s.grades || []).some(function (g) { return u.grades.indexOf(g) >= 0; })) add('warning', 'not_grade', sName(s) + ' ไม่ได้อยู่ในหลักสูตรของ ' + u.label, [e.key]);
+      const asg = (input.assign || {})[e.u + '|' + e.s];   // มอบหมายการสอนไว้ (วิชา × ชั้น → ครู)
       if (!e.t) (noTeacher[e.u] = noTeacher[e.u] || []).push(e.key);
-      else if (elig[e.s] && !elig[e.s][e.t]) add('warning', 't_elig', 'ครู' + tName(T[e.t]) + ' ไม่ได้ถูกกำหนดให้สอน ' + sName(s) + ' (' + u.label + ' วัน' + DAYS[e.d] + ' ' + P[e.p].label + ')', [e.key]);
+      else if (asg && e.t !== asg) add('warning', 'not_assigned', sName(s) + ' (' + u.label + ' วัน' + DAYS[e.d] + ' ' + P[e.p].label + ') มอบหมายให้ครู' + tName(T[asg]) + ' แต่จัดครู' + tName(T[e.t]), [e.key]);
+      else if (!asg && elig[e.s] && !elig[e.s][e.t]) add('warning', 't_elig', 'ครู' + tName(T[e.t]) + ' ไม่ได้ถูกกำหนดให้สอน ' + sName(s) + ' (' + u.label + ' วัน' + DAYS[e.d] + ' ' + P[e.p].label + ')', [e.key]);
       if (s.room_type) {
         const r = R[e.r];
         if (r && r.type !== s.room_type) add('warning', 'room_type', sName(s) + ' ควรใช้ห้องประเภท "' + s.room_type + '" แต่จัดไว้ที่ ' + r.name, [e.key]);

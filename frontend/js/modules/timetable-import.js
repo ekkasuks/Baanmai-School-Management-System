@@ -361,7 +361,7 @@
       cells[u.unit_id] = {};
       slots.forEach(function (s) { if (u.class_ids.indexOf(s.class_id) >= 0 && !cells[u.unit_id][s.day + '|' + s.period_id]) cells[u.unit_id][s.day + '|' + s.period_id] = s; });
     });
-    const check = TTCheck.check({ units: units, cells: cells, subjects: S().subjects, teachers: S().teachers, rooms: S().rooms, periods: S().periods, config: S().config || {} });
+    const check = TTCheck.check({ units: units, cells: cells, subjects: S().subjects, teachers: S().teachers, rooms: S().rooms, periods: S().periods, config: S().config || {}, assign: TT.assignMap().map });
     return { kind: 'slots', rows: rows, slots: slots, copied: copied, check: check, fromJson: !!src.json, srcLabel: src.json && src.json.version ? src.json.version.label : '' };
   }
 

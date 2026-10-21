@@ -61,7 +61,7 @@
       const r = cs.find(function (c) { return c.home_room_id; });
       return Object.assign({}, u, { homeroom_teacher_id: h ? h.homeroom_teacher_id : '', home_room_id: r ? r.home_room_id : '' });
     });
-    return { units: units, subjects: S.subjects, teachers: S.teachers, rooms: S.rooms, periods: S.periods,
+    return { units: units, subjects: S.subjects, teachers: S.teachers, rooms: S.rooms, periods: S.periods, assign: TT.assignMap().map,
       config: Object.assign({}, S.config || {}, cfgRendered ? readConfig() : {}), seed: Date.now() };
   }
 

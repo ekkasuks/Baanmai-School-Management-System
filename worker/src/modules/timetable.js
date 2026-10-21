@@ -202,8 +202,10 @@ async function buildDashboard(db, term, data) {
   if (!teaching.length) issues.push({ level: 'error', msg: 'ยังไม่ได้กำหนดคาบเรียน (แท็บ "คาบเรียน")' });
   const teacherBySubject = {};
   teachers.forEach(function (t) { (t.subjects || []).forEach(function (sid) { (teacherBySubject[sid] = teacherBySubject[sid] || []).push(t.teacher_id); }); });
+  const assigned = {};
+  (data.assignments || []).forEach(function (a) { assigned[a.subject_id] = 1; });
   subjects.forEach(function (s) {
-    const n = (s.teachers || []).length + (teacherBySubject[s.subject_id] || []).length;
+    const n = (s.teachers || []).length + (teacherBySubject[s.subject_id] || []).length + (assigned[s.subject_id] ? 1 : 0);
     if (!n) issues.push({ level: 'warning', msg: 'วิชา "' + s.name + '" ยังไม่มีครูผู้สอน' });
     if (!(s.grades || []).length) issues.push({ level: 'warning', msg: 'วิชา "' + s.name + '" ยังไม่ได้ระบุระดับชั้น' });
   });
@@ -323,6 +325,9 @@ async function loadAll(db, term) {
     rooms: await listEntity(db, 'room', term),
     classes: await listEntity(db, 'class', term),
     periods: await listEntity(db, 'period', term),
+    assignments: (await selectWhere(db, 'TT_ASSIGN', 'term_id', term)).map(function (a) {
+      return { class_id: a.class_id, subject_id: a.subject_id, teacher_id: a.teacher_id };
+    }),
   };
 }
 
@@ -736,6 +741,39 @@ const API = {
     return { id: r.change_id, hidden: det.hidden };
   },
 
+  /**
+   * มอบหมายการสอน: วิชา × ชั้นเรียน → ครู — params = { rows:[{ class_id, subject_id, teacher_id ('' = ยกเลิก) }] }
+   * ตรวจทุกแถว (ชั้น/วิชา/ครูมีจริง · วิชาเรียนในระดับชั้นนั้น) แล้วบันทึกใน db.batch เดียว
+   */
+  assign_save: async function (params, ctx) {
+    const db = ctx.db;
+    const term = await activeTerm(db, params);
+    const rows = params.rows;
+    if (!Array.isArray(rows) || !rows.length) apiError('VALIDATION', 'ไม่มีข้อมูลการมอบหมาย');
+    if (rows.length > 3000) apiError('VALIDATION', 'ข้อมูลมากเกินไป');
+    const data = await loadAll(db, term);
+    const ids = function (list, pk) { const m = {}; list.forEach(function (x) { m[x[pk]] = x; }); return m; };
+    const C = ids(data.classes, 'class_id'), Sb = ids(data.subjects, 'subject_id'), T = ids(data.teachers, 'teacher_id');
+    const ts = now(), seen = {}, stmts = [];
+    let set = 0, cleared = 0;
+    rows.forEach(function (r, i) {
+      const c = C[r.class_id], sb = Sb[r.subject_id], tid = r.teacher_id ? String(r.teacher_id) : '';
+      if (!c) apiError('VALIDATION', 'แถว ' + (i + 1) + ': ไม่พบชั้นเรียน');
+      if (!sb) apiError('VALIDATION', 'แถว ' + (i + 1) + ': ไม่พบวิชา');
+      if ((sb.grades || []).indexOf(c.grade) < 0) apiError('VALIDATION', 'วิชา "' + sb.name + '" ไม่ได้เรียนในชั้น ' + c.grade);
+      if (tid && !T[tid]) apiError('VALIDATION', 'แถว ' + (i + 1) + ': ไม่พบครู');
+      const k = c.class_id + '|' + sb.subject_id;
+      if (seen[k]) apiError('VALIDATION', 'มอบหมายวิชา "' + sb.name + '" ชั้น ' + c.grade + ' ซ้ำ');
+      seen[k] = 1;
+      stmts.push(db.prepare('DELETE FROM TT_ASSIGN WHERE term_id=? AND class_id=? AND subject_id=?').bind(term, c.class_id, sb.subject_id));
+      if (tid) { stmts.push.apply(stmts, insertStmts(db, 'TT_ASSIGN', [{ assign_id: genId('ASG'), term_id: term, class_id: c.class_id, subject_id: sb.subject_id, teacher_id: tid, updated_at: ts }])); set++; }
+      else cleared++;
+    });
+    await db.batch(stmts);
+    await ttLog(db, term, 'ASSIGN', 'assign', '', params.recorded_by, { detail: { set: set, cleared: cleared } });
+    return { set: set, cleared: cleared };
+  },
+
   /** ประวัติการเปลี่ยนแปลง (อ่านอย่างเดียว) — params = { version_id?, limit? } ใหม่สุดก่อน */
   changes: async function (params, ctx) {
     const db = ctx.db;
@@ -948,7 +986,7 @@ const API = {
 const OPEN = ['auth_status', 'setup_admin', 'login', 'logout', 'me', 'change_password', 'users_list', 'user_save', 'user_reset_password', 'public_view'];
 const NEED = {
   bootstrap: 'view', dashboard: 'view', list: 'view', versions: 'view', get_version: 'view', changes: 'view', constraints_get: 'view',
-  save: 'edit_data', remove: 'edit_data', combine: 'edit_data', uncombine: 'edit_data', seed_periods: 'edit_data', sync_classes: 'edit_data', import_entities: 'edit_data',
+  save: 'edit_data', remove: 'edit_data', assign_save: 'edit_data', combine: 'edit_data', uncombine: 'edit_data', seed_periods: 'edit_data', sync_classes: 'edit_data', import_entities: 'edit_data',
   save_version: 'edit_timetable', update_slots: 'edit_timetable', duplicate_version: 'edit_timetable', delete_version: 'edit_timetable',
   announce: 'announce', ticker_hide: 'announce',
   ticker: function (p) { return p.all === true ? ['announce'] : null; },          // null = สาธารณะ (หน้าหลัก)

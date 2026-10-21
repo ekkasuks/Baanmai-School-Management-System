@@ -122,6 +122,19 @@
     body.tt-printing .tt-rep-sec:last-child { page-break-after:auto; break-after:auto; }
     body.tt-printing td, body.tt-printing th { -webkit-print-color-adjust:exact; print-color-adjust:exact; }
   }
+  /* ── มอบหมายการสอน ── */
+  .tt-assign { border-collapse:separate; border-spacing:0; font-size:13px; }
+  .tt-assign th, .tt-assign td { border-bottom:1px solid var(--border); padding:4px; text-align:center; vertical-align:top; }
+  .tt-assign thead th { background:var(--primary-light); color:var(--primary-dark); white-space:nowrap; }
+  .tt-assign .sticky { position:sticky; left:0; z-index:1; background:var(--card); text-align:left; min-width:130px; }
+  .tt-assign thead .sticky { background:var(--primary-light); }
+  .tt-assign select.form-control { min-width:150px; padding:6px 8px; font-size:13px; }
+  .tt-assign td.set select { border-color:var(--primary); font-weight:600; }
+  .tt-assign td.chg { background:#FFF8E1; }
+  .tt-assign td.na { color:var(--muted); vertical-align:middle; }
+  .tt-assign tr.fill th { background:var(--card); }
+  html[data-theme="dark"] .tt-assign td.chg { background:#33290F; }
+
   /* ── นำเข้า (เฟส 5) ── */
   .tt-drop { border:2px dashed #90CAF9; border-radius:14px; padding:22px; text-align:center; color:var(--primary-dark); background:#F7FCFF; }
   .tt-drop.over { background:var(--primary-light); border-color:var(--primary-dark); }
@@ -149,6 +162,7 @@
     <button class="tab active" data-tab="dashboard" data-cap="view">📊 Dashboard</button>
     <button class="tab" data-tab="teacher" data-cap="edit_data">👩‍🏫 ครู</button>
     <button class="tab" data-tab="subject" data-cap="edit_data">📚 วิชา</button>
+    <button class="tab" data-tab="assign" data-cap="edit_data">🧑‍🏫 มอบหมายการสอน</button>
     <button class="tab" data-tab="room" data-cap="edit_data">🏫 ห้องเรียน</button>
     <button class="tab" data-tab="class" data-cap="edit_data">🎒 ชั้นเรียน / ควบชั้น</button>
     <button class="tab" data-tab="period" data-cap="edit_data">⏰ คาบเรียน</button>
@@ -189,6 +203,8 @@
   <!-- ครู / วิชา / ห้อง / ชั้น / คาบ : ใช้โครงเดียวกัน -->
   <section class="tab-pane hidden" id="tab-teacher"><div class="card" data-entity="teacher"></div></section>
   <section class="tab-pane hidden" id="tab-subject"><div class="card" data-entity="subject"></div></section>
+  <!-- มอบหมายการสอน วิชา × ชั้น → ครู — timetable-assign.js -->
+  <section class="tab-pane hidden" id="tab-assign"></section>
   <section class="tab-pane hidden" id="tab-room"><div class="card" data-entity="room"></div></section>
   <section class="tab-pane hidden" id="tab-class">
     <div class="card">
@@ -261,6 +277,7 @@
 <script src="js/tt-session.js"></script>
 <script src="js/modules/timetable.js"></script>
 <script src="js/modules/timetable-ai.js"></script>
+<script src="js/modules/timetable-assign.js"></script>
 <script src="js/tt-check.js"></script>
 <script src="js/modules/timetable-edit.js"></script>
 <script src="js/pdf.js"></script>

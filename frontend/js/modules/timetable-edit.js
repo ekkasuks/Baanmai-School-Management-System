@@ -71,11 +71,12 @@
 
   /** ครู/ห้องเริ่มต้นเมื่อวางวิชาใหม่: ใช้ตามคาบอื่นของวิชาเดียวกันในชั้นนี้ → ครูที่สอนวิชานี้ได้ → ครูประจำชั้น */
   function defaults(uid, sid) {
+    const fixed = TT.assignMap().map[uid + '|' + sid];   // มอบหมายการสอนไว้ → ใช้ครูคนนั้น
     const cs = ED.cells[uid] || {};
     const prev = Object.keys(cs).map(function (k) { return cs[k]; }).find(function (c) { return c.subject_id === sid; });
-    if (prev) return { teacher_id: prev.teacher_id, room_id: prev.room_id };
+    if (prev) return { teacher_id: fixed || prev.teacher_id, room_id: prev.room_id };
     const u = unitById(uid), el = Object.keys(eligible(sid)), home = homeroom(u);
-    const t = el.length ? (el.indexOf(home) >= 0 ? home : el[0]) : ((S().config || {}).fallback_homeroom !== false ? home : '');
+    const t = fixed || (el.length ? (el.indexOf(home) >= 0 ? home : el[0]) : ((S().config || {}).fallback_homeroom !== false ? home : ''));
     const s = subj(sid);
     const r = s && s.room_type ? (S().rooms.find(function (x) { return x.type === s.room_type; }) || {}).room_id : homeRoom(u);
     return { teacher_id: t || '', room_id: r || '' };
@@ -83,7 +84,7 @@
 
   /* ════ ตรวจสอบ ════ */
   function checkInput(cells) {
-    return { units: units(), cells: cells, subjects: S().subjects, teachers: S().teachers, rooms: S().rooms, periods: S().periods, config: S().config || {} };
+    return { units: units(), cells: cells, subjects: S().subjects, teachers: S().teachers, rooms: S().rooms, periods: S().periods, config: S().config || {}, assign: TT.assignMap().map };
   }
   function runCheck() { ED.check = TTCheck.check(checkInput(ED.cells)); }
 

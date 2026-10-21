@@ -160,6 +160,7 @@
       S.teachers = d.teachers; S.subjects = d.subjects; S.rooms = d.rooms; S.classes = d.classes; S.periods = d.periods;
       S.dashboard = d.dashboard; S.term = d.term;
       S.config = d.config; S.config_defaults = d.config_defaults; S.versions = d.versions || [];
+      S.assignments = d.assignments || [];
       document.getElementById('tt-term').textContent = (d.term && d.term.label) || '';
       renderDashboard();
       Object.keys(ENT).forEach(renderEntity);
@@ -432,8 +433,26 @@
     });
   });
 
+  /**
+   * มอบหมายการสอนรายหน่วยการเรียน → { map: {'unit_id|subject_id': teacher_id}, mixed: [...] }
+   * กลุ่มควบชั้นใช้ครูของห้องแรกที่มอบหมายไว้ · ถ้าห้องในกลุ่มมอบหมายครูต่างกัน → แจ้งใน mixed
+   */
+  function assignMap() {
+    const byClass = {}, map = {}, mixed = [];
+    (S.assignments || []).forEach(function (a) { byClass[a.class_id + '|' + a.subject_id] = a.teacher_id; });
+    ((S.dashboard && S.dashboard.units) || []).forEach(function (u) {
+      S.subjects.forEach(function (sb) {
+        const ts = u.class_ids.map(function (c) { return byClass[c + '|' + sb.subject_id]; }).filter(Boolean);
+        if (!ts.length) return;
+        map[u.unit_id + '|' + sb.subject_id] = ts[0];
+        if (ts.some(function (t) { return t !== ts[0]; })) mixed.push({ unit: u, subject: sb });
+      });
+    });
+    return { map: map, mixed: mixed };
+  }
+
   // ใช้ร่วมกับ timetable-ai.js
-  window.TT = { S: S, reload: reload, teacherName: teacherName, classLabel: classLabel, DAY_NAMES: DAY_NAMES,
+  window.TT = { S: S, reload: reload, teacherName: teacherName, classLabel: classLabel, DAY_NAMES: DAY_NAMES, assignMap: assignMap,
     isBusy: function () { return !!document.querySelector('.modal-backdrop'); } };
 
   setInterval(function () {

@@ -75,18 +75,22 @@ function model(input) {
       const elig = {};
       (s.teachers || []).forEach(function (id) { if (tIdx[id] !== undefined) elig[tIdx[id]] = 1; });
       T.forEach(function (t, ti) { if ((t.subjects || []).indexOf(s.subject_id) >= 0) elig[ti] = 1; });
-      pairs.push({ ui: ui, s: s, elig: Object.keys(elig).map(Number) });
+      // มอบหมายการสอน (วิชา × ชั้น → ครู) มาก่อนเสมอ
+      const fx = (input.assign || {})[u.unit_id + '|' + s.subject_id];
+      pairs.push({ ui: ui, s: s, elig: Object.keys(elig).map(Number), fixed: fx && tIdx[fx] !== undefined ? tIdx[fx] : -1 });
     });
   });
-  // วิชาที่มีครูให้เลือกน้อยมอบหมายก่อน · วิชาที่ไม่มีครูเลยไว้ท้าย
-  pairs.sort(function (a, b) { return (a.elig.length || 99) - (b.elig.length || 99); });
+  // ที่มอบหมายไว้แล้วก่อน (นับภาระให้ครูก่อน) → วิชาที่มีครูให้เลือกน้อย → วิชาที่ไม่มีครูเลยไว้ท้าย
+  const rank = function (p) { return p.fixed >= 0 ? 0 : (p.elig.length || 99); };
+  pairs.sort(function (a, b) { return rank(a) - rank(b); });
 
   pairs.forEach(function (pr) {
     const u = U[pr.ui];
     const home = (u.homeroom_teacher_id && tIdx[u.homeroom_teacher_id] !== undefined) ? tIdx[u.homeroom_teacher_id] : -1;
     const n = Number(pr.s.periods_week) || 0;
     let ti = -1, viaHome = false;
-    if (pr.elig.length) {
+    if (pr.fixed >= 0) ti = pr.fixed;
+    else if (pr.elig.length) {
       if (home >= 0 && pr.elig.indexOf(home) >= 0) ti = home;
       else ti = pr.elig.slice().sort(function (a, b) { return assigned[a] / Math.max(1, cap[a]) - assigned[b] / Math.max(1, cap[b]); })[0];
     } else if (cfg.fallback_homeroom !== false && home >= 0) { ti = home; viaHome = true; }
