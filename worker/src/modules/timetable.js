@@ -175,31 +175,46 @@ async function buildDashboard(db, term, data) {
       issues.push({ level: 'warning', msg: 'ครู "' + t.name + '" ยังไม่ได้ระบุวิชาที่สอนได้' });
     }
   });
+  // หน่วยการเรียน: ห้องปกติ = 1 หน่วย · กลุ่มควบชั้น (เช่น ป.5+ป.6) = 1 หน่วย (เรียนรวมทุกวิชา)
+  const units = teachingUnits(classes);
   let demand = 0;
-  classes.forEach(function (c) {
-    const need = subjects.filter(function (s) { return (s.grades || []).indexOf(c.grade) >= 0; })
-      .reduce(function (a, s) { return a + (Number(s.periods_week) || 0); }, 0);
+  units.forEach(function (u) {
+    const subs = unitSubjects(u, subjects);
+    const need = subs.reduce(function (a, s) { return a + (Number(s.periods_week) || 0); }, 0);
     demand += need;
     if (teaching.length && need > slotsPerClass) {
-      issues.push({ level: 'error', msg: 'ชั้น ' + c.grade + (c.room ? '/' + c.room : '') + ' ต้องเรียน ' + need + ' คาบ แต่มีช่องเพียง ' + slotsPerClass + ' คาบ/สัปดาห์' });
+      issues.push({ level: 'error', msg: 'ชั้น ' + u.label + ' ต้องเรียน ' + need + ' คาบ แต่มีช่องเพียง ' + slotsPerClass + ' คาบ/สัปดาห์' });
+    }
+    if (u.combined) {
+      subs.forEach(function (s) {
+        const missing = u.grades.filter(function (g) { return (s.grades || []).indexOf(g) < 0; });
+        if (missing.length) issues.push({ level: 'info', msg: 'วิชา "' + s.name + '" ระบุเฉพาะบางชั้น — เมื่อเรียนควบ ' + u.label + ' นักเรียน ' + missing.join(', ') + ' จะเรียนวิชานี้ด้วย' });
+      });
     }
   });
 
-  // กราฟ
-  const byTeacher = {}, byRoom = {};
+  // กราฟ — นับ "ครั้งที่สอน" แบบไม่ซ้ำเวลา (คาบควบชั้นมีหลายแถวแต่สอนครั้งเดียว)
+  const unitOfClass = {};
+  units.forEach(function (u) { u.class_ids.forEach(function (cid) { unitOfClass[cid] = u.unit_id; }); });
+  const tSet = {}, rSet = {}, fill = {};
   slots.forEach(function (s) {
-    if (s.teacher_id) byTeacher[s.teacher_id] = (byTeacher[s.teacher_id] || 0) + 1;
-    if (s.room_id) byRoom[s.room_id] = (byRoom[s.room_id] || 0) + 1;
+    const t = s.day + '|' + s.period_id;
+    if (s.teacher_id) (tSet[s.teacher_id] = tSet[s.teacher_id] || {})[t] = 1;
+    if (s.room_id) (rSet[s.room_id] = rSet[s.room_id] || {})[t] = 1;
+    fill[(unitOfClass[s.class_id] || s.class_id) + '|' + t] = 1;
   });
+  const cnt = function (o) { return o ? Object.keys(o).length : 0; };
   const teacherLoad = teachers.map(function (t) {
-    return { id: t.teacher_id, name: (t.title || '') + t.name, assigned: byTeacher[t.teacher_id] || 0, min: t.min_periods, max: t.max_periods };
+    return { id: t.teacher_id, name: (t.title || '') + t.name, assigned: cnt(tSet[t.teacher_id]), min: t.min_periods, max: t.max_periods };
   });
   const roomUsage = rooms.map(function (r) {
     const cap = slotsPerClass * (Number(r.max_concurrent) || 1);
-    const used = byRoom[r.room_id] || 0;
+    const used = cnt(rSet[r.room_id]);
     return { id: r.room_id, name: r.name, used: used, capacity: cap, percent: cap ? Math.round(used / cap * 1000) / 10 : 0 };
   });
-  const totalSlots = classes.length * slotsPerClass;
+  const totalSlots = units.length * slotsPerClass;
+  const filled = Object.keys(fill).length;
+  const taught = Object.keys(tSet).reduce(function (a, k) { return a + cnt(tSet[k]); }, 0);
   const maxLoad = teachers.reduce(function (a, t) { return a + (Number(t.max_periods) || 0); }, 0);
 
   return {
@@ -207,19 +222,61 @@ async function buildDashboard(db, term, data) {
     counts: {
       teachers: teachers.length, subjects: subjects.length, rooms: rooms.length,
       grades: Object.keys(classes.reduce(function (m, c) { m[c.grade] = 1; return m; }, {})).length,
-      classes: classes.length, periods_per_day: teaching.length, periods_per_week: slotsPerClass,
+      classes: classes.length, units: units.length,
+      combined_groups: units.filter(function (u) { return u.combined; }).length,
+      periods_per_day: teaching.length, periods_per_week: slotsPerClass,
       demand_periods: demand, total_slots: totalSlots,
       done_versions: doneVersions.length, conflict_versions: conflictVersions.length,
     },
     latest: latest ? { version_id: latest.version_id, label: latest.label, status: latest.status, stats: latest.stats, created_at: latest.created_at } : null,
     utilization: {
-      slots_filled: slots.length, slots_total: totalSlots,
-      slot_percent: totalSlots ? Math.round(slots.length / totalSlots * 1000) / 10 : 0,
+      slots_filled: filled, slots_total: totalSlots,
+      slot_percent: totalSlots ? Math.round(filled / totalSlots * 1000) / 10 : 0,
       demand_percent: totalSlots ? Math.round(demand / totalSlots * 1000) / 10 : 0,
-      teacher_percent: maxLoad ? Math.round(slots.filter(function (s) { return s.teacher_id; }).length / maxLoad * 1000) / 10 : 0,
+      teacher_percent: maxLoad ? Math.round(taught / maxLoad * 1000) / 10 : 0,
     },
-    teacher_load: teacherLoad, room_usage: roomUsage, issues: issues,
+    units: units, teacher_load: teacherLoad, room_usage: roomUsage, issues: issues,
   };
+}
+
+/**
+ * หน่วยการเรียน (ใช้ทั้ง Dashboard และ AI Engine เฟสถัดไป)
+ * ห้องที่มี combine_group เดียวกัน (≥2 ห้อง) = 1 หน่วย เรียนรวมทุกวิชา
+ */
+export function teachingUnits(classes) {
+  const groups = {}, units = [];
+  classes.forEach(function (c) {
+    const g = String(c.combine_group || '').trim();
+    if (g) (groups[g] = groups[g] || []).push(c); else units.push({ unit_id: c.class_id, members: [c] });
+  });
+  Object.keys(groups).forEach(function (g) { units.push({ unit_id: g, members: groups[g] }); });
+  return units.map(function (u) {
+    const m = u.members.slice().sort(function (a, b) { return gradeSortKey(a.grade) - gradeSortKey(b.grade); });
+    const grades = m.map(function (c) { return c.grade; }).filter(function (g, i, a) { return a.indexOf(g) === i; });
+    return {
+      unit_id: u.unit_id, combined: m.length > 1,
+      class_ids: m.map(function (c) { return c.class_id; }), grades: grades,
+      label: m.map(function (c) { return c.grade + (c.room ? '/' + c.room : ''); }).join(' + '),
+      students: m.reduce(function (a, c) { return a + (Number(c.students) || 0); }, 0),
+      sort: gradeSortKey(m[0] && m[0].grade),
+    };
+  }).sort(function (a, b) { return a.sort - b.sort; });
+}
+
+/** วิชาที่หน่วยการเรียนต้องเรียน = วิชาของทุกชั้นในหน่วยรวมกัน (ไม่นับวิชาเดียวกันซ้ำ) */
+export function unitSubjects(unit, subjects) {
+  return subjects.filter(function (s) { return (s.grades || []).some(function (g) { return unit.grades.indexOf(g) >= 0; }); });
+}
+
+/** กลุ่มควบชั้นที่เหลือสมาชิก <2 ห้อง → ยกเลิกกลุ่ม */
+async function cleanupGroups(db, term) {
+  const rows = (await selectWhere(db, 'TT_CLASS', 'term_id', term)).filter(function (c) { return String(c.active) !== '0'; });
+  const count = {};
+  rows.forEach(function (c) { const g = String(c.combine_group || ''); if (g) count[g] = (count[g] || 0) + 1; });
+  for (const c of rows) {
+    const g = String(c.combine_group || '');
+    if (g && count[g] < 2) await updateWhere(db, 'TT_CLASS', 'class_id', c.class_id, { combine_group: '', updated_at: now() });
+  }
 }
 
 async function loadAll(db, term) {
@@ -272,7 +329,7 @@ export const TimetableAPI = {
 
     const row = {};
     TABLES[ent.table].cols.forEach(function (c) {
-      if (c === ent.pk || c === 'term_id' || c === 'updated_at' || c === 'active') return;
+      if (c === ent.pk || c === 'term_id' || c === 'updated_at' || c === 'active' || c === 'combine_group') return;
       if (rec[c] !== undefined) row[c] = typeof rec[c] === 'string' ? rec[c].trim() : rec[c];
     });
     ent.required.forEach(function (f) {
@@ -324,13 +381,60 @@ export const TimetableAPI = {
     const cur = id ? await getBy(db, ent.table, ent.pk, id) : null;
     if (!cur || String(cur.term_id) !== term) apiError('NOT_FOUND', 'ไม่พบข้อมูล');
     if (hasCol(ent, 'active')) {
-      await updateWhere(db, ent.table, ent.pk, id, { active: '0', updated_at: now() });
+      const patch = { active: '0', updated_at: now() };
+      if (params.entity === 'class') patch.combine_group = '';   // ออกจากกลุ่มควบชั้นด้วย
+      await updateWhere(db, ent.table, ent.pk, id, patch);
+      if (params.entity === 'class') await cleanupGroups(db, term);
     } else {
       if ((await selectWhere(db, 'TT_SLOT', 'period_id', id)).length) apiError('VALIDATION', 'คาบนี้ถูกใช้ในตารางแล้ว ลบไม่ได้');
       await deleteWhere(db, ent.table, ent.pk, id);
     }
     await ttLog(db, term, 'DELETE', params.entity, id, params.recorded_by);
     return { ok: true };
+  },
+
+  /**
+   * จัดกลุ่มเรียนควบชั้น — params = { class_ids:[≥2], group_id? }
+   * ห้องที่เลือกจะเรียนรวมกันทุกวิชา · ถ้าห้องเคยอยู่กลุ่มอื่นจะย้ายมากลุ่มนี้ · กลุ่มที่เหลือ 1 ห้องจะถูกยกเลิก
+   */
+  combine: async function (params, ctx) {
+    const db = ctx.db;
+    const term = await activeTerm(db, params);
+    const ids = (params.class_ids || []).map(String).filter(function (v, i, a) { return v && a.indexOf(v) === i; });
+    if (ids.length < 2) apiError('VALIDATION', 'เลือกห้องที่จะเรียนควบอย่างน้อย 2 ห้อง');
+    const all = (await selectWhere(db, 'TT_CLASS', 'term_id', term)).filter(function (c) { return String(c.active) !== '0'; });
+    const sel = ids.map(function (id) { return all.find(function (c) { return c.class_id === id; }); });
+    if (sel.some(function (c) { return !c; })) apiError('NOT_FOUND', 'ไม่พบห้องเรียนบางห้อง');
+
+    const gid = String(params.group_id || '') ||
+      (sel.map(function (c) { return String(c.combine_group || ''); }).filter(Boolean)[0]) || genId('GRP');
+    const ts = now();
+    for (const c of all) {
+      if (String(c.combine_group || '') === gid && ids.indexOf(c.class_id) < 0) {
+        await updateWhere(db, 'TT_CLASS', 'class_id', c.class_id, { combine_group: '', updated_at: ts });
+      }
+    }
+    for (const c of sel) await updateWhere(db, 'TT_CLASS', 'class_id', c.class_id, { combine_group: gid, updated_at: ts });
+    await cleanupGroups(db, term);
+    await ttLog(db, term, 'COMBINE', 'class', gid, params.recorded_by);
+    return {
+      group_id: gid, class_ids: ids,
+      label: sel.slice().sort(function (a, b) { return gradeSortKey(a.grade) - gradeSortKey(b.grade); })
+        .map(function (c) { return c.grade + (c.room ? '/' + c.room : ''); }).join(' + '),
+    };
+  },
+
+  /** เอาห้องออกจากกลุ่มควบชั้น — params = { class_id } */
+  uncombine: async function (params, ctx) {
+    const db = ctx.db;
+    const term = await activeTerm(db, params);
+    const cur = params.class_id ? await getBy(db, 'TT_CLASS', 'class_id', String(params.class_id)) : null;
+    if (!cur || String(cur.term_id) !== term) apiError('NOT_FOUND', 'ไม่พบห้องเรียน');
+    if (!cur.combine_group) return { ok: true, changed: false };
+    await updateWhere(db, 'TT_CLASS', 'class_id', cur.class_id, { combine_group: '', updated_at: now() });
+    await cleanupGroups(db, term);
+    await ttLog(db, term, 'UNCOMBINE', 'class', cur.class_id, params.recorded_by);
+    return { ok: true, changed: true };
   },
 
   /** สร้างคาบเรียนมาตรฐาน 7 คาบ + พักกลางวัน (เฉพาะเมื่อยังไม่มีคาบ) */

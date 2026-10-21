@@ -30,7 +30,7 @@ export const TABLES = {
   TT_TEACHER:    { pk: 'teacher_id', cols: ['teacher_id', 'term_id', 'code', 'title', 'name', 'dept', 'subjects', 'min_periods', 'max_periods', 'off_days', 'unavailable', 'extra_duty', 'prefs', 'active', 'updated_at'] },
   TT_SUBJECT:    { pk: 'subject_id', cols: ['subject_id', 'term_id', 'code', 'name', 'periods_week', 'grades', 'type', 'teachers', 'room_type', 'rules', 'active', 'updated_at'] },
   TT_ROOM:       { pk: 'room_id',    cols: ['room_id', 'term_id', 'code', 'name', 'building', 'capacity', 'type', 'special', 'allowed_subjects', 'max_concurrent', 'active', 'updated_at'] },
-  TT_CLASS:      { pk: 'class_id',   cols: ['class_id', 'term_id', 'grade', 'room', 'students', 'homeroom_teacher_id', 'home_room_id', 'active', 'updated_at'] },
+  TT_CLASS:      { pk: 'class_id',   cols: ['class_id', 'term_id', 'grade', 'room', 'students', 'homeroom_teacher_id', 'home_room_id', 'active', 'updated_at', 'combine_group'] },
   TT_PERIOD:     { pk: 'period_id',  cols: ['period_id', 'term_id', 'seq', 'label', 'start_time', 'end_time', 'session', 'is_break'] },
   TT_CONSTRAINT: { pk: 'term_id',    cols: ['term_id', 'config', 'updated_at'] },
   TT_SLOT:       { pk: 'slot_id',    cols: ['slot_id', 'term_id', 'version_id', 'class_id', 'day', 'period_id', 'subject_id', 'teacher_id', 'room_id', 'locked', 'updated_at'] },
