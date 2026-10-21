@@ -119,6 +119,7 @@
     per_day: ['วิชานี้ครบจำนวนคาบต่อวันแล้ว', 'เพิ่ม "ไม่เกินวันละ" ของวิชา (หรือในแท็บเงื่อนไข)'],
     days: ['วิชานี้จำกัดวันเรียน', 'เพิ่มวันที่อนุญาตของวิชา'],
     block: ['จัดคาบต่อเนื่องไม่ได้ (ติดพัก/ท้ายวัน)', 'ลด "เรียนต่อเนื่องครั้งละ" ของวิชา'],
+    fixed: ['ช่องที่ล็อกไว้ชนกับวิชาล็อกอื่นของชั้นนี้ หรือครูติดคาบล็อกอื่นที่ไม่ได้ดูแลร่วม', 'ตรวจ "ล็อกวิชาในคาบ" ในแท็บเงื่อนไข หรือเปิด "ครูดูแลร่วมได้"'],
   };
 
   function kpi(icon, label, value, sub) {
@@ -177,7 +178,8 @@
     placements.forEach(function (p) {
       p.class_ids.forEach(function (cid) {
         p.period_ids.forEach(function (pid) {
-          out.push({ class_id: cid, day: p.day, period_id: pid, subject_id: p.subject_id, teacher_id: p.teacher_id, room_id: p.room_id });
+          // คาบที่ล็อกไว้ (ทั้งโรงเรียน) → บันทึกเป็นช่องล็อก ตัวแก้ไขจะไม่ให้ลากย้ายโดยไม่ตั้งใจ
+          out.push({ class_id: cid, day: p.day, period_id: pid, subject_id: p.subject_id, teacher_id: p.teacher_id, room_id: p.room_id, locked: p.fixed ? '1' : '' });
         });
       });
     });

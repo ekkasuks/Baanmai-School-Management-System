@@ -3,7 +3,7 @@
  *
  *   error   (แดง)    : ครู/ห้องชน, วันหยุด/ช่วงสอนไม่ได้/ไม่สอนคาบแรก-สุดท้าย, เกินคาบสูงสุด, สอนติดกันเกิน,
  *                      วิชาเกินวันละ, วิชาอยู่ผิดวัน
- *   warning (เหลือง) : จำนวนคาบไม่ตรงหลักสูตร, ยังไม่ระบุครู, ครูไม่ตรงกับที่มอบหมาย, ครูไม่ได้ถูกกำหนดให้สอนวิชานี้, ห้องไม่ตรงประเภท,
+ *   warning (เหลือง) : คาบที่ล็อกไว้ไม่ใช่วิชานั้น, จำนวนคาบไม่ตรงหลักสูตร, ยังไม่ระบุครู, ครูไม่ตรงกับที่มอบหมาย, ครูไม่ได้ถูกกำหนดให้สอนวิชานี้, ห้องไม่ตรงประเภท,
  *                      วิชาไม่อยู่ในชั้นนี้, คาบว่างแทรก, ครูต่ำกว่าคาบขั้นต่ำ
  *   ช่องที่ไม่มีปัญหา = เขียว
  *
@@ -60,6 +60,12 @@
       });
     });
 
+    // ล็อกคาบ: วิชาที่ล็อกไว้ที่ (วัน, คาบ) นี้ · shared = ครูดูแลหลายชั้นพร้อมกันได้ (ไม่นับชน)
+    function lockedAt(sid, d, pid) { const r = (S[sid] && S[sid].rules) || {}; return (r.fixed_slots || []).some(function (x) { return Number(x.day) === d && x.period_id === pid; }); }
+    function sharedLocked(sid, d, pid) { return lockedAt(sid, d, pid) && ((S[sid].rules || {}).shared !== false); }
+    const subjOf = {};
+    E.forEach(function (e) { subjOf[e.key] = e.s; });
+
     // ── ครู ──
     const tOcc = {};   // tid -> 'd|p' -> {unit: [keys]}
     E.forEach(function (e) {
@@ -82,7 +88,7 @@
         const d = Number(dp.split('|')[0]), p = Number(dp.split('|')[1]);
         const us = Object.keys(m[dp]);
         const keys = us.reduce(function (a, u) { return a.concat(m[dp][u]); }, []);
-        if (us.length > 1) {
+        if (us.length > 1 && !keys.every(function (k) { return sharedLocked(subjOf[k], d, P[p].period_id); })) {
           add('error', 't_clash', 'ครู' + tName(t) + ' สอนชน ' + us.length + ' ชั้น (' + us.map(function (u) { return U[u] ? U[u].label : u; }).join(', ') + ') วัน' + DAYS[d] + ' ' + P[p].label, keys, { teacher_id: tid });
         }
         if (off[d]) (offCells[d] = offCells[d] || []).push.apply(offCells[d], keys);
@@ -174,6 +180,18 @@
     // ── จำนวนคาบตามหลักสูตร + คาบว่างแทรก (ต่อหน่วย) ──
     const unitCount = {};
     units.forEach(function (u) {
+      // คาบที่ล็อกไว้ต้องเป็นวิชานั้น
+      const cs0 = (input.cells || {})[u.unit_id] || {};
+      (input.subjects || []).forEach(function (s) {
+        if (!(s.grades || []).some(function (g) { return u.grades.indexOf(g) >= 0; })) return;
+        ((s.rules || {}).fixed_slots || []).slice(0, Number(s.periods_week) || 0).forEach(function (x) {
+          if (pIdx[x.period_id] === undefined) return;
+          const c = cs0[Number(x.day) + '|' + x.period_id];
+          if (c && c.subject_id === s.subject_id) return;
+          add('warning', 'fixed_slot', u.label + ' · ' + sName(s) + ' ล็อกไว้วัน' + DAYS[Number(x.day)] + ' ' + P[pIdx[x.period_id]].label + ' แต่ช่องนี้' + (c ? 'เป็น ' + sName(S[c.subject_id]) : 'ว่าง'),
+            [u.unit_id + '|' + Number(x.day) + '|' + x.period_id], { unit_id: u.unit_id });
+        });
+      });
       const uc = (unitCount[u.unit_id] = {});
       Object.keys(count).forEach(function (k) { if (k.split('|')[0] === u.unit_id) uc[k.split('|')[1]] = count[k].length; });
       (input.subjects || []).forEach(function (s) {

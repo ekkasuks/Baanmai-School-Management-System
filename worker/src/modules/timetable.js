@@ -169,6 +169,12 @@ function checkRow(entName, row, others) {
     apiError('VALIDATION', 'คาบขั้นต่ำต้องไม่มากกว่าคาบสูงสุด');
   }
   if (entName === 'subject' && !(Number(row.periods_week) > 0)) apiError('VALIDATION', 'จำนวนคาบ/สัปดาห์ต้องมากกว่า 0');
+  if (entName === 'subject') {
+    const rules = typeof row.rules === 'string' ? parseJson(row.rules, {}) : (row.rules || {});
+    const fx = rules.fixed_slots || [];
+    if (!Array.isArray(fx) || fx.some(function (x) { return !x || !(Number(x.day) >= 1 && Number(x.day) <= DAYS) || !x.period_id; })) apiError('VALIDATION', 'คาบที่ล็อกไว้ไม่ถูกต้อง');
+    if (fx.length > Number(row.periods_week)) apiError('VALIDATION', 'วิชา "' + row.name + '" ล็อกไว้ ' + fx.length + ' คาบ เกินจำนวนคาบ/สัปดาห์ (' + row.periods_week + ')');
+  }
   if (entName === 'class') {
     const room = String(row.room || '').trim();
     if (others.some(function (r) { return String(r.grade) === String(row.grade) && String(r.room || '') === room; })) {
@@ -367,7 +373,7 @@ function slotChecker(data) {
   const unitOf = {};
   teachingUnits(data.classes).forEach(function (u) { u.class_ids.forEach(function (c) { unitOf[c] = u.unit_id; }); });
   return {
-    R: R, unitOf: unitOf, maxSlots: data.classes.length * teach.length * DAYS,
+    R: R, Sb: Sb, unitOf: unitOf, maxSlots: data.classes.length * teach.length * DAYS,
     /** ตรวจ ref + แปลงวันเป็นตัวเลข → {class_id, day, period_id, subject_id, teacher_id, room_id, locked} */
     clean: function (s) {
       const day = Math.round(Number(s && s.day));
@@ -383,18 +389,28 @@ function slotChecker(data) {
   };
 }
 
-/** นับครู/ห้องชนข้ามหน่วยการเรียน (ครู/ห้องเดียวกันในกลุ่มควบชั้นเดียวกัน = สอนครั้งเดียว ไม่นับชน) */
+/** วิชานี้ล็อกไว้ที่ (วัน, คาบ) นี้ และให้ครูดูแลหลายชั้นพร้อมกันได้ (กิจกรรมรวมทั้งโรงเรียน) */
+function sharedLocked(subject, day, pid) {
+  const r = (subject && subject.rules) || {};
+  return r.shared !== false && (r.fixed_slots || []).some(function (x) { return Number(x.day) === Number(day) && x.period_id === pid; });
+}
+
+/** นับครู/ห้องชนข้ามหน่วยการเรียน (ครู/ห้องเดียวกันในกลุ่มควบชั้นเดียวกัน = สอนครั้งเดียว ไม่นับชน · กิจกรรมล็อกที่ดูแลร่วม = ไม่นับชน) */
 function slotConflicts(slots, chk) {
-  const tUse = {}, rUse = {};
+  const tUse = {}, rUse = {}, tShared = {};
   slots.forEach(function (s) {
     const t = s.day + '|' + s.period_id, u = chk.unitOf[s.class_id] || s.class_id;
-    if (s.teacher_id) ((tUse[s.teacher_id + '|' + t] = tUse[s.teacher_id + '|' + t] || {})[u] = 1);
+    if (s.teacher_id) {
+      const k = s.teacher_id + '|' + t;
+      (tUse[k] = tUse[k] || {})[u] = 1;
+      tShared[k] = (tShared[k] !== false) && sharedLocked(chk.Sb && chk.Sb[s.subject_id], s.day, s.period_id);
+    }
     if (s.room_id) ((rUse[s.room_id + '|' + t] = rUse[s.room_id + '|' + t] || {})[u] = 1);
   });
   const conflicts = [];
   Object.keys(tUse).forEach(function (k) {
     const n = Object.keys(tUse[k]).length;
-    if (n > 1) conflicts.push({ type: 'teacher', key: k, units: n });
+    if (n > 1 && !tShared[k]) conflicts.push({ type: 'teacher', key: k, units: n });
   });
   Object.keys(rUse).forEach(function (k) {
     const r = chk.R[k.split('|')[0]];
@@ -557,7 +573,7 @@ const API = {
       }
     });
 
-    const all = Object.keys(byKey).map(function (k) { const s = byKey[k]; return { class_id: s.class_id, day: Number(s.day), period_id: s.period_id, teacher_id: s.teacher_id, room_id: s.room_id }; });
+    const all = Object.keys(byKey).map(function (k) { const s = byKey[k]; return { class_id: s.class_id, day: Number(s.day), period_id: s.period_id, subject_id: s.subject_id, teacher_id: s.teacher_id, room_id: s.room_id }; });
     const conflicts = slotConflicts(all, chk);
     const stats = Object.assign({}, v.stats, {
       slots: all.length, conflicts: conflicts.length, conflict_list: conflicts.slice(0, 30), rev: rev + 1,

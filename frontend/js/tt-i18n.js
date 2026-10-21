@@ -98,6 +98,8 @@ const TTi18n = (function () {
     'ตารางเรียนรายชั้น': 'Class timetables', 'ตารางสอนรายครู': 'Teacher timetables', 'ตารางการใช้ห้อง': 'Room usage', 'ตารางรวมทั้งโรงเรียน (รายวัน)': 'Whole school (by day)',
     'สรุปภาระงานสอนครู': 'Teacher workload', 'คาบรายวิชาเทียบหลักสูตร': 'Periods vs curriculum', 'รายงานผลการตรวจสอบ': 'Validation report', 'ประวัติการเปลี่ยนแปลง': 'Change history',
     'ล้างเงื่อนไข': 'Clear filters', 'ยังไม่ระบุครู (': 'No teacher (',
+    'ล็อกคาบ': 'Locked periods', 'ล็อกวิชาในคาบ (ทั้งโรงเรียน)': 'Lock subjects to periods (whole school)', 'วิชาที่ล็อกไว้': 'Locked subjects',
+    'คาบที่ล็อก': 'Locked periods', 'ครูดูแลร่วม': 'Shared supervision', 'ครูดูแลร่วมได้ (ครูคนเดียวดูแลหลายชั้นพร้อมกัน)': 'Shared supervision (one teacher for several classes)',
     'มอบหมายการสอน': 'Teaching assignments', 'มอบหมายการสอน (วิชา × ชั้น → ครู)': 'Teaching assignments (subject × class → teacher)', 'อัตโนมัติ': 'Auto',
     'ทั้งแถว': 'Whole row', '— ทั้งแถว —': '— Whole row —', '— ทั้งชั้น —': '— Whole class —', 'ทั้งชั้น →': 'Whole class →', 'ครูประจำชั้น': 'Homeroom teacher',
     'ล้าง (อัตโนมัติ)': 'Clear (auto)', 'ยกเลิกที่แก้': 'Discard changes', 'ภาระคาบตามที่มอบหมาย': 'Assigned workload', 'คาบ/สัปดาห์': 'Periods/week', 'วิชา · ชั้น': 'Subject · class',

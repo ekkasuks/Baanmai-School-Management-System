@@ -122,6 +122,14 @@
     body.tt-printing .tt-rep-sec:last-child { page-break-after:auto; break-after:auto; }
     body.tt-printing td, body.tt-printing th { -webkit-print-color-adjust:exact; print-color-adjust:exact; }
   }
+  /* ── ล็อกคาบ ── */
+  .tt-lockgrid td.lk { cursor:pointer; height:58px; vertical-align:middle; }
+  .tt-lockgrid td.lk:hover { background:var(--primary-light); }
+  .tt-lockgrid td.lk.on { background:#E3F2FD; box-shadow:inset 0 0 0 2px var(--primary-dark); }
+  .tt-lockgrid td.lk.bad { background:#FFEBEE; box-shadow:inset 0 0 0 2px var(--red); }
+  html[data-theme="dark"] .tt-lockgrid td.lk.on { background:#12324A; }
+  html[data-theme="dark"] .tt-lockgrid td.lk.bad { background:#3B1D21; }
+
   /* ── มอบหมายการสอน ── */
   .tt-assign { border-collapse:separate; border-spacing:0; font-size:13px; }
   .tt-assign th, .tt-assign td { border-bottom:1px solid var(--border); padding:4px; text-align:center; vertical-align:top; }
@@ -167,6 +175,7 @@
     <button class="tab" data-tab="class" data-cap="edit_data">🎒 ชั้นเรียน / ควบชั้น</button>
     <button class="tab" data-tab="period" data-cap="edit_data">⏰ คาบเรียน</button>
     <button class="tab" data-tab="constraints" data-cap="edit_data">⚙️ เงื่อนไข</button>
+    <button class="tab" data-tab="lock" data-cap="edit_data">📌 ล็อกคาบ</button>
     <button class="tab" data-tab="ai" data-cap="edit_timetable">🤖 จัดตาราง AI</button>
     <button class="tab" data-tab="edit" data-cap="view">✏️ ตรวจสอบ / แก้ไขตาราง</button>
     <button class="tab" data-tab="search" data-cap="view">🔎 ค้นหา</button>
@@ -235,6 +244,9 @@
     </div>
   </section>
 
+  <!-- ล็อกวิชาในคาบ (ทั้งโรงเรียน) — timetable-lock.js -->
+  <section class="tab-pane hidden" id="tab-lock"></section>
+
   <!-- จัดตาราง AI (โมดูล 4) -->
   <section class="tab-pane hidden" id="tab-ai">
     <div class="card">
@@ -278,6 +290,7 @@
 <script src="js/modules/timetable.js"></script>
 <script src="js/modules/timetable-ai.js"></script>
 <script src="js/modules/timetable-assign.js"></script>
+<script src="js/modules/timetable-lock.js"></script>
 <script src="js/tt-check.js"></script>
 <script src="js/modules/timetable-edit.js"></script>
 <script src="js/pdf.js"></script>

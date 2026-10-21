@@ -6,6 +6,7 @@
  *          → ปรับปรุงต่อด้วย local search (ย้าย/สลับคาบ) → วิเคราะห์สาเหตุคาบที่จัดไม่ได้
  * กติกาเด็ดขาด (hard): ชั้น/ครูไม่ชน, วันหยุด-ช่วงสอนไม่ได้-ไม่สอนคาบแรก/สุดท้าย, คาบสูงสุด, สอนติดกัน,
  *                     ห้องพิเศษ/จำนวนผู้ใช้พร้อมกัน, คาบต่อวัน, วันที่อนุญาต, คาบต่อเนื่องไม่ข้ามพัก
+ * ล็อกคาบ: วิชาที่ระบุ rules.fixed_slots วางที่ตำแหน่งนั้นก่อนเสมอและไม่ถูกย้าย (rules.shared = ครูดูแลหลายชั้นพร้อมกันได้)
  * ความชอบ (soft): กระจายวิชา, วิชาพื้นฐานช่วงเช้า, กิจกรรมช่วงบ่าย, ไม่มีคาบว่างแทรก, ภาระครูสมดุลรายวัน
  * หน่วยการเรียน = ห้องเดียว หรือกลุ่มเรียนควบชั้น (จัดครั้งเดียว ใช้กับทุกห้องในกลุ่ม)
  */
@@ -115,6 +116,17 @@ function model(input) {
     const perDay = Number(rules.max_per_day) > 0 ? Number(rules.max_per_day) : (Number(cfg.subject_max_per_day) || 2);
     const days = (rules.allowed_days || []).map(Number).filter(function (d) { return d >= 1 && d <= 5; });
     let left = n;
+    // ล็อกคาบ (ทั้งโรงเรียน): คาบละ 1 บทเรียนที่ตำแหน่งตายตัว — วางก่อนทุกวิชาและไม่ถูกย้าย
+    const fixedSlots = (rules.fixed_slots || []).map(function (x) { return { d: Number(x.day), p: pIdx[x.period_id] }; })
+      .filter(function (x) { return x.d >= 1 && x.d <= 5 && x.p !== undefined; });
+    if ((rules.fixed_slots || []).length > fixedSlots.length) warnings.push({ level: 'warning', code: 'fixed_bad', msg: 'วิชา "' + pr.s.name + '" มีคาบล็อกที่ไม่มีอยู่จริง (คาบถูกลบ/เป็นช่วงพัก) — ข้าม' });
+    if (fixedSlots.length > n) warnings.push({ level: 'warning', code: 'fixed_over', msg: 'วิชา "' + pr.s.name + '" ล็อกไว้ ' + fixedSlots.length + ' คาบ แต่เรียน ' + n + ' คาบ/สัปดาห์ — ใช้ ' + n + ' คาบแรก' });
+    fixedSlots.slice(0, n).forEach(function (fx) {
+      if (ti >= 0 && (tin[ti].off[fx.d] || tin[ti].un[fx.d + '|' + fx.p])) warnings.push({ level: 'warning', code: 'fixed_teacher', msg: 'วิชา "' + pr.s.name + '" ชั้น ' + u.label + ' ล็อกไว้ในเวลาที่ครู' + tName(T[ti]) + ' แจ้งว่าไม่ว่าง — ยังจัดตามที่ล็อก' });
+      lessons.push({ id: lessons.length, ui: pr.ui, si: S.indexOf(pr.s), s: pr.s, ti: ti, len: 1, rooms: rooms, maxDay: 99, days: null, type: pr.s.type || 'core',
+        fixed: fx, shared: rules.shared !== false });
+      left--;
+    });
     while (left > 0) {
       const len = Math.min(b, left);
       lessons.push({ id: lessons.length, ui: pr.ui, si: S.indexOf(pr.s), s: pr.s, ti: ti, len: len, rooms: rooms,
@@ -259,6 +271,7 @@ function ejectPlace(M, st, L, rnd, tries) {
     const ids = Object.keys(bl);
     if (ids.length !== 1) continue;
     const B = M.lessons[Number(ids[0])];
+    if (B.fixed) continue;
     const old = uncommit(M, st, B);
     const f = fits(M, st, L, d, p0);
     if (f.ok) {
@@ -282,10 +295,44 @@ function difficulty(M, L) {
   return k;
 }
 
+/**
+ * วางคาบที่ล็อกไว้ (ตำแหน่งตายตัว) — ไม่ตรวจวันหยุด/ช่วงไม่ว่างของครู (ล็อกมีผลเหนือกว่า แจ้งเตือนใน model แล้ว)
+ * shared: ครูคนเดียวดูแลหลายชั้นในกิจกรรมล็อกเดียวกันได้ (นับภาระครั้งเดียว) แต่ยังชนกับวิชาอื่นตามปกติ
+ */
+function placeFixed(M, st) {
+  M.lessons.forEach(function (L) {
+    if (!L.fixed) return;
+    const d = L.fixed.d, p = L.fixed.p;
+    if (st.ub[L.ui][d][p] >= 0) return;                         // ชั้นนี้ล็อกวิชาอื่นไว้ช่องเดียวกัน → วางไม่ได้
+    let share = false;
+    if (L.ti >= 0) {
+      const occ = st.tb[L.ti][d][p];
+      if (occ >= 0) {
+        const O = M.lessons[occ];
+        if (!(O.fixed && O.shared && L.shared)) return;          // ครูติดคาบล็อกที่ไม่ได้ดูแลร่วม
+        share = true;
+      }
+    }
+    let r = -1;
+    for (let i = 0; i < L.rooms.length; i++) {
+      const ri = L.rooms[i];
+      if (st.rc[ri][d][p] < Math.max(1, Number(M.R[ri].max_concurrent) || 1) || L.shared) { r = ri; break; }
+    }
+    st.ub[L.ui][d][p] = L.id;
+    if (L.ti >= 0 && !share) { st.tb[L.ti][d][p] = L.id; st.tload[L.ti]++; st.tday[L.ti][d]++; }
+    if (r >= 0) st.rc[r][d][p]++;
+    const key = L.ui + '|' + L.si + '|' + d;
+    st.sd[key] = (st.sd[key] || 0) + 1;
+    st.sdl[key] = (st.sdl[key] || 0) + 1;
+    st.pos[L.id] = { d: d, p: p, r: r, fixed: true };
+  });
+}
+
 function attempt(M, seed) {
   const rnd = makeRng(seed);
   const st = newState(M);
-  const order = M.lessons.map(function (L) { return { L: L, k: difficulty(M, L) + rnd() * 3 }; })
+  placeFixed(M, st);
+  const order = M.lessons.filter(function (L) { return !L.fixed; }).map(function (L) { return { L: L, k: difficulty(M, L) + rnd() * 3 }; })
     .sort(function (a, b) { return b.k - a.k; }).map(function (x) { return x.L; });
   let unplaced = [];
   order.forEach(function (L) {
@@ -336,14 +383,14 @@ function improve(M, st, rnd, until, onProgress, t0, budget) {
     iter++;
     if (iter % 40 === 0) {
       Ls.forEach(function (L) {
-        if (st.pos[L.id]) return;
+        if (st.pos[L.id] || L.fixed) return;
         const b = bestPos(M, st, L, rnd);
         if (b) commit(M, st, L, b.d, b.p, b.r); else ejectPlace(M, st, L, rnd, 80);
       });
       cur = evaluate(M, st).pen;
     }
     const A = Ls[Math.floor(rnd() * Ls.length)];
-    if (!st.pos[A.id]) continue;
+    if (!st.pos[A.id] || A.fixed) continue;
     if (rnd() < 0.6) {
       const old = uncommit(M, st, A);
       const b = bestPos(M, st, A, rnd);
@@ -352,7 +399,7 @@ function improve(M, st, rnd, until, onProgress, t0, budget) {
       if (nv > cur + 1e-9) { uncommit(M, st, A); commit(M, st, A, old.d, old.p, old.r); } else cur = nv;
     } else {
       const B = Ls[Math.floor(rnd() * Ls.length)];
-      if (B === A || B.ui !== A.ui || B.len !== A.len || !st.pos[B.id]) continue;
+      if (B === A || B.ui !== A.ui || B.len !== A.len || !st.pos[B.id] || B.fixed) continue;
       const pa = uncommit(M, st, A), pb = uncommit(M, st, B);
       const fa = fits(M, st, A, pb.d, pb.p);
       let ok = false;
@@ -413,14 +460,14 @@ function solve(input, onProgress) {
 
   const unplaced = M.lessons.filter(function (L) { return !best.st.pos[L.id]; }).map(function (L) {
     return { unit_label: M.U[L.ui].label, subject_id: L.s.subject_id, subject_name: L.s.name,
-      teacher_name: L.ti >= 0 ? tName(M.T[L.ti]) : '', len: L.len, reasons: diagnose(M, best.st, L) };
+      teacher_name: L.ti >= 0 ? tName(M.T[L.ti]) : '', len: L.len, reasons: L.fixed ? [{ code: 'fixed', count: 1 }] : diagnose(M, best.st, L) };
   });
   const placements = M.lessons.filter(function (L) { return best.st.pos[L.id]; }).map(function (L) {
     const ps = best.st.pos[L.id], pids = [];
     for (let k = 0; k < L.len; k++) pids.push(M.P[ps.p + k].period_id);
     return { unit_id: M.U[L.ui].unit_id, class_ids: M.U[L.ui].class_ids, subject_id: L.s.subject_id,
       teacher_id: L.ti >= 0 ? M.T[L.ti].teacher_id : '', room_id: ps.r >= 0 ? M.R[ps.r].room_id : '',
-      day: ps.d, period_ids: pids, len: L.len };
+      day: ps.d, period_ids: pids, len: L.len, fixed: !!L.fixed };
   });
   const load = M.T.map(function (t, ti) { return { teacher_id: t.teacher_id, name: tName(t), assigned: M.assigned[ti], placed: best.st.tload[ti], max: isFinite(M.tin[ti].max) ? M.tin[ti].max : null }; });
 
