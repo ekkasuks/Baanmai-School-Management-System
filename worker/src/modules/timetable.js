@@ -1,0 +1,375 @@
+/**
+ * AI Smart Timetable — เฟส 1: ข้อมูลพื้นฐาน (ครู/วิชา/ห้อง/ชั้น/คาบ) + Dashboard
+ * เขียนเฉพาะตาราง TT_* เท่านั้น · อ่าน STUDENTS/SETTINGS แบบอ่านอย่างเดียว (ห้ามกระทบข้อมูลเดิม)
+ * action: tt.bootstrap · tt.list · tt.save · tt.remove · tt.dashboard · tt.sync_classes · tt.seed_periods
+ */
+import {
+  TABLES, readAll, getBy, selectWhere, insertRows, updateWhere, deleteWhere,
+  now, genId, apiError,
+} from '../db.js';
+import { gradeSortKey } from '../shared.js';
+import { getSetting } from './settings.js';
+
+const DAYS = 5; // จันทร์–ศุกร์
+
+/** บันทึกประวัติของโมดูลนี้ลง TT_CHANGE (ไม่ใช้ AUDIT_LOG เดิม — แยกข้อมูลขาดจากระบบเดิม) */
+async function ttLog(db, term, action, entity, id, by) {
+  try {
+    await insertRows(db, 'TT_CHANGE', [{
+      change_id: genId('TTC'), term_id: term, version_id: '',
+      message: '', detail: { kind: 'data', action: action, entity: entity, id: id },
+      created_by: by || 'admin', created_at: now(),
+    }]);
+  } catch (e) { /* log ไม่ควรทำให้คำขอหลักล้ม */ }
+}
+
+/** นิยามข้อมูลแต่ละประเภท — CRUD ใช้ร่วมกัน */
+const ENTITIES = {
+  teacher: {
+    table: 'TT_TEACHER', pk: 'teacher_id', prefix: 'TCH',
+    json: { subjects: [], off_days: [], unavailable: [], prefs: {} },
+    ints: ['min_periods', 'max_periods'], required: ['name'],
+    search: ['code', 'title', 'name', 'dept', 'extra_duty'],
+    labels: { name: 'ชื่อ-สกุล', min_periods: 'คาบขั้นต่ำ', max_periods: 'คาบสูงสุด' },
+  },
+  subject: {
+    table: 'TT_SUBJECT', pk: 'subject_id', prefix: 'SUB',
+    json: { grades: [], teachers: [], rules: {} },
+    ints: ['periods_week'], required: ['name', 'periods_week'],
+    search: ['code', 'name', 'type', 'room_type'],
+    labels: { name: 'ชื่อวิชา', periods_week: 'จำนวนคาบ/สัปดาห์' },
+  },
+  room: {
+    table: 'TT_ROOM', pk: 'room_id', prefix: 'RM',
+    json: { allowed_subjects: [] },
+    ints: ['capacity', 'max_concurrent'], required: ['name'],
+    search: ['code', 'name', 'building', 'type'],
+    labels: { name: 'ชื่อห้อง', capacity: 'ความจุ', max_concurrent: 'ผู้ใช้พร้อมกัน' },
+  },
+  class: {
+    table: 'TT_CLASS', pk: 'class_id', prefix: 'CLS',
+    json: {}, ints: ['students'], required: ['grade'],
+    search: ['grade', 'room'],
+    labels: { grade: 'ชั้นเรียน', students: 'จำนวนนักเรียน' },
+  },
+  period: {
+    table: 'TT_PERIOD', pk: 'period_id', prefix: 'PER',
+    json: {}, ints: ['seq'], required: ['label'],
+    search: ['label', 'start_time', 'end_time', 'session'],
+    labels: { label: 'ชื่อคาบ', seq: 'ลำดับ' },
+  },
+};
+
+function entityOf(name) {
+  const e = ENTITIES[name];
+  if (!e) apiError('VALIDATION', 'ไม่รู้จักประเภทข้อมูล: ' + name);
+  return e;
+}
+function hasCol(ent, col) { return TABLES[ent.table].cols.indexOf(col) >= 0; }
+
+function parseJson(v, def) {
+  if (v === null || v === undefined || v === '') return Array.isArray(def) ? [] : (def && typeof def === 'object' ? {} : def);
+  if (typeof v === 'object') return v;
+  try { return JSON.parse(v); } catch (e) { return Array.isArray(def) ? [] : {}; }
+}
+
+/** แถวจาก D1 → object พร้อมใช้ (แปลง JSON/ตัวเลข) */
+function parseRow(ent, r) {
+  const o = Object.assign({}, r);
+  Object.keys(ent.json).forEach(function (f) { o[f] = parseJson(r[f], ent.json[f]); });
+  ent.ints.forEach(function (f) { o[f] = (r[f] === null || r[f] === undefined || r[f] === '') ? null : Number(r[f]); });
+  return o;
+}
+
+function sortItems(entName, items) {
+  if (entName === 'period') return items.sort(function (a, b) { return (a.seq || 0) - (b.seq || 0); });
+  if (entName === 'class') return items.sort(function (a, b) {
+    const d = gradeSortKey(a.grade) - gradeSortKey(b.grade);
+    return d !== 0 ? d : (parseInt(a.room, 10) || 0) - (parseInt(b.room, 10) || 0);
+  });
+  return items.sort(function (a, b) {
+    return String(a.code || a.name || '').localeCompare(String(b.code || b.name || ''), 'th', { numeric: true });
+  });
+}
+
+/** ภาคเรียนที่ใช้งาน = current_year-current_semester จาก SETTINGS (สร้างแถว TT_TERM ถ้ายังไม่มี) */
+async function activeTerm(db, params) {
+  if (params && params.term_id) return String(params.term_id);
+  const year = String((await getSetting(db, 'current_year')) || '').trim();
+  const sem = String((await getSetting(db, 'current_semester')) || '1').trim();
+  const id = year + '-' + sem;
+  if (!(await getBy(db, 'TT_TERM', 'term_id', id))) {
+    await insertRows(db, 'TT_TERM', [{
+      term_id: id, school_id: 'default', year: year, semester: sem,
+      label: 'ปีการศึกษา ' + year + ' ภาคเรียนที่ ' + sem, is_active: '1', created_at: now(),
+    }]);
+  }
+  return id;
+}
+
+async function listEntity(db, entName, term, opts) {
+  const ent = entityOf(entName);
+  let rows = await selectWhere(db, ent.table, 'term_id', term);
+  if (hasCol(ent, 'active') && !(opts && opts.include_inactive)) rows = rows.filter(function (r) { return String(r.active) !== '0'; });
+  const q = String((opts && opts.q) || '').trim().toLowerCase();
+  if (q) rows = rows.filter(function (r) { return ent.search.some(function (f) { return String(r[f] || '').toLowerCase().indexOf(q) >= 0; }); });
+  return sortItems(entName, rows.map(function (r) { return parseRow(ent, r); }));
+}
+
+const HHMM = /^([01]\d|2[0-3]):[0-5]\d$/;
+
+/** ตรวจความถูกต้องเฉพาะแต่ละประเภท (ก่อนบันทึก) */
+async function validate(db, entName, term, row, id) {
+  const ent = entityOf(entName);
+  const others = (await selectWhere(db, ent.table, 'term_id', term)).filter(function (r) {
+    return String(r[ent.pk]) !== String(id || '') && String(r.active) !== '0';
+  });
+  if (row.code && others.some(function (r) { return String(r.code || '').trim() === String(row.code).trim(); })) {
+    apiError('DUPLICATE', 'รหัส "' + row.code + '" ถูกใช้แล้ว');
+  }
+  if (entName === 'teacher' && row.min_periods != null && row.max_periods != null && row.min_periods !== '' && row.max_periods !== '' &&
+      Number(row.min_periods) > Number(row.max_periods)) {
+    apiError('VALIDATION', 'คาบขั้นต่ำต้องไม่มากกว่าคาบสูงสุด');
+  }
+  if (entName === 'subject' && !(Number(row.periods_week) > 0)) apiError('VALIDATION', 'จำนวนคาบ/สัปดาห์ต้องมากกว่า 0');
+  if (entName === 'class') {
+    const room = String(row.room || '').trim();
+    if (others.some(function (r) { return String(r.grade) === String(row.grade) && String(r.room || '') === room; })) {
+      apiError('DUPLICATE', 'มีชั้น ' + row.grade + (room ? '/' + room : '') + ' อยู่แล้ว');
+    }
+  }
+  if (entName === 'period') {
+    if (row.start_time && !HHMM.test(row.start_time)) apiError('VALIDATION', 'เวลาเริ่มต้องเป็นรูปแบบ HH:MM');
+    if (row.end_time && !HHMM.test(row.end_time)) apiError('VALIDATION', 'เวลาสิ้นสุดต้องเป็นรูปแบบ HH:MM');
+    if (row.start_time && row.end_time && row.start_time >= row.end_time) apiError('VALIDATION', 'เวลาเริ่มต้องก่อนเวลาสิ้นสุด');
+  }
+}
+
+/** ภาพรวม Dashboard — ตัวเลข + ความพร้อมก่อนจัดตาราง + ข้อมูลกราฟ */
+async function buildDashboard(db, term, data) {
+  const teachers = data.teachers, subjects = data.subjects, rooms = data.rooms, classes = data.classes, periods = data.periods;
+  const teaching = periods.filter(function (p) { return String(p.is_break) !== '1'; });
+  const slotsPerClass = teaching.length * DAYS;
+
+  const versions = (await selectWhere(db, 'TT_VERSION', 'term_id', term))
+    .map(function (v) { return Object.assign({}, v, { stats: parseJson(v.stats, {}) }); })
+    .sort(function (a, b) { return String(b.created_at).localeCompare(String(a.created_at)); });
+  const latest = versions[0] || null;
+  const slots = latest ? await selectWhere(db, 'TT_SLOT', 'version_id', latest.version_id) : [];
+
+  const doneVersions = versions.filter(function (v) { return ['generated', 'approved', 'published'].indexOf(v.status) >= 0; });
+  const conflictVersions = versions.filter(function (v) { return Number(v.stats && v.stats.conflicts) > 0; });
+
+  // ความพร้อม: คาบที่ต้องเรียน vs คาบที่มี, วิชาไม่มีครู, ครูไม่มีวิชา
+  const issues = [];
+  if (!teaching.length) issues.push({ level: 'error', msg: 'ยังไม่ได้กำหนดคาบเรียน (แท็บ "คาบเรียน")' });
+  const teacherBySubject = {};
+  teachers.forEach(function (t) { (t.subjects || []).forEach(function (sid) { (teacherBySubject[sid] = teacherBySubject[sid] || []).push(t.teacher_id); }); });
+  subjects.forEach(function (s) {
+    const n = (s.teachers || []).length + (teacherBySubject[s.subject_id] || []).length;
+    if (!n) issues.push({ level: 'warning', msg: 'วิชา "' + s.name + '" ยังไม่มีครูผู้สอน' });
+    if (!(s.grades || []).length) issues.push({ level: 'warning', msg: 'วิชา "' + s.name + '" ยังไม่ได้ระบุระดับชั้น' });
+  });
+  teachers.forEach(function (t) {
+    if (!(t.subjects || []).length && !subjects.some(function (s) { return (s.teachers || []).indexOf(t.teacher_id) >= 0; })) {
+      issues.push({ level: 'warning', msg: 'ครู "' + t.name + '" ยังไม่ได้ระบุวิชาที่สอนได้' });
+    }
+  });
+  let demand = 0;
+  classes.forEach(function (c) {
+    const need = subjects.filter(function (s) { return (s.grades || []).indexOf(c.grade) >= 0; })
+      .reduce(function (a, s) { return a + (Number(s.periods_week) || 0); }, 0);
+    demand += need;
+    if (teaching.length && need > slotsPerClass) {
+      issues.push({ level: 'error', msg: 'ชั้น ' + c.grade + (c.room ? '/' + c.room : '') + ' ต้องเรียน ' + need + ' คาบ แต่มีช่องเพียง ' + slotsPerClass + ' คาบ/สัปดาห์' });
+    }
+  });
+
+  // กราฟ
+  const byTeacher = {}, byRoom = {};
+  slots.forEach(function (s) {
+    if (s.teacher_id) byTeacher[s.teacher_id] = (byTeacher[s.teacher_id] || 0) + 1;
+    if (s.room_id) byRoom[s.room_id] = (byRoom[s.room_id] || 0) + 1;
+  });
+  const teacherLoad = teachers.map(function (t) {
+    return { id: t.teacher_id, name: (t.title || '') + t.name, assigned: byTeacher[t.teacher_id] || 0, min: t.min_periods, max: t.max_periods };
+  });
+  const roomUsage = rooms.map(function (r) {
+    const cap = slotsPerClass * (Number(r.max_concurrent) || 1);
+    const used = byRoom[r.room_id] || 0;
+    return { id: r.room_id, name: r.name, used: used, capacity: cap, percent: cap ? Math.round(used / cap * 1000) / 10 : 0 };
+  });
+  const totalSlots = classes.length * slotsPerClass;
+  const maxLoad = teachers.reduce(function (a, t) { return a + (Number(t.max_periods) || 0); }, 0);
+
+  return {
+    term_id: term,
+    counts: {
+      teachers: teachers.length, subjects: subjects.length, rooms: rooms.length,
+      grades: Object.keys(classes.reduce(function (m, c) { m[c.grade] = 1; return m; }, {})).length,
+      classes: classes.length, periods_per_day: teaching.length, periods_per_week: slotsPerClass,
+      demand_periods: demand, total_slots: totalSlots,
+      done_versions: doneVersions.length, conflict_versions: conflictVersions.length,
+    },
+    latest: latest ? { version_id: latest.version_id, label: latest.label, status: latest.status, stats: latest.stats, created_at: latest.created_at } : null,
+    utilization: {
+      slots_filled: slots.length, slots_total: totalSlots,
+      slot_percent: totalSlots ? Math.round(slots.length / totalSlots * 1000) / 10 : 0,
+      demand_percent: totalSlots ? Math.round(demand / totalSlots * 1000) / 10 : 0,
+      teacher_percent: maxLoad ? Math.round(slots.filter(function (s) { return s.teacher_id; }).length / maxLoad * 1000) / 10 : 0,
+    },
+    teacher_load: teacherLoad, room_usage: roomUsage, issues: issues,
+  };
+}
+
+async function loadAll(db, term) {
+  return {
+    teachers: await listEntity(db, 'teacher', term),
+    subjects: await listEntity(db, 'subject', term),
+    rooms: await listEntity(db, 'room', term),
+    classes: await listEntity(db, 'class', term),
+    periods: await listEntity(db, 'period', term),
+  };
+}
+
+const DEFAULT_PERIODS = [
+  ['คาบ 1', '08:30', '09:20', 'morning', '0'], ['คาบ 2', '09:20', '10:10', 'morning', '0'],
+  ['คาบ 3', '10:10', '11:00', 'morning', '0'], ['คาบ 4', '11:00', '11:50', 'morning', '0'],
+  ['พักกลางวัน', '11:50', '12:50', 'afternoon', '1'],
+  ['คาบ 5', '12:50', '13:40', 'afternoon', '0'], ['คาบ 6', '13:40', '14:30', 'afternoon', '0'],
+  ['คาบ 7', '14:30', '15:20', 'afternoon', '0'],
+];
+
+export const TimetableAPI = {
+
+  /** โหลดทุกอย่างที่หน้าเว็บต้องใช้ในคำขอเดียว */
+  bootstrap: async function (params, ctx) {
+    const db = ctx.db;
+    const term = await activeTerm(db, params);
+    const data = await loadAll(db, term);
+    const termRow = await getBy(db, 'TT_TERM', 'term_id', term);
+    return Object.assign({ term: termRow, dashboard: await buildDashboard(db, term, data) }, data);
+  },
+
+  dashboard: async function (params, ctx) {
+    const term = await activeTerm(ctx.db, params);
+    return buildDashboard(ctx.db, term, await loadAll(ctx.db, term));
+  },
+
+  list: async function (params, ctx) {
+    const term = await activeTerm(ctx.db, params);
+    return { term_id: term, items: await listEntity(ctx.db, params.entity, term, params) };
+  },
+
+  /** เพิ่ม/แก้ไข 1 รายการ — params = { entity, record } (มี pk = แก้ไข) */
+  save: async function (params, ctx) {
+    const db = ctx.db;
+    const entName = params.entity;
+    const ent = entityOf(entName);
+    const term = await activeTerm(db, params);
+    const rec = params.record || {};
+    const id = rec[ent.pk] ? String(rec[ent.pk]) : '';
+
+    const row = {};
+    TABLES[ent.table].cols.forEach(function (c) {
+      if (c === ent.pk || c === 'term_id' || c === 'updated_at' || c === 'active') return;
+      if (rec[c] !== undefined) row[c] = typeof rec[c] === 'string' ? rec[c].trim() : rec[c];
+    });
+    ent.required.forEach(function (f) {
+      if (row[f] === undefined || row[f] === null || String(row[f]).trim() === '') apiError('VALIDATION', 'กรุณากรอก' + (ent.labels[f] || f));
+    });
+    ent.ints.forEach(function (f) {
+      if (row[f] === undefined) return;
+      if (row[f] === null || row[f] === '') { row[f] = null; return; }
+      const n = Number(row[f]);
+      if (!isFinite(n) || n < 0) apiError('VALIDATION', (ent.labels[f] || f) + ' ต้องเป็นตัวเลขไม่ติดลบ');
+      row[f] = Math.round(n);
+    });
+    Object.keys(ent.json).forEach(function (f) {
+      if (row[f] === undefined) return;
+      if (typeof row[f] === 'string') { try { row[f] = JSON.parse(row[f] || 'null'); } catch (e) { apiError('VALIDATION', 'รูปแบบข้อมูล ' + f + ' ไม่ถูกต้อง'); } }
+      if (row[f] === null) row[f] = Array.isArray(ent.json[f]) ? [] : {};
+    });
+
+    if (entName === 'period' && !id && (row.seq === undefined || row.seq === null)) {
+      const ps = await selectWhere(db, 'TT_PERIOD', 'term_id', term);
+      row.seq = ps.reduce(function (m, p) { return Math.max(m, Number(p.seq) || 0); }, 0) + 1;
+    }
+    await validate(db, entName, term, row, id);
+    if (hasCol(ent, 'updated_at')) row.updated_at = now();
+
+    let savedId = id;
+    if (id) {
+      const cur = await getBy(db, ent.table, ent.pk, id);
+      if (!cur || String(cur.term_id) !== term) apiError('NOT_FOUND', 'ไม่พบข้อมูลที่จะแก้ไข');
+      await updateWhere(db, ent.table, ent.pk, id, row);
+    } else {
+      savedId = genId(ent.prefix);
+      row[ent.pk] = savedId;
+      row.term_id = term;
+      if (hasCol(ent, 'active')) row.active = '1';
+      await insertRows(db, ent.table, [row]);
+    }
+    await ttLog(db, term, id ? 'UPDATE' : 'CREATE', entName, savedId, params.recorded_by);
+    const saved = await getBy(db, ent.table, ent.pk, savedId);
+    return { entity: entName, id: savedId, record: parseRow(ent, saved) };
+  },
+
+  /** ลบ — ครู/วิชา/ห้อง/ชั้น = ปิดใช้งาน (เก็บประวัติ) · คาบ = ลบจริงถ้ายังไม่ถูกใช้ในตาราง */
+  remove: async function (params, ctx) {
+    const db = ctx.db;
+    const ent = entityOf(params.entity);
+    const term = await activeTerm(db, params);
+    const id = String(params.id || '');
+    const cur = id ? await getBy(db, ent.table, ent.pk, id) : null;
+    if (!cur || String(cur.term_id) !== term) apiError('NOT_FOUND', 'ไม่พบข้อมูล');
+    if (hasCol(ent, 'active')) {
+      await updateWhere(db, ent.table, ent.pk, id, { active: '0', updated_at: now() });
+    } else {
+      if ((await selectWhere(db, 'TT_SLOT', 'period_id', id)).length) apiError('VALIDATION', 'คาบนี้ถูกใช้ในตารางแล้ว ลบไม่ได้');
+      await deleteWhere(db, ent.table, ent.pk, id);
+    }
+    await ttLog(db, term, 'DELETE', params.entity, id, params.recorded_by);
+    return { ok: true };
+  },
+
+  /** สร้างคาบเรียนมาตรฐาน 7 คาบ + พักกลางวัน (เฉพาะเมื่อยังไม่มีคาบ) */
+  seed_periods: async function (params, ctx) {
+    const db = ctx.db;
+    const term = await activeTerm(db, params);
+    if ((await selectWhere(db, 'TT_PERIOD', 'term_id', term)).length) return { created: 0, message: 'มีคาบเรียนอยู่แล้ว' };
+    const rows = DEFAULT_PERIODS.map(function (p, i) {
+      return { period_id: genId('PER'), term_id: term, seq: i + 1, label: p[0], start_time: p[1], end_time: p[2], session: p[3], is_break: p[4] };
+    });
+    await insertRows(db, 'TT_PERIOD', rows);
+    return { created: rows.length };
+  },
+
+  /** ดึงชั้น/ห้อง + จำนวนนักเรียนจากข้อมูลนักเรียน (อ่าน STUDENTS อย่างเดียว ไม่แก้) */
+  sync_classes: async function (params, ctx) {
+    const db = ctx.db;
+    const term = await activeTerm(db, params);
+    const groups = {};
+    (await readAll(db, 'STUDENTS')).forEach(function (s) {
+      if (s.status === 'inactive' || !s.grade) return;
+      const room = (s.room === undefined || s.room === null) ? '' : String(s.room);
+      const k = s.grade + '|' + room;
+      if (!groups[k]) groups[k] = { grade: s.grade, room: room, students: 0 };
+      groups[k].students++;
+    });
+    const existing = (await selectWhere(db, 'TT_CLASS', 'term_id', term)).filter(function (c) { return String(c.active) !== '0'; });
+    const inserts = [];
+    let updated = 0;
+    for (const k of Object.keys(groups)) {
+      const g = groups[k];
+      const cur = existing.find(function (c) { return String(c.grade) === g.grade && String(c.room || '') === g.room; });
+      if (cur) {
+        if (Number(cur.students) !== g.students) { await updateWhere(db, 'TT_CLASS', 'class_id', cur.class_id, { students: g.students, updated_at: now() }); updated++; }
+      } else {
+        inserts.push({ class_id: genId('CLS'), term_id: term, grade: g.grade, room: g.room, students: g.students, active: '1', updated_at: now() });
+      }
+    }
+    if (inserts.length) await insertRows(db, 'TT_CLASS', inserts);
+    return { created: inserts.length, updated: updated };
+  },
+};

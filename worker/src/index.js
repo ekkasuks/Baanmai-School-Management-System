@@ -19,6 +19,7 @@ import { MilkAPI } from './modules/milk.js';
 import { ScholarshipAPI } from './modules/scholarship.js';
 import { ScoutAPI } from './modules/scout.js';
 import { DashboardAPI } from './modules/dashboard.js';
+import { TimetableAPI } from './modules/timetable.js';
 import { now } from './db.js';
 
 const ROUTER = {
@@ -35,6 +36,7 @@ const ROUTER = {
   scholarship: ScholarshipAPI,
   scout: ScoutAPI,
   dashboard: DashboardAPI,
+  tt: TimetableAPI,          // ระบบจัดตารางสอน (ตาราง TT_* แยกจากข้อมูลเดิม)
 };
 
 const CORS = {
