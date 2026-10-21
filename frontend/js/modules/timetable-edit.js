@@ -371,11 +371,20 @@
         const locked = (k === 'approved' || k === 'published') && !canApprove();   // อนุมัติ/เผยแพร่ = ผู้บริหาร/ผู้ดูแล
         return '<option value="' + k + '"' + (k === v.status ? ' selected' : '') + (locked ? ' disabled' : '') + '>' + STATUS[k] + '</option>';
       }).join('') + '</select>' +
+      // ปุ่มเผยแพร่ให้เห็นชัด (ผู้ดูแล/ผู้บริหาร) — เผยแพร่แล้วจะแสดงที่เมนู "ตารางเรียน/ตารางสอน" หน้าหลัก
+      (canApprove() ? (v.status === 'published'
+        ? '<a class="btn btn-success" href="timetable-view.html" target="_blank" title="เปิดหน้าที่นักเรียน/ผู้ปกครอง/ครูเห็น"><i class="bi bi-broadcast"></i> เผยแพร่อยู่ · ดูหน้าตาราง</a>'
+        : '<button class="btn btn-success" data-publish><i class="bi bi-megaphone"></i> เผยแพร่ฉบับนี้</button>') : '') +
       (canEdit() ? '<button class="btn btn-secondary" data-rename title="เปลี่ยนชื่อฉบับ"><i class="bi bi-pencil"></i></button>' +
       '<button class="btn btn-secondary" data-dup title="ทำสำเนาเป็นฉบับใหม่ (เก็บฉบับนี้ไว้เป็นประวัติ)"><i class="bi bi-files"></i> ทำสำเนา</button>' : '') : '');
     bar.querySelector('[data-ver]').onchange = function () { if (this.value) open(this.value); };
     if (!v) return;
     bar.querySelector('[data-vstatus]').onchange = function () { setMeta({ status: this.value }); };
+    const pub = bar.querySelector('[data-publish]');
+    if (pub) pub.onclick = function () {
+      if (!confirm('เผยแพร่ฉบับ "' + v.label + '"?\n\nนักเรียน ผู้ปกครอง และครู จะเห็นตารางนี้ที่เมนู "ตารางเรียน/ตารางสอน" หน้าหลัก\n(ฉบับที่เผยแพร่อยู่เดิมจะเปลี่ยนเป็น "อนุมัติแล้ว")')) return;
+      setMeta({ status: 'published' });
+    };
     if (!canEdit()) return;
     bar.querySelector('[data-rename]').onclick = function () {
       const label = prompt('ชื่อฉบับตาราง', v.label);
@@ -391,7 +400,10 @@
       await flush();
       await api('tt.version_meta', Object.assign({ version_id: ED.vid, recorded_by: 'admin' }, fields), { loadingMsg: 'กำลังบันทึก...', noRetry: true });
       updateVersionMeta(fields);
-      Toast.show('บันทึกแล้ว', 'success');
+      if (fields.status === 'published') {
+        Toast.show('📢 เผยแพร่แล้ว — ดูได้ที่เมนู "ตารางเรียน/ตารางสอน" หน้าหลัก', 'success');
+        TT.reload({ quiet: true });   // ฉบับเดิมที่เผยแพร่อยู่เปลี่ยนเป็น "อนุมัติแล้ว"
+      } else Toast.show('บันทึกแล้ว', 'success');
     } catch (e) { renderVersionBar(); }
   }
   async function duplicate() {

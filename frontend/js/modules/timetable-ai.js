@@ -288,12 +288,15 @@
     host.innerHTML = '<div class="table-wrap"><table><thead><tr><th>ฉบับ</th><th>สถานะ</th><th>คาบ</th><th>คุณภาพ</th><th>ข้อขัดแย้ง</th><th>บันทึกเมื่อ</th><th></th></tr></thead><tbody>' +
       vs.map(function (v) {
         const s = v.stats || {};
-        return '<tr><td><strong>' + esc(v.label) + '</strong></td><td>' + esc(stTh[v.status] || v.status) + '</td>' +
+        const pubd = v.status === 'published';
+        return '<tr' + (pubd ? ' style="background:var(--primary-light)"' : '') + '><td><strong>' + esc(v.label) + '</strong></td><td>' +
+          (pubd ? '<span class="badge badge-pass">📢 เผยแพร่แล้ว</span>' : esc(stTh[v.status] || v.status)) + '</td>' +
           '<td>' + (s.periods_placed != null ? s.periods_placed + '/' + s.periods_total : esc(s.slots || '-')) + '</td>' +
           '<td>' + (s.quality != null ? s.quality + '%' : '-') + '</td>' +
           '<td>' + (Number(s.conflicts) ? '<span class="badge badge-fail">' + s.conflicts + '</span>' : '<span class="badge badge-pass">0</span>') + '</td>' +
           '<td>' + esc(Utils.fmtDateTime(v.created_at)) + '</td>' +
-          '<td class="tt-actions"><button class="btn btn-primary" data-editv="' + esc(v.version_id) + '" title="ตรวจสอบ / แก้ไข"><i class="bi bi-pencil-square"></i></button>' +
+          '<td class="tt-actions">' + (!pubd && window.TTAuth && TTAuth.can('approve') ? '<button class="btn btn-success" data-pubv="' + esc(v.version_id) + '" title="เผยแพร่ให้นักเรียน/ผู้ปกครอง/ครูเห็นที่หน้าหลัก"><i class="bi bi-megaphone"></i> เผยแพร่</button>' : '') +
+          '<button class="btn btn-primary" data-editv="' + esc(v.version_id) + '" title="ตรวจสอบ / แก้ไข"><i class="bi bi-pencil-square"></i></button>' +
           '<button class="btn btn-secondary" data-view="' + esc(v.version_id) + '" title="ดูตาราง"><i class="bi bi-eye"></i></button>' +
           '<button class="btn btn-danger" data-delv="' + esc(v.version_id) + '"><i class="bi bi-trash"></i></button></td></tr>';
       }).join('') + '</tbody></table></div><div class="card" id="tt-version-view" style="margin-top:12px;display:none"></div>';
@@ -306,6 +309,17 @@
           renderViewer(box, d.slots, '🗓️ ' + esc(d.version.label));
           box.scrollIntoView({ behavior: 'smooth', block: 'start' });
         } catch (e) { /* toast */ }
+      };
+    });
+    host.querySelectorAll('[data-pubv]').forEach(function (b) {
+      b.onclick = async function () {
+        const v = vs.find(function (x) { return x.version_id === b.dataset.pubv; });
+        if (!confirm('เผยแพร่ฉบับ "' + v.label + '"?\n\nนักเรียน ผู้ปกครอง และครู จะเห็นตารางนี้ที่เมนู "ตารางเรียน/ตารางสอน" หน้าหลัก\n(ฉบับที่เผยแพร่อยู่เดิมจะเปลี่ยนเป็น "อนุมัติแล้ว")')) return;
+        try {
+          await api('tt.version_meta', { version_id: v.version_id, status: 'published' }, { loadingMsg: 'กำลังเผยแพร่...', noRetry: true });
+          Toast.show('📢 เผยแพร่แล้ว — ดูได้ที่เมนู "ตารางเรียน/ตารางสอน" หน้าหลัก', 'success');
+          TT.reload({ quiet: true });
+        } catch (e) { /* toast แสดงเหตุผล เช่น ยังมีครูสอนชน */ }
       };
     });
     host.querySelectorAll('[data-editv]').forEach(function (b) {
