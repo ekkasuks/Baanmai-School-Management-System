@@ -189,6 +189,7 @@
 
   <!-- Dashboard -->
   <section class="tab-pane" id="tab-dashboard">
+    <div id="tt-newterm"></div>
     <div class="card">
       <div class="flex" style="justify-content:space-between;flex-wrap:wrap;gap:8px;margin-bottom:12px">
         <h3 class="card-title" style="margin:0">📊 ภาพรวมระบบจัดตาราง</h3>
@@ -277,7 +278,11 @@
   <section class="tab-pane hidden" id="tab-report"></section>
 
   <!-- นำเข้า (โมดูล 7) / ข้อความวิ่ง (โมดูล 9) — สร้างเนื้อหาโดย timetable-import.js / timetable-ticker.js -->
-  <section class="tab-pane hidden" id="tab-import"></section>
+  <section class="tab-pane hidden" id="tab-import">
+    <!-- ดึงข้อมูลจากปีการศึกษา/ภาคเรียนก่อน — timetable-term.js -->
+    <div class="card" id="tt-term-copy"></div>
+    <div id="tt-import-body"></div>
+  </section>
   <section class="tab-pane hidden" id="tab-ticker"></section>
 
   <!-- ผู้ใช้และสิทธิ์ (โมดูล 12) — timetable-users.js -->
@@ -296,6 +301,7 @@
 <script src="js/modules/timetable-assign.js"></script>
 <script src="js/modules/timetable-lock.js"></script>
 <script src="js/modules/timetable-free.js"></script>
+<script src="js/modules/timetable-term.js"></script>
 <script src="js/tt-check.js"></script>
 <script src="js/modules/timetable-edit.js"></script>
 <script src="js/pdf.js"></script>

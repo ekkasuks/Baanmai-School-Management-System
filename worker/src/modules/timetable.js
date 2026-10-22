@@ -809,6 +809,148 @@ const API = {
     return { set: set, cleared: cleared };
   },
 
+  /* ════ ขึ้นปีการศึกษา/ภาคเรียนใหม่: ดึงข้อมูลจากภาคเรียนก่อน ════ */
+
+  /** ภาคเรียนทั้งหมดที่มีข้อมูล + จำนวนรายการ (ใช้เลือกต้นทาง) */
+  terms: async function (params, ctx) {
+    const db = ctx.db;
+    const cur = await activeTerm(db, {});
+    const rows = (await readAll(db, 'TT_TERM')).map(function (t) { return { term_id: t.term_id, label: t.label, year: t.year, semester: t.semester }; });
+    const count = async function (table, extra) {
+      const r = await db.prepare('SELECT term_id, COUNT(*) AS n FROM ' + table + (extra || '') + ' GROUP BY term_id').all();
+      const m = {};
+      (r.results || []).forEach(function (x) { m[x.term_id] = Number(x.n); });
+      return m;
+    };
+    const act = " WHERE COALESCE(active,'1') <> '0'";
+    const c = { teachers: await count('TT_TEACHER', act), subjects: await count('TT_SUBJECT', act), classes: await count('TT_CLASS', act),
+      periods: await count('TT_PERIOD'), versions: await count('TT_VERSION'), assignments: await count('TT_ASSIGN') };
+    const ids = {};
+    rows.forEach(function (t) { ids[t.term_id] = t; });
+    Object.keys(c).forEach(function (k) { Object.keys(c[k]).forEach(function (id) { if (!ids[id]) ids[id] = { term_id: id, label: id }; }); });
+    return {
+      current: cur,
+      terms: Object.keys(ids).map(function (id) {
+        const t = ids[id];
+        return Object.assign(t, { current: id === cur, counts: Object.keys(c).reduce(function (o, k) { o[k] = c[k][id] || 0; return o; }, {}) });
+      }).sort(function (a, b) { return String(b.term_id).localeCompare(String(a.term_id)); }),
+    };
+  },
+
+  /**
+   * ดึงข้อมูลจากภาคเรียนอื่นมาใช้ในภาคเรียนปัจจุบัน — params = { from_term, parts:{ data, config, assign, version_id } }
+   *   data   : ครู/วิชา/ห้อง/ชั้น/คาบ — รายการที่ภาคปัจจุบันมีอยู่แล้ว (ชื่อ/รหัส/ชั้น+ห้อง/ชื่อคาบ ตรงกัน) ใช้ของเดิม ไม่เขียนทับ
+   *   config : เงื่อนไข + คาบว่างร่วม (เฉพาะเมื่อภาคปัจจุบันยังไม่เคยตั้ง หรือ overwrite_config)
+   *   assign : มอบหมายการสอน (ข้ามคู่ วิชา×ชั้น ที่ภาคปัจจุบันตั้งไว้แล้ว)
+   *   version_id : ตารางสอนฉบับที่เลือก → ฉบับใหม่สถานะ "ร่าง" ในภาคปัจจุบัน
+   * อ้างอิงข้ามข้อมูล (ครู↔วิชา, ครูประจำชั้น, คาบล็อก, คาบว่างร่วม, มอบหมาย, ช่องตาราง) แปลงเป็นรหัสใหม่ทั้งหมด · เขียนใน db.batch เดียว
+   */
+  copy_term: async function (params, ctx) {
+    const db = ctx.db;
+    const target = await activeTerm(db, {});
+    const from = String(params.from_term || '');
+    if (!from || from === target) apiError('VALIDATION', 'เลือกภาคเรียนต้นทางที่ไม่ใช่ภาคเรียนปัจจุบัน');
+    const parts = params.parts || {};
+    const src = await loadAll(db, from), dst = await loadAll(db, target);
+    if (!src.teachers.length && !src.subjects.length && !src.classes.length && !src.periods.length) apiError('NOT_FOUND', 'ภาคเรียนต้นทางไม่มีข้อมูล');
+    const ts = now(), stmts = [], report = {};
+    const norm = function (v) { return String(v || '').replace(/\s+/g, '').toLowerCase(); };
+    const noTitle = function (n) { return norm(String(n || '').replace(/^(นางสาว|นาง|นาย|ว่าที่ร้อยตรี)/, '')); };
+    const KEYS = {
+      period: function (x) { return norm(x.label); },
+      room: function (x) { return x.code ? 'c' + norm(x.code) : 'n' + norm(x.name); },
+      teacher: function (x) { return x.code ? 'c' + norm(x.code) : 'n' + noTitle(x.name); },
+      subject: function (x) { return x.code ? 'c' + norm(x.code) : 'n' + norm(x.name); },
+      class: function (x) { return norm(x.grade) + '/' + norm(x.room); },
+    };
+    const LIST = { period: 'periods', room: 'rooms', teacher: 'teachers', subject: 'subjects', class: 'classes' };
+    const map = {}, fresh = {};
+    // 1) จับคู่กับข้อมูลที่ภาคปัจจุบันมีอยู่แล้ว / จองรหัสใหม่
+    Object.keys(KEYS).forEach(function (e) {
+      const ent = ENTITIES[e], have = {};
+      map[e] = {}; fresh[e] = [];
+      dst[LIST[e]].forEach(function (x) { have[KEYS[e](x)] = x[ent.pk]; });
+      src[LIST[e]].forEach(function (x) {
+        const k = KEYS[e](x);
+        if (have[k]) map[e][x[ent.pk]] = have[k];
+        else if (parts.data) { const id = genId(ent.prefix); map[e][x[ent.pk]] = id; have[k] = id; fresh[e].push(x); }
+      });
+      report[e] = { created: fresh[e].length, matched: src[LIST[e]].length - fresh[e].length };
+    });
+    const mp = function (e, id) { return id ? (map[e][id] || '') : ''; };
+    const mpList = function (e, list) { return (list || []).map(function (id) { return map[e][id]; }).filter(Boolean); };
+    const mpSlots = function (list) { return (list || []).map(function (x) { return { day: Number(x.day), period_id: map.period[x.period_id] }; }).filter(function (x) { return x.period_id; }); };
+    // 2) แถวใหม่ (แปลงการอ้างอิงเป็นรหัสภาคใหม่)
+    const groups = {};
+    const rows = {
+      period: fresh.period.map(function (x) { return Object.assign({}, x, { period_id: map.period[x.period_id], term_id: target }); }),
+      room: fresh.room.map(function (x) { return Object.assign({}, x, { room_id: map.room[x.room_id], term_id: target, allowed_subjects: mpList('subject', x.allowed_subjects), active: '1', updated_at: ts }); }),
+      teacher: fresh.teacher.map(function (x) {
+        return Object.assign({}, x, { teacher_id: map.teacher[x.teacher_id], term_id: target, subjects: mpList('subject', x.subjects), unavailable: mpSlots(x.unavailable), active: '1', updated_at: ts });
+      }),
+      subject: fresh.subject.map(function (x) {
+        const rules = Object.assign({}, x.rules || {});
+        if (rules.fixed_slots) rules.fixed_slots = mpSlots(rules.fixed_slots);
+        return Object.assign({}, x, { subject_id: map.subject[x.subject_id], term_id: target, teachers: mpList('teacher', x.teachers), rules: rules, active: '1', updated_at: ts });
+      }),
+      class: fresh.class.map(function (x) {
+        const g = x.combine_group ? (groups[x.combine_group] = groups[x.combine_group] || genId('GRP')) : '';
+        return Object.assign({}, x, { class_id: map.class[x.class_id], term_id: target, homeroom_teacher_id: mp('teacher', x.homeroom_teacher_id), home_room_id: mp('room', x.home_room_id), combine_group: g, active: '1', updated_at: ts });
+      }),
+    };
+    Object.keys(rows).forEach(function (e) { if (rows[e].length) stmts.push.apply(stmts, insertStmts(db, ENTITIES[e].table, rows[e])); });
+    // 3) เงื่อนไข + คาบว่างร่วม
+    if (parts.config) {
+      const has = await getBy(db, 'TT_CONSTRAINT', 'term_id', target);
+      if (has && !params.overwrite_config) report.config = 'skip';
+      else {
+        const cfg = await getConfig(db, from);
+        cfg.common_free = (cfg.common_free || []).map(function (x) {
+          return Object.assign({}, x, { period_id: map.period[x.period_id] || '', teachers: mpList('teacher', x.teachers) });
+        }).filter(function (x) { return x.period_id; });
+        stmts.push.apply(stmts, insertStmts(db, 'TT_CONSTRAINT', [{ term_id: target, config: cfg, updated_at: ts }], true));
+        report.config = 'copied';
+      }
+    }
+    // 4) มอบหมายการสอน
+    if (parts.assign) {
+      const have = {};
+      (dst.assignments || []).forEach(function (a) { have[a.class_id + '|' + a.subject_id] = 1; });
+      const add = [];
+      (src.assignments || []).forEach(function (a) {
+        const c = map.class[a.class_id], sb = map.subject[a.subject_id], t = map.teacher[a.teacher_id];
+        if (!c || !sb || !t || have[c + '|' + sb]) return;
+        have[c + '|' + sb] = 1;
+        add.push({ assign_id: genId('ASG'), term_id: target, class_id: c, subject_id: sb, teacher_id: t, updated_at: ts });
+      });
+      if (add.length) stmts.push.apply(stmts, insertStmts(db, 'TT_ASSIGN', add));
+      report.assign = add.length;
+    }
+    // 5) ตารางสอนฉบับที่เลือก → ฉบับร่างใหม่
+    if (parts.version_id) {
+      const v = await versionOf(db, from, parts.version_id);
+      const slots = (await selectWhere(db, 'TT_SLOT', 'version_id', v.version_id)).map(function (s) {
+        const c = map.class[s.class_id], pid = map.period[s.period_id], sb = map.subject[s.subject_id];
+        if (!c || !pid || !sb) return null;
+        return { slot_id: genId('SL'), term_id: target, version_id: '', class_id: c, day: Number(s.day), period_id: pid, subject_id: sb,
+          teacher_id: mp('teacher', s.teacher_id), room_id: mp('room', s.room_id), locked: s.locked || '', updated_at: ts };
+      }).filter(Boolean);
+      const vid = genId('VER');
+      const fromRow = await getBy(db, 'TT_TERM', 'term_id', from);
+      slots.forEach(function (s) { s.version_id = vid; });
+      stmts.push.apply(stmts, insertStmts(db, 'TT_VERSION', [{ version_id: vid, term_id: target,
+        label: String('จาก ' + (fromRow && fromRow.label ? fromRow.label.replace('ปีการศึกษา ', '').replace(' ภาคเรียนที่ ', '/') : from) + ': ' + v.label).slice(0, 80),
+        status: 'draft', stats: { slots: slots.length, conflicts: 0, rev: 0, copied_from: v.version_id, from_term: from, skipped: Number(v.stats.slots || 0) - slots.length },
+        created_by: params.recorded_by || 'admin', created_at: ts }]));
+      stmts.push.apply(stmts, insertStmts(db, 'TT_SLOT', slots));
+      report.version = { version_id: vid, slots: slots.length };
+    }
+    if (!stmts.length) return { report: report, written: 0 };
+    await db.batch(stmts);
+    await ttLog(db, target, 'COPY_TERM', 'term', from, params.recorded_by, { detail: { from: from, report: report } });
+    return { report: report, written: stmts.length };
+  },
+
   /** ประวัติการเปลี่ยนแปลง (อ่านอย่างเดียว) — params = { version_id?, limit? } ใหม่สุดก่อน */
   changes: async function (params, ctx) {
     const db = ctx.db;
@@ -1022,6 +1164,8 @@ const OPEN = ['auth_status', 'setup_admin', 'login', 'logout', 'me', 'change_pas
 const NEED = {
   bootstrap: 'view', dashboard: 'view', list: 'view', versions: 'view', get_version: 'view', changes: 'view', constraints_get: 'view',
   save: 'edit_data', remove: 'edit_data', assign_save: 'edit_data', combine: 'edit_data', uncombine: 'edit_data', seed_periods: 'edit_data', sync_classes: 'edit_data', import_entities: 'edit_data',
+  terms: 'view',
+  copy_term: function (p) { const pt = (p && p.parts) || {}; return pt.version_id ? ['edit_data', 'edit_timetable'] : ['edit_data']; },
   save_version: 'edit_timetable', update_slots: 'edit_timetable', duplicate_version: 'edit_timetable', delete_version: 'edit_timetable',
   announce: 'announce', ticker_hide: 'announce',
   ticker: function (p) { return p.all === true ? ['announce'] : null; },          // null = สาธารณะ (หน้าหลัก)
