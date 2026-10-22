@@ -58,12 +58,11 @@
 <script>
 document.getElementById('stat-date').textContent = Utils.fmtDateThai(new Date());
 
-// เมนู — เช็คการมาเรียนอยู่แรก (ใช้บ่อยสุด) · ตั้งค่าระบบอยู่สุดท้าย
+// เมนู — เช็คการมาเรียนอยู่แรก (ใช้บ่อยสุด) · จัดตารางสอน (งานผู้ดูแล) อยู่ก่อนตั้งค่าระบบ
 const MENUS = [
   { href: 'attendance.html', icon: 'calendar-check-fill',name: 'เช็คการมาเรียน',  desc: 'มา·ขาด·ลา·สาย',           ready: true },
   { href: 'attendance-report.html', icon: 'bar-chart-line-fill', name: 'รายงานการมาเรียน', desc: 'สรุปรายเดือน · รายชั้น/รายคน', ready: true },
   { href: 'timetable-view.html', icon: 'calendar3', name: 'ตารางเรียน/ตารางสอน', desc: 'นักเรียน · ผู้ปกครอง · ครู', ready: true },
-  { href: 'timetable.html',  icon: 'calendar3-week-fill', name: 'จัดตารางสอน',     desc: 'AI Smart Timetable · เข้าสู่ระบบ', ready: true },
   { href: 'bank.html',       icon: 'piggy-bank-fill',    name: 'ธนาคารโรงเรียน',  desc: 'ฝาก / ถอน · PIN',          ready: true },
   { href: 'scholarship.html',icon: 'mortarboard-fill',   name: 'ทุนการศึกษา',     desc: 'บันทึก · สรุปรายปี/ชั้น',  ready: true },
   { href: 'behavior.html',   icon: 'star-fill',          name: 'พฤติกรรม',        desc: 'เริ่มต้น 20 คะแนน · รายเดือน', ready: true },
@@ -72,6 +71,7 @@ const MENUS = [
   { href: 'health.html',     icon: 'heart-pulse-fill',   name: 'ตรวจสุขภาพ',      desc: 'ผม · เล็บ · ฟัน · รายชั้น', ready: true },
   { href: 'growth.html',     icon: 'rulers',             name: 'การเจริญเติบโต',  desc: 'น้ำหนัก · ส่วนสูง · BMI',  ready: true },
   { href: 'students.html',   icon: 'people-fill',        name: 'ข้อมูลนักเรียน',  desc: 'ทะเบียน · ค้นหา · แก้ไข',  ready: true },
+  { href: 'timetable.html',  icon: 'calendar3-week-fill', name: 'จัดตารางสอน',     desc: 'AI Smart Timetable · เข้าสู่ระบบ', ready: true },
   { href: 'settings.html',   icon: 'gear-fill',          name: 'ตั้งค่าระบบ',     desc: 'ข้อมูลโรงเรียน · นำเข้า DMC · สำรองข้อมูล', ready: true },
   { href: 'help.html',       icon: 'book-fill',          name: 'คู่มือการใช้งาน', desc: 'วิธีใช้แต่ละเมนู',         ready: true },
 ];
