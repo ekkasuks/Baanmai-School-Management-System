@@ -341,6 +341,8 @@ async function loadAll(db, term) {
 const DEFAULT_CONFIG = {
   teacher_max_consecutive: 4,    // ครูสอนติดกันได้สูงสุด (ใช้เมื่อครูไม่ได้ตั้งเอง)
   teacher_max_per_day: 0,        // ครูสอนสูงสุดต่อวัน (ใช้เมื่อครูไม่ได้ตั้งเอง) · 0 = ไม่จำกัด
+  teacher_max_free_run: 0,       // ครูว่างติดกันระหว่างคาบสอนไม่เกิน (คาบ/วัน) · 0 = ไม่ใช้ (AI พยายามให้ได้)
+  teacher_min_free_block: 0,     // ครูต้องมีคาบว่างติดกันอย่างน้อย (คาบ/วัน) · 0 = ไม่ใช้ (บังคับ)
   subject_max_per_day: 2,        // วิชาเดียวกันไม่เกินวันละ (ใช้เมื่อวิชาไม่ได้ตั้งเอง)
   spread_subjects: true,         // กระจายวิชาไม่ให้ซ้ำวันเดียวกัน
   prefer_core_morning: true,     // วิชาพื้นฐานช่วงเช้า
@@ -353,7 +355,7 @@ const DEFAULT_CONFIG = {
   public_view: true,             // เฟส 6: ดูตารางที่เผยแพร่แล้วได้โดยไม่ต้องเข้าสู่ระบบ
   common_free: [],               // คาบว่างร่วมของครู (เช่น PLC): [{ label, day, period_id, teachers:[] (ว่าง = ครูทุกคน) }]
 };
-const CONFIG_INT = { teacher_max_per_day: [0, 10], teacher_max_consecutive: [1, 10], subject_max_per_day: [1, 10], time_limit_sec: [1, 30], ticker_days: [1, 60] };
+const CONFIG_INT = { teacher_max_per_day: [0, 10], teacher_max_free_run: [0, 10], teacher_min_free_block: [0, 10], teacher_max_consecutive: [1, 10], subject_max_per_day: [1, 10], time_limit_sec: [1, 30], ticker_days: [1, 60] };
 const IMPORT_MAX = 500;
 
 /** เวลาไทยย้อนหลัง n วัน ในรูปแบบเดียวกับ now() — ใช้เทียบ created_at แบบ string */

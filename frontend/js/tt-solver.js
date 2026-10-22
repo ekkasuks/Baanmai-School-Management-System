@@ -7,6 +7,7 @@
  * กติกาเด็ดขาด (hard): ชั้น/ครูไม่ชน, วันหยุด-ช่วงสอนไม่ได้-ไม่สอนคาบแรก/สุดท้าย, คาบสูงสุด, สอนติดกัน,
  *                     ห้องพิเศษ/จำนวนผู้ใช้พร้อมกัน, คาบต่อวัน, วันที่อนุญาต, คาบต่อเนื่องไม่ข้ามพัก
  * ครู: คาบว่างร่วม (cfg.common_free เช่น PLC) · สอนสูงสุดต่อวัน (prefs.max_per_day หรือ cfg.teacher_max_per_day)
+ *      ช่วงว่างติดกันอย่างน้อย/วัน (cfg.teacher_min_free_block — hard) · ว่างติดกันระหว่างคาบสอนไม่เกิน (cfg.teacher_max_free_run — soft)
  * ล็อกคาบ: วิชาที่ระบุ rules.fixed_slots วางที่ตำแหน่งนั้นก่อนเสมอและไม่ถูกย้าย (rules.shared = ครูดูแลหลายชั้นพร้อมกันได้)
  * ความชอบ (soft): กระจายวิชา, วิชาพื้นฐานช่วงเช้า, กิจกรรมช่วงบ่าย, ไม่มีคาบว่างแทรก, ภาระครูสมดุลรายวัน
  * หน่วยการเรียน = ห้องเดียว หรือกลุ่มเรียนควบชั้น (จัดครั้งเดียว ใช้กับทุกห้องในกลุ่ม)
@@ -50,6 +51,8 @@ function model(input) {
   const defConsec = Number(cfg.teacher_max_consecutive) > 0 ? Number(cfg.teacher_max_consecutive) : 99;
   const defDay = Number(cfg.teacher_max_per_day) > 0 ? Number(cfg.teacher_max_per_day) : 99;   // 0 = ไม่จำกัด
   const commonFree = cfg.common_free || [];   // คาบว่างร่วม (เช่น PLC): teachers ว่าง = ครูทุกคน
+  const maxIdle = Number(cfg.teacher_max_free_run) > 0 ? Number(cfg.teacher_max_free_run) : 0;     // ว่างติดกันระหว่างคาบสอนไม่เกิน (soft) · 0 = ไม่ใช้
+  const minBlock = Number(cfg.teacher_min_free_block) > 0 ? Number(cfg.teacher_min_free_block) : 0; // ต้องมีช่วงว่างติดกันอย่างน้อย/วัน (hard) · 0 = ไม่ใช้
 
   const tin = T.map(function (t) {
     const off = {}, un = {}, fr = {};
@@ -64,7 +67,7 @@ function model(input) {
     const mx = (t.max_periods === null || t.max_periods === undefined || t.max_periods === '') ? Infinity : Number(t.max_periods);
     return { off: off, un: un, fr: fr, max: mx, noFirst: !!pr.no_first, noLast: !!pr.no_last,
       consec: Number(pr.max_consecutive) > 0 ? Number(pr.max_consecutive) : defConsec,
-      dayMax: Number(pr.max_per_day) > 0 ? Number(pr.max_per_day) : defDay };
+      dayMax: Number(pr.max_per_day) > 0 ? Number(pr.max_per_day) : defDay, maxIdle: maxIdle, minBlock: minBlock };
   });
   // ช่องที่ครูแต่ละคนสอนได้จริง (ใช้ถ่วงภาระตอนมอบหมาย)
   const cap = tin.map(function (ti) {
@@ -73,7 +76,7 @@ function model(input) {
       if (ti.off[d]) continue;
       let cd = 0;
       for (let p = 0; p < np; p++) if (!ti.un[d + '|' + p] && !ti.fr[d + '|' + p] && !(ti.noFirst && p === 0) && !(ti.noLast && p === np - 1)) cd++;
-      c += Math.min(cd, ti.dayMax);
+      c += Math.min(cd, ti.dayMax, ti.minBlock ? Math.max(0, np - ti.minBlock) : np);
     }
     return Math.min(c, ti.max);
   });
@@ -198,6 +201,7 @@ function fits(M, st, L, d, p0) {
     q = p0 + len;
     while (q < np && M.seg[q] === M.seg[p0] && tb[q] >= 0) { run++; q++; }
     if (run > ti.consec) return { why: 't_consec' };
+    if (ti.minBlock && freeShape(tb, np, p0, len).maxFree < ti.minBlock) return { why: 't_block' };
   }
   let r = -1;
   if (L.rooms.length) {
@@ -241,6 +245,24 @@ function uncommit(M, st, L) {
   return ps;
 }
 
+/**
+ * รูปแบบเวลาว่างของครูในวันหนึ่ง (ถ้าวางคาบเพิ่มที่ from..from+len-1)
+ *   maxFree = ช่วงว่างติดกันยาวที่สุดทั้งวัน (นับเฉพาะคาบเรียน — ช่วงพักไม่ตัด)
+ *   idleOver(lim) = ส่วนที่เกิน lim ของช่วงว่างระหว่างคาบสอนแรก–สุดท้าย
+ */
+function freeShape(tbDay, np, from, len) {
+  const occ = function (p) { return tbDay[p] >= 0 || (from >= 0 && p >= from && p < from + len); };
+  let first = -1, last = -1, run = 0, maxFree = 0;
+  for (let p = 0; p < np; p++) {
+    if (occ(p)) { if (first < 0) first = p; last = p; maxFree = Math.max(maxFree, run); run = 0; } else run++;
+  }
+  maxFree = Math.max(maxFree, run);
+  const idle = [];
+  let r = 0;
+  for (let p = first + 1; first >= 0 && p <= last; p++) { if (occ(p)) { if (r) idle.push(r); r = 0; } else r++; }
+  return { first: first, maxFree: maxFree, idleOver: function (lim) { return idle.reduce(function (a, x) { return a + Math.max(0, x - lim); }, 0); } };
+}
+
 /** ต้นทุนความชอบของตำแหน่ง (ยิ่งน้อยยิ่งดี) */
 function cost(M, st, L, d, p0, rnd) {
   const cfg = M.cfg;
@@ -249,7 +271,11 @@ function cost(M, st, L, d, p0, rnd) {
   const s = M.sess[p0];
   if (cfg.prefer_core_morning !== false && L.type === 'core' && s === 'afternoon') c += 3;
   if (cfg.prefer_activity_afternoon !== false && L.type === 'activity' && s === 'morning') c += 2;
-  if (L.ti >= 0) c += st.tday[L.ti][d] * 0.6;
+  if (L.ti >= 0) {
+    c += st.tday[L.ti][d] * 0.6;
+    const ti = M.tin[L.ti];
+    if (ti.maxIdle) c += freeShape(st.tb[L.ti][d], M.np, p0, L.len).idleOver(ti.maxIdle) * 6;   // ครูว่างรอนานเกินกำหนด
+  }
   if (cfg.avoid_gaps !== false) c += p0 * 0.25;
   if (rnd) c += rnd() * 0.8;
   return c;
@@ -383,8 +409,14 @@ function evaluate(M, st) {
       for (let p = 0; p < last; p++) if (u[d][p] < 0) gaps++;
     }
   });
-  const pen = sameDay * 3 + gaps * 2 + coreAft * 0.5 + actMorn * 0.3;
-  return { sameDay: sameDay, coreAft: coreAft, actMorn: actMorn, gaps: gaps, pen: pen, placedP: placedP, totalP: totalP,
+  let tIdle = 0;   // คาบว่างของครูที่เกินกำหนด "ว่างติดกันไม่เกิน"
+  st.tb.forEach(function (t, ti) {
+    const lim = M.tin[ti].maxIdle;
+    if (!lim) return;
+    for (let d = 1; d <= 5; d++) tIdle += freeShape(t[d], M.np, -1, 0).idleOver(lim);
+  });
+  const pen = sameDay * 3 + gaps * 2 + coreAft * 0.5 + actMorn * 0.3 + tIdle * 2;
+  return { sameDay: sameDay, coreAft: coreAft, actMorn: actMorn, gaps: gaps, tIdle: tIdle, pen: pen, placedP: placedP, totalP: totalP,
     quality: Math.max(0, Math.round(100 - pen * 100 / Math.max(1, totalP))) };
 }
 

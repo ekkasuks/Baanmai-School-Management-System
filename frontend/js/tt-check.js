@@ -2,6 +2,7 @@
  * ตรวจสอบความถูกต้องของตาราง (โมดูล 5) — ใช้กติกาชุดเดียวกับ AI Engine (tt-solver.js)
  *
  *   error   (แดง)    : ครู/ห้องชน, วันหยุด/ช่วงสอนไม่ได้/คาบว่างร่วม/ไม่สอนคาบแรก-สุดท้าย, เกินคาบสูงสุด (สัปดาห์/วัน), สอนติดกันเกิน,
+ *                      ไม่มีช่วงว่างติดกันตามกำหนด · (เหลือง) ครูว่างรอระหว่างคาบสอนนานเกินกำหนด
  *                      วิชาเกินวันละ, วิชาอยู่ผิดวัน
  *   warning (เหลือง) : คาบที่ล็อกไว้ไม่ใช่วิชานั้น, จำนวนคาบไม่ตรงหลักสูตร, ยังไม่ระบุครู, ครูไม่ตรงกับที่มอบหมาย, ครูไม่ได้ถูกกำหนดให้สอนวิชานี้, ห้องไม่ตรงประเภท,
  *                      วิชาไม่อยู่ในชั้นนี้, คาบว่างแทรก, ครูต่ำกว่าคาบขั้นต่ำ
@@ -109,6 +110,22 @@
       if (dayMax) for (let d = 1; d <= 5; d++) {
         const n = Object.keys(m).filter(function (dp) { return Number(dp.split('|')[0]) === d; }).length;   // นับช่องเวลา (ควบชั้น/ดูแลร่วม = ครั้งเดียว)
         if (n > dayMax) add('error', 't_day', 'ครู' + tName(t) + ' สอนวัน' + DAYS[d] + ' ' + n + ' คาบ เกินสูงสุดวันละ ' + dayMax + ' คาบ', perDayT[d] || [], { teacher_id: tid });
+      }
+      // ช่วงว่างของครูในแต่ละวัน: ต้องมีว่างติดกันอย่างน้อย n คาบ (error) · ว่างรอระหว่างคาบสอนไม่เกิน n คาบ (warning)
+      const minBlock = Number(cfg.teacher_min_free_block) || 0, maxIdle = Number(cfg.teacher_max_free_run) || 0;
+      if (minBlock || maxIdle) for (let d = 1; d <= 5; d++) {
+        if (!perDayT[d]) continue;
+        const occ = P.map(function (_, p) { return !!m[d + '|' + p]; });
+        let run = 0, maxFree = 0;
+        occ.forEach(function (o) { if (o) { maxFree = Math.max(maxFree, run); run = 0; } else run++; });
+        maxFree = Math.max(maxFree, run);
+        if (minBlock && maxFree < minBlock) add('error', 't_block', 'ครู' + tName(t) + ' วัน' + DAYS[d] + ' ไม่มีช่วงว่างติดกัน ' + minBlock + ' คาบ (ว่างติดกันมากสุด ' + maxFree + ' คาบ)', perDayT[d], { teacher_id: tid });
+        if (maxIdle) {
+          const first = occ.indexOf(true), last = occ.lastIndexOf(true);
+          let r = 0, worst = 0;
+          for (let p = first + 1; p <= last; p++) { if (occ[p]) { worst = Math.max(worst, r); r = 0; } else r++; }
+          if (worst > maxIdle) add('warning', 't_idle', 'ครู' + tName(t) + ' วัน' + DAYS[d] + ' ว่างรอระหว่างคาบสอนติดกัน ' + worst + ' คาบ (กำหนดไม่เกิน ' + maxIdle + ')', [], { teacher_id: tid });
+        }
       }
       if (prefCells.length) add('error', 't_pref', 'ครู' + tName(t) + ' ไม่สอน' + (pr.no_first && pr.no_last ? 'คาบแรก/คาบสุดท้าย' : pr.no_first ? 'คาบแรก' : 'คาบสุดท้าย') + ' แต่มีสอน ' + prefCells.length + ' ช่อง', prefCells, { teacher_id: tid });
 
