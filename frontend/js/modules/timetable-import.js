@@ -102,6 +102,8 @@
         { k: 'min_periods', h: 'คาบขั้นต่ำ', a: ['min', 'min_periods'], p: P.int, ex: '18' },
         { k: 'max_periods', h: 'คาบสูงสุด', a: ['max', 'max_periods'], p: P.int, ex: '25' },
         { k: 'prefs.max_per_day', h: 'สอนสูงสุดต่อวัน', a: ['max_per_day', 'คาบสูงสุดต่อวัน'], p: P.int, ex: '5' },
+        { k: 'prefs.max_free_run', h: 'ว่างรอระหว่างคาบไม่เกิน', a: ['max_free_run'], p: P.int, ex: '', note: 'คาบ/วัน · ว่าง = ค่ากลาง · 0 = ไม่ใช้' },
+        { k: 'prefs.min_free_block', h: 'ว่างติดกันอย่างน้อย', a: ['min_free_block'], p: P.int, ex: '', note: 'คาบ/วัน · ว่าง = ค่ากลาง · 0 = ไม่ใช้' },
         { k: 'off_days', h: 'วันหยุดประจำ', a: ['off_days', 'วันหยุด'], p: P.days, ex: '', note: 'เช่น ศุกร์ หรือ จันทร์,ศุกร์' },
         { k: 'extra_duty', h: 'ภาระงานพิเศษ', a: ['extra_duty'], p: P.text, ex: '' },
       ],

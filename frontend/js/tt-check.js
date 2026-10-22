@@ -112,7 +112,8 @@
         if (n > dayMax) add('error', 't_day', 'ครู' + tName(t) + ' สอนวัน' + DAYS[d] + ' ' + n + ' คาบ เกินสูงสุดวันละ ' + dayMax + ' คาบ', perDayT[d] || [], { teacher_id: tid });
       }
       // ช่วงว่างของครูในแต่ละวัน: ต้องมีว่างติดกันอย่างน้อย n คาบ (error) · ว่างรอระหว่างคาบสอนไม่เกิน n คาบ (warning)
-      const minBlock = Number(cfg.teacher_min_free_block) || 0, maxIdle = Number(cfg.teacher_max_free_run) || 0;
+      const own = function (v, def) { return v === null || v === undefined || v === '' ? def : Math.max(0, Number(v) || 0); };   // ค่ารายครู: ว่าง = ค่ากลาง · 0 = ไม่ใช้
+      const minBlock = own(pr.min_free_block, Number(cfg.teacher_min_free_block) || 0), maxIdle = own(pr.max_free_run, Number(cfg.teacher_max_free_run) || 0);
       if (minBlock || maxIdle) for (let d = 1; d <= 5; d++) {
         if (!perDayT[d]) continue;
         const occ = P.map(function (_, p) { return !!m[d + '|' + p]; });

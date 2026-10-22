@@ -54,6 +54,7 @@ function model(input) {
   const maxIdle = Number(cfg.teacher_max_free_run) > 0 ? Number(cfg.teacher_max_free_run) : 0;     // ว่างติดกันระหว่างคาบสอนไม่เกิน (soft) · 0 = ไม่ใช้
   const minBlock = Number(cfg.teacher_min_free_block) > 0 ? Number(cfg.teacher_min_free_block) : 0; // ต้องมีช่วงว่างติดกันอย่างน้อย/วัน (hard) · 0 = ไม่ใช้
 
+  const own = function (v, def) { return v === null || v === undefined || v === '' ? def : Math.max(0, Number(v) || 0); };   // ค่ารายครู: ว่าง = ค่ากลาง · 0 = ไม่ใช้
   const tin = T.map(function (t) {
     const off = {}, un = {}, fr = {};
     (t.off_days || []).forEach(function (d) { off[Number(d)] = 1; });
@@ -67,7 +68,8 @@ function model(input) {
     const mx = (t.max_periods === null || t.max_periods === undefined || t.max_periods === '') ? Infinity : Number(t.max_periods);
     return { off: off, un: un, fr: fr, max: mx, noFirst: !!pr.no_first, noLast: !!pr.no_last,
       consec: Number(pr.max_consecutive) > 0 ? Number(pr.max_consecutive) : defConsec,
-      dayMax: Number(pr.max_per_day) > 0 ? Number(pr.max_per_day) : defDay, maxIdle: maxIdle, minBlock: minBlock };
+      dayMax: Number(pr.max_per_day) > 0 ? Number(pr.max_per_day) : defDay,
+      maxIdle: own(pr.max_free_run, maxIdle), minBlock: own(pr.min_free_block, minBlock) };
   });
   // ช่องที่ครูแต่ละคนสอนได้จริง (ใช้ถ่วงภาระตอนมอบหมาย)
   const cap = tin.map(function (ti) {

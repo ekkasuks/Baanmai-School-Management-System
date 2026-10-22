@@ -48,7 +48,9 @@
         ['กลุ่มสาระ', function (r) { return esc(r.dept || '-'); }],
         ['วิชาที่สอนได้', function (r) { return names(S.subjects, 'subject_id', r.subjects); }],
         ['คาบ/สัปดาห์', function (r) { return (r.min_periods != null ? r.min_periods : '-') + ' – ' + (r.max_periods != null ? r.max_periods : '-') +
-          (r.prefs && Number(r.prefs.max_per_day) > 0 ? '<div class="tt-note">วันละ ≤ ' + esc(r.prefs.max_per_day) + '</div>' : ''); }],
+          (r.prefs && Number(r.prefs.max_per_day) > 0 ? '<div class="tt-note">วันละ ≤ ' + esc(r.prefs.max_per_day) + '</div>' : '') +
+          (r.prefs && r.prefs.max_free_run != null && r.prefs.max_free_run !== '' ? '<div class="tt-note">ว่างรอ ≤ ' + (Number(r.prefs.max_free_run) ? esc(r.prefs.max_free_run) : 'ไม่จำกัด') + '</div>' : '') +
+          (r.prefs && r.prefs.min_free_block != null && r.prefs.min_free_block !== '' ? '<div class="tt-note">ว่างติดกัน ≥ ' + (Number(r.prefs.min_free_block) ? esc(r.prefs.min_free_block) : 'ไม่กำหนด') + '</div>' : ''); }],
         ['วันหยุด', function (r) { return esc(dayList(r.off_days)); }],
       ],
       fields: [
@@ -66,6 +68,8 @@
         { k: 'prefs.no_last', l: 'ไม่สอนคาบสุดท้าย', t: 'check' },
         { k: 'prefs.max_consecutive', l: 'สอนติดกันได้สูงสุด (คาบ)', t: 'number' },
         { k: 'prefs.max_per_day', l: 'สอนสูงสุดต่อวัน (คาบ) — ว่าง = ตามค่าในแท็บเงื่อนไข', t: 'number' },
+        { k: 'prefs.max_free_run', l: 'ว่างติดกันระหว่างคาบสอนไม่เกิน (คาบ/วัน) — ว่าง = ตามค่าในแท็บเงื่อนไข · 0 = ไม่ใช้กับครูคนนี้', t: 'number' },
+        { k: 'prefs.min_free_block', l: 'มีคาบว่างติดกันอย่างน้อย (คาบ/วัน) — ว่าง = ตามค่าในแท็บเงื่อนไข · 0 = ไม่ใช้กับครูคนนี้', t: 'number' },
       ],
     },
     subject: {
