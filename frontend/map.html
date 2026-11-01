@@ -16,17 +16,27 @@
   .gm-bar .form-control { flex:1; min-width:160px; }
   .gm-bar .btn { margin:0; }
   #gm-map { height:62vh; min-height:360px; border-radius:14px; overflow:hidden; border:1px solid var(--border); }
+  #gm-map.picking { cursor:crosshair; }
   .gm-stats { display:grid; grid-template-columns:repeat(auto-fit,minmax(140px,1fr)); gap:10px; margin-top:12px; }
   .gm-stats .stat .value { font-size:22px; }
   .gm-band { display:flex; gap:6px; flex-wrap:wrap; margin-top:8px; }
   .gm-band span { padding:3px 10px; border-radius:999px; font-size:13px; font-weight:600; background:var(--primary-light); color:var(--primary-dark); }
   .gm-list tbody tr { cursor:pointer; }
   .gm-list tbody tr:hover { background:var(--primary-light); }
+  .gm-list select.form-control { padding:4px 6px; font-size:13px; min-width:150px; }
   .gm-dot { display:inline-block; width:10px; height:10px; border-radius:50%; margin-right:6px; vertical-align:0; }
   .gm-legend { display:flex; gap:10px; flex-wrap:wrap; font-size:13px; color:var(--muted); margin-top:8px; }
+  .gm-tabs { margin-bottom:0; }
+  .gm-pick-hint { background:#FFF8E1; color:#8D6E00; padding:8px 12px; border-radius:10px; font-size:14px; margin-top:8px; }
+  .geo-hazard { font-size:22px; line-height:1; text-align:center; filter:drop-shadow(0 1px 2px rgba(0,0,0,.4)); background:none; border:0; }
+  .geo-stop { background:#0277BD; color:#fff; border-radius:50%; width:24px; height:24px; line-height:24px; text-align:center; font-weight:700; font-size:13px; border:2px solid #fff; }
+  .gm-mode-table td, .gm-mode-table th { text-align:center; }
+  .gm-mode-table td:first-child, .gm-mode-table th:first-child { text-align:left; }
+  .gm-qr { display:grid; grid-template-columns:repeat(auto-fill,minmax(170px,1fr)); gap:12px; }
+  html[data-theme="dark"] .gm-pick-hint { background:#3A2E12; color:#FFE082; }
 </style>
 </head>
-<body data-tt-page="geo">
+<body data-tt-page="geo" class="geo-page">
 
 <header class="app-header">
   <a href="index.html" class="back">‹</a>
@@ -43,25 +53,35 @@
       <select class="form-control" id="gm-class"></select>
       <input class="form-control" id="gm-find" list="gm-names" placeholder="ค้นหานักเรียน (ชื่อ/รหัส)">
       <datalist id="gm-names"></datalist>
-      <label class="tt-chip"><input type="checkbox" id="gm-rings" checked> วงรัศมี 1/3/5 กม.</label>
-      <label class="tt-chip"><input type="checkbox" id="gm-labels"> ชื่อบนหมุด</label>
     </div>
-    <div class="gm-bar" style="margin-top:8px" id="gm-admin"></div>
+    <div class="gm-bar" style="margin-top:8px">
+      <label class="tt-chip"><input type="checkbox" id="gm-rings" checked> วงรัศมี</label>
+      <label class="tt-chip"><input type="checkbox" id="gm-labels"> ชื่อบนหมุด</label>
+      <label class="tt-chip"><input type="checkbox" id="gm-hazards" checked> ⚠️ จุดเสี่ยง</label>
+      <label class="tt-chip"><input type="checkbox" id="gm-heat"> 🔥 ความหนาแน่น</label>
+      <label class="tt-chip"><input type="checkbox" id="gm-groups"> 🏘️ กลุ่มบ้าน</label>
+    </div>
+    <div class="gm-bar" style="margin-top:8px" id="gm-actions"></div>
+    <div id="gm-scope"></div>
     <div id="gm-noschool"></div>
     <div class="gm-stats" id="gm-stats"></div>
     <div class="gm-band" id="gm-band"></div>
   </div>
-  <div class="card" style="padding:10px"><div id="gm-map"></div><div class="gm-legend" id="gm-legend"></div></div>
-  <div class="card">
-    <div class="flex" style="justify-content:space-between;flex-wrap:wrap;gap:8px;margin-bottom:8px">
-      <h3 class="card-title" style="margin:0">📋 รายชื่อ</h3>
-      <div class="gm-bar"><select class="form-control" id="gm-sort" style="max-width:200px">
-        <option value="class">เรียงตามชั้น</option><option value="far">ไกลสุดก่อน</option><option value="missing">ยังไม่มีพิกัดก่อน</option></select>
-        <button class="btn btn-secondary" id="gm-csv"><i class="bi bi-filetype-csv"></i> ส่งออก CSV</button></div>
-    </div>
-    <div id="gm-list" class="text-muted">กำลังโหลด...</div>
-    <p class="tt-note" style="margin:8px 0 0">เวลาเดินทางเป็น<strong>ค่าประมาณ</strong> (ระยะเส้นตรง × ตัวคูณถนน ÷ ความเร็วเฉลี่ย) · กด "ตามถนนจริง" ในหมุดเพื่อคำนวณจากเส้นทาง OpenStreetMap (ส่งเฉพาะพิกัด 2 จุด ไม่ส่งชื่อ)</p>
+  <div class="card" style="padding:10px"><div id="gm-map"></div><div id="gm-pick"></div><div class="gm-legend" id="gm-legend"></div></div>
+
+  <div class="tabs gm-tabs" id="gm-tabs">
+    <button class="tab active" data-tab="list">📋 รายชื่อ</button>
+    <button class="tab" data-tab="travel">🚸 วิธีเดินทาง</button>
+    <button class="tab" data-tab="far">📏 บ้านไกล</button>
+    <button class="tab" data-tab="groups">🏘️ กลุ่มบ้าน / รถรับส่ง</button>
+    <button class="tab" data-tab="hazards">⚠️ จุดเสี่ยง</button>
   </div>
+  <section class="card gm-pane" id="gm-pane-list"></section>
+  <section class="card gm-pane hidden" id="gm-pane-travel"></section>
+  <section class="card gm-pane hidden" id="gm-pane-far"></section>
+  <section class="card gm-pane hidden" id="gm-pane-groups"></section>
+  <section class="card gm-pane hidden" id="gm-pane-hazards"></section>
+  <p class="tt-note">ระยะ/เวลา "≈" เป็นค่าประมาณ (เส้นตรง × ตัวคูณถนน ÷ ความเร็วเฉลี่ย) · ค่าที่ไม่มี ≈ คำนวณตามถนนจริงจาก OpenStreetMap แล้ว (ส่งเฉพาะพิกัด 2 จุด ไม่ส่งชื่อ)</p>
 </main>
 
 <script src="js/config.js"></script>

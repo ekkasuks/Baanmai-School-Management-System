@@ -16,3 +16,15 @@
 html[data-theme="dark"] .geo-map { border-color: #26394A; }
 html[data-theme="dark"] .leaflet-popup-content-wrapper, html[data-theme="dark"] .leaflet-popup-tip { background: #172532; color: #E1E8ED; }
 html[data-theme="dark"] .leaflet-control-layers { background: #172532; color: #E1E8ED; }
+/* คลาสที่หน้าแผนที่/หน้าต่างปักหมุดใช้ร่วมกับหน้าจัดตารางสอน (หน้านั้นประกาศไว้ inline) */
+.geo-page .modal.wide { max-width: 760px; max-height: 92vh; overflow: auto; }
+.geo-page .tt-actions, .geo-modal .tt-actions { white-space: nowrap; text-align: right; }
+.geo-page .tt-actions .btn { padding: 5px 10px; font-size: 14px; margin: 0 0 0 4px; }
+.geo-page .tt-form, .geo-modal .tt-form { display: grid; grid-template-columns: 1fr 1fr; gap: 4px 14px; }
+.geo-page .tt-form .full, .geo-modal .tt-form .full { grid-column: 1 / -1; }
+.geo-page .tt-chip { display: inline-flex; align-items: center; gap: 6px; padding: 5px 10px; border: 2px solid var(--border); border-radius: 999px; font-size: 14px; cursor: pointer; background: #fff; user-select: none; }
+.geo-page .tt-chip input { width: 16px; height: 16px; margin: 0; }
+.geo-page .tt-chip:has(input:checked) { border-color: var(--primary); background: var(--primary-light); color: var(--primary-dark); font-weight: 600; }
+.geo-page .tt-note, .geo-modal .tt-note { font-size: 13px; color: var(--muted); }
+.geo-page .tt-results { width: 100%; font-size: 14px; }
+@media (max-width: 560px) { .geo-page .tt-form, .geo-modal .tt-form { grid-template-columns: 1fr; } }

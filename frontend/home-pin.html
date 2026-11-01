@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="th">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow">
+<meta name="referrer" content="no-referrer">
+<title>ส่งพิกัดบ้านนักเรียน — โรงเรียนบ้านใหม่</title>
+<meta name="theme-color" content="#0288D1">
+<script src="js/tt-theme.js"></script>
+<link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet">
+<link rel="stylesheet" href="css/style.css">
+<link rel="stylesheet" href="css/tt-dark.css">
+<link rel="stylesheet" href="css/geo.css">
+<style>
+  .hp-map { height:56vh; min-height:320px; border-radius:14px; overflow:hidden; border:1px solid var(--border); z-index:0; }
+  .hp-tools { display:flex; gap:8px; flex-wrap:wrap; margin-bottom:8px; }
+  .hp-tools .btn { margin:0; flex:1; min-width:200px; }
+  .hp-big { font-size:18px; padding:12px; width:100%; margin-top:12px; }
+  .hp-done { text-align:center; padding:30px 10px; }
+  .hp-done .ic { font-size:64px; }
+  .hp-steps { margin:0 0 8px 20px; padding:0; font-size:15px; line-height:1.7; }
+  .hp-note { font-size:13px; color:var(--muted); }
+</style>
+</head>
+<body class="geo-page">
+
+<header class="app-header">
+  <span class="logo">📍</span>
+  <div>
+    <div class="title">ส่งพิกัดบ้านนักเรียน</div>
+    <div style="font-size:13px;opacity:.9" id="hp-school">โรงเรียนบ้านใหม่</div>
+  </div>
+</header>
+
+<main class="container" id="hp-main">
+  <div class="card text-muted">กำลังตรวจสอบลิงก์...</div>
+</main>
+
+<script src="js/config.js"></script>
+<script src="js/auth.js"></script>
+<script src="js/api.js"></script>
+<script src="js/utils.js"></script>
+<script src="js/geo.js"></script>
+<script src="js/modules/home-pin.js"></script>
+</body>
+</html>

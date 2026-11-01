@@ -66,10 +66,25 @@ const GeoUtil = (function () {
     const lat = Number(m[1]), lng = Number(m[2]);
     return isFinite(lat) && isFinite(lng) && Math.abs(lat) <= 90 && Math.abs(lng) <= 180 ? { lat: lat, lng: lng } : null;
   }
+  /** (2) วิธีเดินทาง · (6) ประเภทจุดเสี่ยง */
+  const MODES = { walk: '🚶 เดิน', bicycle: '🚲 จักรยาน', moto_parent: '🛵 ผู้ปกครองส่ง (จยย.)', car_parent: '🚗 ผู้ปกครองส่ง (รถยนต์)', school_van: '🚐 รถรับส่ง',
+    public: '🚌 รถโดยสาร', dorm: '🏠 พักใกล้โรงเรียน', other: '❓ อื่น ๆ' };
+  const POINT_TYPES = { road: '🛣️ ถนนใหญ่/ทางแยก', river: '🌊 แม่น้ำ/คลอง', flood: '💧 จุดน้ำท่วม', animal: '🐕 สัตว์ดุร้าย', construction: '🚧 ก่อสร้าง', other: '⚠️ อื่น ๆ' };
+  const SOURCES = { gps: 'จาก GPS', map: 'ปักบนแผนที่', manual: 'ใส่พิกัดเอง', parent: '📨 ผู้ปกครองส่งมา' };
+  /** ระยะ (กม.) จากจุด p ถึงเส้นตรง a–b (ประมาณบนระนาบรอบ p — แม่นพอสำหรับระยะไม่กี่สิบ กม.) */
+  function segKm(p, a, b) {
+    const kx = Math.cos(p.lat * Math.PI / 180) * 111.32, ky = 110.57;
+    const ax = (a.lng - p.lng) * kx, ay = (a.lat - p.lat) * ky, bx = (b.lng - p.lng) * kx, by = (b.lat - p.lat) * ky;
+    const dx = bx - ax, dy = by - ay, L = dx * dx + dy * dy;
+    let t = L ? -(ax * dx + ay * dy) / L : 0;
+    t = Math.max(0, Math.min(1, t));
+    return Math.sqrt(Math.pow(ax + t * dx, 2) + Math.pow(ay + t * dy, 2));
+  }
   const schoolIcon = function () { return L.divIcon({ className: 'geo-school', html: '🏫', iconSize: [34, 34], iconAnchor: [17, 17] }); };
   const homeIcon = function () { return L.divIcon({ className: 'geo-home-pin', html: '🏠', iconSize: [32, 32], iconAnchor: [16, 28] }); };
 
-  return { load: load, addLayers: addLayers, km: km, estimate: estimate, fmtKm: fmtKm, fmtMin: fmtMin, route: route, parseCoords: parseCoords, schoolIcon: schoolIcon, homeIcon: homeIcon };
+  return { load: load, addLayers: addLayers, km: km, estimate: estimate, fmtKm: fmtKm, fmtMin: fmtMin, route: route, parseCoords: parseCoords, schoolIcon: schoolIcon, homeIcon: homeIcon,
+    MODES: MODES, POINT_TYPES: POINT_TYPES, SOURCES: SOURCES, segKm: segKm };
 })();
 
 const GeoPicker = (function () {
@@ -105,7 +120,9 @@ const GeoPicker = (function () {
       '<div class="tt-note" data-hint>แตะบนแผนที่ หรือลากหมุดไปที่บ้าน · สลับเป็น "ภาพดาวเทียม" ที่มุมขวาบนเพื่อดูหลังคาบ้าน</div>' +
       '<div class="geo-info" data-info></div>' +
       (mode === 'school' ? '<label>ชื่อสถานที่</label><input class="form-control" data-name maxlength="80" value="' + esc((school && school.name) || 'โรงเรียน') + '">'
-        : '<label style="margin-top:8px">จุดสังเกต (ไม่บังคับ)</label><input class="form-control" data-note maxlength="200" placeholder="เช่น บ้านหลังที่ 2 ซ้ายมือหลังวัด" value="' + esc((cur && cur.note) || '') + '">') +
+        : '<div class="tt-form" style="margin-top:8px"><div><label>วิธีเดินทางมาโรงเรียน</label><select class="form-control" data-travel><option value="">— ไม่ระบุ —</option>' +
+            Object.keys(GeoUtil.MODES).map(function (k) { return '<option value="' + k + '"' + (ctx.student.travel === k ? ' selected' : '') + '>' + GeoUtil.MODES[k] + '</option>'; }).join('') + '</select></div>' +
+          '<div><label>จุดสังเกต (ไม่บังคับ)</label><input class="form-control" data-note maxlength="200" placeholder="เช่น บ้านหลังที่ 2 ซ้ายมือหลังวัด" value="' + esc((cur && cur.note) || '') + '"></div></div>') +
       '<div class="flex" style="justify-content:flex-end;gap:8px;flex-wrap:wrap;margin-top:12px">' +
         (mode === 'home' && cur ? '<button class="btn btn-danger" data-del type="button" style="margin-right:auto"><i class="bi bi-trash"></i> ลบพิกัด</button>' : '') +
         '<button class="btn btn-secondary" data-cancel type="button">ยกเลิก</button>' +
@@ -121,7 +138,8 @@ const GeoPicker = (function () {
 
     function info() {
       if (!pos) { el.querySelector('[data-info]').innerHTML = ''; return; }
-      let h = '<span>📌 ' + pos.lat.toFixed(6) + ', ' + pos.lng.toFixed(6) + '</span>' + (accuracy ? ' <span class="tt-note">(GPS ±' + Math.round(accuracy) + ' ม.)</span>' : '');
+      let h = '<span>📌 ' + pos.lat.toFixed(6) + ', ' + pos.lng.toFixed(6) + '</span>' + (accuracy ? ' <span class="tt-note">(GPS ±' + Math.round(accuracy) + ' ม.)</span>' : '') +
+        (source === 'parent' ? ' <span class="tt-pill combo">📨 ผู้ปกครองส่งมา — ตรวจตำแหน่งแล้วกดบันทึกเพื่อยืนยัน</span>' : '');
       if (mode === 'home' && school) {
         const e = GeoUtil.estimate(school, pos, sp);
         h += '<br>ห่างโรงเรียน ~' + GeoUtil.fmtKm(e.road) + ' · 🚶 ' + GeoUtil.fmtMin(e.walk) + ' · 🛵 ' + GeoUtil.fmtMin(e.moto) + ' · 🚗 ' + GeoUtil.fmtMin(e.car);
@@ -173,7 +191,8 @@ const GeoPicker = (function () {
       try {
         let r;
         if (mode === 'school') r = await api('geo.save_config', { school: { lat: pos.lat, lng: pos.lng, name: el.querySelector('[data-name]').value } }, { loadingMsg: 'กำลังบันทึก...', noRetry: true });
-        else r = await api('geo.save_home', { citizen_id: opts.citizen_id, lat: pos.lat, lng: pos.lng, accuracy: accuracy, source: source, note: el.querySelector('[data-note]').value }, { loadingMsg: 'กำลังบันทึก...', noRetry: true });
+        else r = await api('geo.save_home', { citizen_id: opts.citizen_id, lat: pos.lat, lng: pos.lng, accuracy: accuracy, source: source === 'parent' ? 'map' : source,   // ครูกดบันทึก = ยืนยันพิกัดที่ผู้ปกครองส่ง
+          note: el.querySelector('[data-note]').value, travel: el.querySelector('[data-travel]').value }, { loadingMsg: 'กำลังบันทึก...', noRetry: true });
         close();
         Toast.show(mode === 'school' ? 'บันทึกพิกัดโรงเรียนแล้ว' : 'บันทึกพิกัดบ้านแล้ว', 'success');
         if (opts.onSaved) opts.onSaved(r);

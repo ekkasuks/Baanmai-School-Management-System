@@ -39,8 +39,11 @@ export const TABLES = {
   TT_ASSIGN:     { pk: 'assign_id',  cols: ['assign_id', 'term_id', 'class_id', 'subject_id', 'teacher_id', 'updated_at'] },
 
   // ── แผนที่บ้านนักเรียน (schema-geo.sql) — แยกจากข้อมูลเดิม · STUDENTS อ่านอย่างเดียว ──
-  GEO_HOME:      { pk: 'citizen_id', cols: ['citizen_id', 'lat', 'lng', 'accuracy', 'source', 'note', 'updated_by', 'updated_at'] },
+  GEO_HOME:      { pk: 'citizen_id', cols: ['citizen_id', 'lat', 'lng', 'accuracy', 'source', 'note', 'updated_by', 'updated_at', 'road_km', 'road_walk_min', 'road_car_min', 'road_at'] },
   GEO_CONFIG:    { pk: 'key',        cols: ['key', 'value', 'updated_by', 'updated_at'] },
+  GEO_TRAVEL:    { pk: 'citizen_id', cols: ['citizen_id', 'mode', 'updated_by', 'updated_at'] },
+  GEO_POINT:     { pk: 'point_id',   cols: ['point_id', 'type', 'name', 'note', 'lat', 'lng', 'radius_m', 'updated_by', 'updated_at'] },
+  GEO_LINK:      { pk: 'token_hash', secret: true, cols: ['token_hash', 'citizen_id', 'created_by', 'created_at', 'expires_at', 'used_at'] },   // token ลิงก์ผู้ปกครอง — ไม่รวมในไฟล์สำรอง
   // secret = ไม่รวมใน settings.backup/restore และ admin.import (รหัสผ่าน/ session ห้ามหลุดออกหรือถูกเขียนทับจากไฟล์)
   TT_USER:       { pk: 'user_id',    secret: true, cols: ['user_id', 'username', 'display_name', 'role', 'password_hash', 'teacher_id', 'class_id', 'active', 'failed_count', 'locked_until', 'last_login', 'created_at', 'updated_at'] },
   TT_SESSION:    { pk: 'token_hash', secret: true, cols: ['token_hash', 'user_id', 'created_at', 'expires_at'] },
