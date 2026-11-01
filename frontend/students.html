@@ -6,6 +6,8 @@
 <title>ข้อมูลนักเรียน — โรงเรียนบ้านใหม่</title>
 <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet">
 <link rel="stylesheet" href="css/style.css">
+<link rel="stylesheet" href="css/tt-common.css">
+<link rel="stylesheet" href="css/geo.css">
 <style>
   .info-grid { display:grid; gap:8px 18px; grid-template-columns:repeat(auto-fit,minmax(220px,1fr)); }
   .info-grid .k { color:var(--muted); font-size:13px; }
@@ -68,6 +70,7 @@
         <h3 class="card-title" style="margin:0" id="p-name">โปรไฟล์นักเรียน</h3>
         <div class="flex" style="gap:8px;flex-wrap:wrap">
           <button class="btn btn-primary" id="p-edit"><i class="bi bi-pencil-square"></i> แก้ไขข้อมูล</button>
+          <button class="btn btn-success" id="p-geo" title="อ่านพิกัดบ้านจาก GPS หรือปักหมุดบนแผนที่ (ต้องเข้าสู่ระบบ)"><i class="bi bi-geo-alt-fill"></i> พิกัดบ้าน</button>
           <button class="btn btn-danger hidden" id="p-delete"><i class="bi bi-person-dash"></i> ลบนักเรียน</button>
           <button class="btn btn-secondary hidden" id="p-restore"><i class="bi bi-arrow-counterclockwise"></i> กู้คืนสถานะ</button>
         </div>
@@ -205,6 +208,8 @@
 <script src="js/api.js"></script>
 <script src="js/store.js"></script>
 <script src="js/utils.js"></script>
+<script src="js/tt-session.js"></script>
+<script src="js/geo.js"></script>
 <script src="js/modules/students.js"></script>
 </body>
 </html>

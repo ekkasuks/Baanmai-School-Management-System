@@ -37,6 +37,10 @@ export const TABLES = {
   TT_VERSION:    { pk: 'version_id', cols: ['version_id', 'term_id', 'label', 'status', 'stats', 'created_by', 'created_at'] },
   TT_CHANGE:     { pk: 'change_id',  cols: ['change_id', 'term_id', 'version_id', 'message', 'detail', 'created_by', 'created_at'] },
   TT_ASSIGN:     { pk: 'assign_id',  cols: ['assign_id', 'term_id', 'class_id', 'subject_id', 'teacher_id', 'updated_at'] },
+
+  // ── แผนที่บ้านนักเรียน (schema-geo.sql) — แยกจากข้อมูลเดิม · STUDENTS อ่านอย่างเดียว ──
+  GEO_HOME:      { pk: 'citizen_id', cols: ['citizen_id', 'lat', 'lng', 'accuracy', 'source', 'note', 'updated_by', 'updated_at'] },
+  GEO_CONFIG:    { pk: 'key',        cols: ['key', 'value', 'updated_by', 'updated_at'] },
   // secret = ไม่รวมใน settings.backup/restore และ admin.import (รหัสผ่าน/ session ห้ามหลุดออกหรือถูกเขียนทับจากไฟล์)
   TT_USER:       { pk: 'user_id',    secret: true, cols: ['user_id', 'username', 'display_name', 'role', 'password_hash', 'teacher_id', 'class_id', 'active', 'failed_count', 'locked_until', 'last_login', 'created_at', 'updated_at'] },
   TT_SESSION:    { pk: 'token_hash', secret: true, cols: ['token_hash', 'user_id', 'created_at', 'expires_at'] },

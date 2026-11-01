@@ -16,10 +16,10 @@ const MIN_PASSWORD = 8;
 
 /** บทบาท → ความสามารถ */
 export const ROLES = {
-  admin:    { label: 'ผู้ดูแลระบบ',              caps: ['view', 'edit_data', 'edit_timetable', 'approve', 'announce', 'manage_users'] },
-  director: { label: 'ผู้บริหาร',                 caps: ['view', 'approve', 'announce'] },
-  academic: { label: 'ฝ่ายวิชาการ (ผู้จัดตาราง)', caps: ['view', 'edit_data', 'edit_timetable', 'announce'] },
-  teacher:  { label: 'ครู',                       caps: ['view'] },
+  admin:    { label: 'ผู้ดูแลระบบ',              caps: ['view', 'edit_data', 'edit_timetable', 'approve', 'announce', 'manage_users', 'geo', 'geo_edit', 'geo_admin'] },
+  director: { label: 'ผู้บริหาร',                 caps: ['view', 'approve', 'announce', 'geo'] },
+  academic: { label: 'ฝ่ายวิชาการ (ผู้จัดตาราง)', caps: ['view', 'edit_data', 'edit_timetable', 'announce', 'geo', 'geo_edit'] },
+  teacher:  { label: 'ครู',                       caps: ['view', 'geo', 'geo_edit'] },
   student:  { label: 'นักเรียน',                  caps: [] },
   parent:   { label: 'ผู้ปกครอง',                 caps: [] },
 };

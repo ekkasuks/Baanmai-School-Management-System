@@ -35,7 +35,8 @@ const TTAuth = (function () {
 
   function loginScreen(resolve, msg) {
     const el = screen(
-      '<div class="tt-auth-logo">🗓️</div><h3 class="card-title" style="text-align:center">เข้าสู่ระบบจัดตารางสอน</h3>' +
+      '<div class="tt-auth-logo">' + (document.body.dataset.ttPage === 'admin' ? '🗓️' : '🔐') + '</div><h3 class="card-title" style="text-align:center">' +
+        (document.body.dataset.ttPage === 'admin' ? 'เข้าสู่ระบบจัดตารางสอน' : 'เข้าสู่ระบบสำหรับบุคลากร') + '</h3>' +
       (msg ? '<div class="alert alert-warning" style="font-size:14px">' + esc(msg) + '</div>' : '') +
       '<form data-form autocomplete="on"><label>ชื่อผู้ใช้</label><input class="form-control" name="username" autocomplete="username" autocapitalize="none" required>' +
       '<label style="margin-top:8px">รหัสผ่าน</label><input class="form-control" name="password" type="password" autocomplete="current-password" required>' +
@@ -101,7 +102,8 @@ const TTAuth = (function () {
   /* ── แถบหัว: โหมดมืด · ภาษา · ผู้ใช้ ── */
   function renderHeader() {
     const hdr = document.querySelector('.app-header');
-    if (!hdr) return;
+    // แสดงเครื่องมือบนแถบหัวเฉพาะหน้าที่ประกาศ data-tt-page (หน้าอื่น เช่น ข้อมูลนักเรียน ใช้แค่หน้าเข้าสู่ระบบ)
+    if (!hdr || !document.body.dataset.ttPage || typeof TTTheme === 'undefined' || typeof TTi18n === 'undefined') return;
     let box = hdr.querySelector('.tt-hdr-tools');
     if (!box) { box = document.createElement('div'); box.className = 'tt-hdr-tools'; hdr.appendChild(box); }
     box.innerHTML = '<button class="tt-hdr-btn" data-theme-btn type="button"></button><button class="tt-hdr-btn" data-lang-btn type="button"></button>' +
@@ -155,7 +157,7 @@ const TTAuth = (function () {
   window.api = async function (action, params, opts) {
     try { return await rawApi(action, params, opts); }
     catch (e) {
-      if (gate && String(action).indexOf('tt.') === 0 && (e.code === 'AUTH_REQUIRED' || e.code === 'SETUP_REQUIRED') && action !== 'tt.login') {
+      if (gate && /^(tt|geo)\./.test(String(action)) && (e.code === 'AUTH_REQUIRED' || e.code === 'SETUP_REQUIRED') && action !== 'tt.login') {
         clear();
         if (!document.getElementById('tt-auth')) loginScreen(function () { location.reload(); }, 'หมดเวลาการเข้าสู่ระบบ — กรุณาเข้าสู่ระบบอีกครั้ง');
       }

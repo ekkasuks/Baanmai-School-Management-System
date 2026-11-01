@@ -20,6 +20,7 @@ import { ScholarshipAPI } from './modules/scholarship.js';
 import { ScoutAPI } from './modules/scout.js';
 import { DashboardAPI } from './modules/dashboard.js';
 import { TimetableAPI } from './modules/timetable.js';
+import { GeoAPI } from './modules/geo.js';
 import { now } from './db.js';
 
 const ROUTER = {
@@ -37,6 +38,7 @@ const ROUTER = {
   scout: ScoutAPI,
   dashboard: DashboardAPI,
   tt: TimetableAPI,          // ระบบจัดตารางสอน (ตาราง TT_* แยกจากข้อมูลเดิม)
+  geo: GeoAPI,               // แผนที่บ้านนักเรียน (GEO_* · ต้องเข้าสู่ระบบ)
 };
 
 const CORS = {

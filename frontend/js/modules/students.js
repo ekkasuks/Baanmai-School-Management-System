@@ -174,6 +174,13 @@
     } catch (e) { /* Toast แสดงแล้ว */ }
   }
 
+  /* ════ พิกัดบ้าน (แผนที่บ้านนักเรียน · ต้องเข้าสู่ระบบ — js/geo.js) ════ */
+  document.getElementById('p-geo').onclick = function () {
+    if (!editingCid) return;
+    const s = allStudents.find(function (x) { return String(x.citizen_id) === String(editingCid); });
+    GeoPicker.open({ mode: 'home', citizen_id: String(editingCid), label: s ? Utils.fullName(s) : '' });
+  };
+
   /* ════ แก้ไข ════ */
   document.getElementById('p-edit').onclick = function () {
     if (!editingCid) return;

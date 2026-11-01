@@ -1,0 +1,77 @@
+<!doctype html>
+<html lang="th">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>แผนที่บ้านนักเรียน — โรงเรียนบ้านใหม่</title>
+<meta name="theme-color" content="#0288D1">
+<script src="js/tt-theme.js"></script>
+<link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet">
+<link rel="stylesheet" href="css/style.css">
+<link rel="stylesheet" href="css/tt-common.css">
+<link rel="stylesheet" href="css/tt-dark.css">
+<link rel="stylesheet" href="css/geo.css">
+<style>
+  .gm-bar { display:flex; gap:8px; flex-wrap:wrap; align-items:center; }
+  .gm-bar .form-control { flex:1; min-width:160px; }
+  .gm-bar .btn { margin:0; }
+  #gm-map { height:62vh; min-height:360px; border-radius:14px; overflow:hidden; border:1px solid var(--border); }
+  .gm-stats { display:grid; grid-template-columns:repeat(auto-fit,minmax(140px,1fr)); gap:10px; margin-top:12px; }
+  .gm-stats .stat .value { font-size:22px; }
+  .gm-band { display:flex; gap:6px; flex-wrap:wrap; margin-top:8px; }
+  .gm-band span { padding:3px 10px; border-radius:999px; font-size:13px; font-weight:600; background:var(--primary-light); color:var(--primary-dark); }
+  .gm-list tbody tr { cursor:pointer; }
+  .gm-list tbody tr:hover { background:var(--primary-light); }
+  .gm-dot { display:inline-block; width:10px; height:10px; border-radius:50%; margin-right:6px; vertical-align:0; }
+  .gm-legend { display:flex; gap:10px; flex-wrap:wrap; font-size:13px; color:var(--muted); margin-top:8px; }
+</style>
+</head>
+<body data-tt-page="geo">
+
+<header class="app-header">
+  <a href="index.html" class="back">‹</a>
+  <span class="logo">🗺️</span>
+  <div>
+    <div class="title">แผนที่บ้านนักเรียน</div>
+    <div style="font-size:13px;opacity:.9" id="gm-sub">เฉพาะบุคลากร · ต้องเข้าสู่ระบบ</div>
+  </div>
+</header>
+
+<main class="container">
+  <div class="card">
+    <div class="gm-bar">
+      <select class="form-control" id="gm-class"></select>
+      <input class="form-control" id="gm-find" list="gm-names" placeholder="ค้นหานักเรียน (ชื่อ/รหัส)">
+      <datalist id="gm-names"></datalist>
+      <label class="tt-chip"><input type="checkbox" id="gm-rings" checked> วงรัศมี 1/3/5 กม.</label>
+      <label class="tt-chip"><input type="checkbox" id="gm-labels"> ชื่อบนหมุด</label>
+    </div>
+    <div class="gm-bar" style="margin-top:8px" id="gm-admin"></div>
+    <div id="gm-noschool"></div>
+    <div class="gm-stats" id="gm-stats"></div>
+    <div class="gm-band" id="gm-band"></div>
+  </div>
+  <div class="card" style="padding:10px"><div id="gm-map"></div><div class="gm-legend" id="gm-legend"></div></div>
+  <div class="card">
+    <div class="flex" style="justify-content:space-between;flex-wrap:wrap;gap:8px;margin-bottom:8px">
+      <h3 class="card-title" style="margin:0">📋 รายชื่อ</h3>
+      <div class="gm-bar"><select class="form-control" id="gm-sort" style="max-width:200px">
+        <option value="class">เรียงตามชั้น</option><option value="far">ไกลสุดก่อน</option><option value="missing">ยังไม่มีพิกัดก่อน</option></select>
+        <button class="btn btn-secondary" id="gm-csv"><i class="bi bi-filetype-csv"></i> ส่งออก CSV</button></div>
+    </div>
+    <div id="gm-list" class="text-muted">กำลังโหลด...</div>
+    <p class="tt-note" style="margin:8px 0 0">เวลาเดินทางเป็น<strong>ค่าประมาณ</strong> (ระยะเส้นตรง × ตัวคูณถนน ÷ ความเร็วเฉลี่ย) · กด "ตามถนนจริง" ในหมุดเพื่อคำนวณจากเส้นทาง OpenStreetMap (ส่งเฉพาะพิกัด 2 จุด ไม่ส่งชื่อ)</p>
+  </div>
+</main>
+
+<script src="js/config.js"></script>
+<script src="js/auth.js"></script>
+<script src="js/api.js"></script>
+<script src="js/store.js"></script>
+<script src="js/utils.js"></script>
+<script src="js/tt-i18n.js"></script>
+<script src="js/tt-session.js"></script>
+<script src="js/geo.js"></script>
+<script src="js/modules/student-map.js"></script>
+</body>
+</html>
