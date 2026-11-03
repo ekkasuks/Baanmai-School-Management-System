@@ -1,0 +1,41 @@
+<!doctype html>
+<html lang="th">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>วิชาการ — โรงเรียนบ้านใหม่</title>
+<meta name="theme-color" content="#0288D1">
+<script src="js/tt-theme.js"></script>
+<link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet">
+<link rel="stylesheet" href="css/style.css">
+<link rel="stylesheet" href="css/tt-dark.css">
+</head>
+<body>
+
+<header class="app-header">
+  <a href="index.html" class="back">‹</a>
+  <span class="logo">📘</span>
+  <div>
+    <div class="title">วิชาการ</div>
+    <div style="font-size:13px;opacity:.9">งานวิชาการ · เฉพาะบุคลากร</div>
+  </div>
+</header>
+
+<main class="container">
+  <div class="card">
+    <h3 class="card-title">📚 เมนูวิชาการ</h3>
+    <div class="menu-grid" id="acad-menu"></div>
+  </div>
+</main>
+
+<script>
+// เมนูย่อยของงานวิชาการ — เพิ่มโมดูลใหม่ต่อท้ายรายการนี้
+const ACAD_MENUS = [
+  { href: 'multiplication.html', icon: 'grid-3x3-gap-fill', name: 'ท่องสูตรคูณ', desc: 'แม่ 2–12 · รายคน · ทุกภาคเรียน' },
+];
+document.getElementById('acad-menu').innerHTML = ACAD_MENUS.map(function (m) {
+  return '<a class="menu-tile" href="' + m.href + '"><i class="bi bi-' + m.icon + ' icon"></i><div class="name">' + m.name + '</div><div class="desc">' + m.desc + '</div></a>';
+}).join('');
+</script>
+</body>
+</html>

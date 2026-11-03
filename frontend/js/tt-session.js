@@ -157,7 +157,7 @@ const TTAuth = (function () {
   window.api = async function (action, params, opts) {
     try { return await rawApi(action, params, opts); }
     catch (e) {
-      if (gate && /^(tt|geo)\./.test(String(action)) && (e.code === 'AUTH_REQUIRED' || e.code === 'SETUP_REQUIRED') && action !== 'tt.login') {
+      if (gate && /^(tt|geo|acad)\./.test(String(action)) && (e.code === 'AUTH_REQUIRED' || e.code === 'SETUP_REQUIRED') && action !== 'tt.login') {
         clear();
         if (!document.getElementById('tt-auth')) loginScreen(function () { location.reload(); }, 'หมดเวลาการเข้าสู่ระบบ — กรุณาเข้าสู่ระบบอีกครั้ง');
       }

@@ -44,6 +44,8 @@ export const TABLES = {
   GEO_TRAVEL:    { pk: 'citizen_id', cols: ['citizen_id', 'mode', 'updated_by', 'updated_at'] },
   GEO_POINT:     { pk: 'point_id',   cols: ['point_id', 'type', 'name', 'note', 'lat', 'lng', 'radius_m', 'updated_by', 'updated_at'] },
   GEO_LINK:      { pk: 'token_hash', secret: true, cols: ['token_hash', 'citizen_id', 'created_by', 'created_at', 'expires_at', 'used_at'] },   // token ลิงก์ผู้ปกครอง — ไม่รวมในไฟล์สำรอง
+  ACAD_MULT:        { pk: 'rec_id',    cols: ['rec_id', 'term', 'citizen_id', 'table_no', 'passed', 'passed_date', 'recorded_by', 'updated_at'] },   // วิชาการ › ท่องสูตรคูณ
+  ACAD_MULT_ROSTER: { pk: 'roster_id', cols: ['roster_id', 'term', 'citizen_id', 'grade', 'room', 'updated_at'] },
   // secret = ไม่รวมใน settings.backup/restore และ admin.import (รหัสผ่าน/ session ห้ามหลุดออกหรือถูกเขียนทับจากไฟล์)
   TT_USER:       { pk: 'user_id',    secret: true, cols: ['user_id', 'username', 'display_name', 'role', 'password_hash', 'teacher_id', 'class_id', 'active', 'failed_count', 'locked_until', 'last_login', 'created_at', 'updated_at'] },
   TT_SESSION:    { pk: 'token_hash', secret: true, cols: ['token_hash', 'user_id', 'created_at', 'expires_at'] },

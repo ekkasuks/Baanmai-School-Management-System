@@ -21,6 +21,7 @@ import { ScoutAPI } from './modules/scout.js';
 import { DashboardAPI } from './modules/dashboard.js';
 import { TimetableAPI } from './modules/timetable.js';
 import { GeoAPI } from './modules/geo.js';
+import { AcademicAPI } from './modules/academic.js';
 import { now } from './db.js';
 
 const ROUTER = {
@@ -39,6 +40,7 @@ const ROUTER = {
   dashboard: DashboardAPI,
   tt: TimetableAPI,          // ระบบจัดตารางสอน (ตาราง TT_* แยกจากข้อมูลเดิม)
   geo: GeoAPI,               // แผนที่บ้านนักเรียน (GEO_* · ต้องเข้าสู่ระบบ)
+  acad: AcademicAPI,         // วิชาการ › ท่องสูตรคูณ (ACAD_* · ต้องเข้าสู่ระบบ)
 };
 
 const CORS = {

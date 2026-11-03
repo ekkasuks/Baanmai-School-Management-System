@@ -7,7 +7,8 @@
   const esc = Utils.esc;
   const host = document.getElementById('tab-users');
   const CAP_LABEL = { view: 'ดูข้อมูล', edit_data: 'แก้ข้อมูลพื้นฐาน', edit_timetable: 'จัด/แก้ตาราง', approve: 'อนุมัติ/เผยแพร่', announce: 'ประกาศ', manage_users: 'จัดการผู้ใช้',
-    geo: 'ดูแผนที่บ้านนักเรียน', geo_edit: 'บันทึกพิกัดบ้าน', geo_admin: 'ตั้งพิกัดโรงเรียน' };
+    geo: 'ดูแผนที่บ้านนักเรียน', geo_edit: 'บันทึกพิกัดบ้าน', geo_admin: 'ตั้งพิกัดโรงเรียน',
+    acad: 'ดูผลท่องสูตรคูณ', acad_record: 'บันทึกท่องสูตรคูณ', acad_admin: 'แก้ผลภาคก่อน' };
   let users = [];
 
   function roles() { return TTAuth.roles(); }

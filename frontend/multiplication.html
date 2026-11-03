@@ -1,0 +1,116 @@
+<!doctype html>
+<html lang="th">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ท่องสูตรคูณ — โรงเรียนบ้านใหม่</title>
+<meta name="theme-color" content="#0288D1">
+<script src="js/tt-theme.js"></script>
+<link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet">
+<link rel="stylesheet" href="css/style.css">
+<link rel="stylesheet" href="css/tt-common.css">
+<link rel="stylesheet" href="css/tt-dark.css">
+<style>
+  :root { --mt-ok:#2E7D32; --mt-ok-bg:#E8F5E9; --mt-cell:#F5F7FA;
+    --mt-s1:#E1F5FE; --mt-s2:#B3E5FC; --mt-s3:#4FC3F7; --mt-s4:#0288D1; --mt-s5:#01579B; --mt-s0:#F5F7FA; --mt-bar:#0288D1; }
+  html[data-theme="dark"] { --mt-ok:#81C784; --mt-ok-bg:#1B3A24; --mt-cell:#1B2A38;
+    --mt-s1:#12324A; --mt-s2:#1E4D6E; --mt-s3:#0277BD; --mt-s4:#29B6F6; --mt-s5:#81D4FA; --mt-s0:#1B2A38; --mt-bar:#29B6F6; }
+  .mt-bar { display:flex; gap:8px; flex-wrap:wrap; align-items:center; }
+  .mt-bar .form-control { flex:1; min-width:150px; }
+  .mt-bar .btn { margin:0; }
+  .tt-note { font-size:13px; color:var(--muted); }
+  .tt-chip { display:inline-flex; align-items:center; gap:6px; padding:5px 10px; border:2px solid var(--border); border-radius:999px; font-size:14px; cursor:pointer; background:#fff; user-select:none; }
+  .tt-chip input { width:16px; height:16px; margin:0; }
+  .tt-chip:has(input:checked) { border-color:var(--primary); background:var(--primary-light); color:var(--primary-dark); font-weight:600; }
+  .modal.wide { max-width:640px; max-height:94vh; overflow:auto; }
+  .mt-stats { display:grid; grid-template-columns:repeat(auto-fit,minmax(140px,1fr)); gap:10px; }
+  .mt-stats .stat .value { font-size:24px; }
+
+  /* ตารางบันทึก: คอลัมน์ชื่อติดซ้าย เลื่อนแนวนอนได้บนมือถือ */
+  .mt-wrap { overflow-x:auto; -webkit-overflow-scrolling:touch; border:1px solid var(--border); border-radius:12px; }
+  .mt-grid { border-collapse:separate; border-spacing:0; width:100%; font-size:14px; }
+  .mt-grid th, .mt-grid td { padding:0; text-align:center; border-bottom:1px solid var(--border); }
+  .mt-grid thead th { position:sticky; top:0; background:var(--card, #fff); padding:8px 4px; font-size:13px; z-index:2; }
+  .mt-grid .nm { position:sticky; left:0; background:var(--card, #fff); text-align:left; padding:6px 10px; min-width:150px; z-index:1; cursor:pointer; white-space:nowrap; }
+  .mt-grid thead .nm { z-index:3; cursor:default; }
+  .mt-grid .nm:hover { color:var(--primary-dark); text-decoration:underline; }
+  .mt-grid .nm small { color:var(--muted); font-weight:400; }
+  .mt-c { width:44px; min-width:44px; height:40px; border:0; background:var(--mt-cell); border-radius:8px; margin:3px; font-size:16px; font-weight:700; color:var(--muted); cursor:pointer; font-family:inherit; }
+  .mt-c.ok { background:var(--mt-ok-bg); color:var(--mt-ok); box-shadow:inset 0 0 0 2px var(--mt-ok); }
+  .mt-c:disabled { cursor:default; opacity:.85; }
+  .mt-c.busy { opacity:.5; }
+  .mt-sum { padding:0 10px; white-space:nowrap; font-weight:700; }
+  .mt-sum.full { color:var(--mt-ok); }
+  .mt-prog { height:6px; border-radius:999px; background:var(--mt-cell); overflow:hidden; margin-top:3px; }
+  .mt-prog > div { height:100%; background:var(--mt-ok); border-radius:999px; }
+
+  /* โหมดท่องทีละคน */
+  .mt-big { display:grid; grid-template-columns:repeat(auto-fill,minmax(88px,1fr)); gap:10px; margin:12px 0; }
+  .mt-big button { height:72px; border-radius:14px; border:2px solid var(--border); background:var(--mt-cell); font-family:inherit; font-size:18px; font-weight:700; color:var(--ink); cursor:pointer; }
+  .mt-big button small { display:block; font-size:12px; font-weight:400; color:var(--muted); }
+  .mt-big button.ok { background:var(--mt-ok-bg); border-color:var(--mt-ok); color:var(--mt-ok); }
+
+  /* แดชบอร์ด */
+  .mt-hbar { display:grid; grid-template-columns:56px 1fr 64px; gap:8px; align-items:center; font-size:14px; margin:6px 0; }
+  .mt-hbar.wide { grid-template-columns:96px 1fr 64px; }
+  .mt-hbar .track { height:18px; background:var(--mt-cell); border-radius:4px; overflow:hidden; }
+  .mt-hbar .fill { height:100%; background:var(--mt-bar); border-radius:0 4px 4px 0; min-width:2px; }
+  .mt-heat { border-collapse:separate; border-spacing:2px; font-size:13px; }
+  .mt-heat th { padding:4px 6px; font-weight:600; white-space:nowrap; }
+  .mt-heat td { width:46px; min-width:46px; height:34px; text-align:center; border-radius:4px; font-weight:600; }
+  .mt-heat td.l { background:transparent; text-align:left; width:auto; white-space:nowrap; font-weight:700; padding-right:8px; }
+  .mt-heat td.s0 { background:var(--mt-s0); color:var(--muted); }
+  .mt-heat td.s1 { background:var(--mt-s1); color:var(--ink); } .mt-heat td.s2 { background:var(--mt-s2); color:var(--ink); }
+  .mt-heat td.s3 { background:var(--mt-s3); color:#fff; } .mt-heat td.s4 { background:var(--mt-s4); color:#fff; } .mt-heat td.s5 { background:var(--mt-s5); color:#fff; }
+  html[data-theme="dark"] .mt-heat td.s1, html[data-theme="dark"] .mt-heat td.s2, html[data-theme="dark"] .mt-heat td.s3 { color:#E1E8ED; }
+  html[data-theme="dark"] .mt-heat td.s4, html[data-theme="dark"] .mt-heat td.s5 { color:#0B1620; }
+  .mt-key { display:flex; gap:4px; align-items:center; font-size:12px; color:var(--muted); margin-top:8px; flex-wrap:wrap; }
+  .mt-key span.sw { width:28px; height:14px; border-radius:3px; display:inline-block; }
+  .mt-miss { display:inline-block; padding:1px 7px; border-radius:999px; background:var(--mt-cell); font-size:12px; margin:1px; }
+  html[data-theme="dark"] .tt-chip { background:var(--card); border-color:var(--border); color:var(--ink); }
+  @media (max-width:560px) { .mt-grid .nm { min-width:118px; padding:6px; } .mt-c { width:38px; min-width:38px; margin:2px; } }
+</style>
+</head>
+<body data-tt-page="acad">
+
+<header class="app-header">
+  <a href="academic.html" class="back">‹</a>
+  <span class="logo">✖️</span>
+  <div>
+    <div class="title">ท่องสูตรคูณ</div>
+    <div style="font-size:13px;opacity:.9" id="mt-sub">วิชาการ · แม่ 2–12</div>
+  </div>
+</header>
+
+<main class="container">
+  <div class="card">
+    <div class="mt-bar">
+      <select class="form-control" id="mt-term" aria-label="ภาคเรียน"></select>
+      <select class="form-control" id="mt-class" aria-label="ชั้น"></select>
+      <label class="tt-chip"><input type="checkbox" id="mt-kg"> รวมอนุบาล</label>
+    </div>
+    <div id="mt-note"></div>
+  </div>
+
+  <div class="tabs" id="mt-tabs">
+    <button class="tab active" data-tab="record">✅ บันทึก</button>
+    <button class="tab" data-tab="dash">📊 แดชบอร์ด</button>
+    <button class="tab" data-tab="trend">📈 ทุกภาคเรียน</button>
+    <button class="tab" data-tab="person">👤 รายคน</button>
+  </div>
+  <section class="card mt-pane" id="mt-pane-record"></section>
+  <section class="card mt-pane hidden" id="mt-pane-dash"></section>
+  <section class="card mt-pane hidden" id="mt-pane-trend"></section>
+  <section class="card mt-pane hidden" id="mt-pane-person"></section>
+</main>
+
+<script src="js/config.js"></script>
+<script src="js/auth.js"></script>
+<script src="js/api.js"></script>
+<script src="js/store.js"></script>
+<script src="js/utils.js"></script>
+<script src="js/tt-i18n.js"></script>
+<script src="js/tt-session.js"></script>
+<script src="js/modules/multiplication.js"></script>
+</body>
+</html>

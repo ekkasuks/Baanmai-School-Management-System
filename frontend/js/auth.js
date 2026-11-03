@@ -37,7 +37,7 @@ const Auth = {
 
   getToken: function (action) {
     // ระบบจัดตารางสอน (tt.*) และแผนที่บ้านนักเรียน (geo.*) ใช้ session ผู้ใช้ (js/tt-session.js) — แยกจาก PIN เดิม
-    if (/^(tt|geo)\./.test(String(action))) return window.TTAuth ? TTAuth.token() : null;
+    if (/^(tt|geo|acad)\./.test(String(action))) return window.TTAuth ? TTAuth.token() : null;
     // ส่ง token เฉพาะ action ของโมดูลที่ต้อง PIN
     const mod = actionToModule(action);
     return mod ? readToken(mod) : null;
