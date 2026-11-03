@@ -4,13 +4,18 @@
  *   📊 แดชบอร์ด : สถิติภาคที่เลือก · ร้อยละผ่านรายแม่ · ชั้น × แม่ · การกระจาย · รายชื่อที่ยังไม่ครบ · CSV
  *   📈 ทุกภาค   : ร้อยละท่องครบรายชั้นแต่ละภาคเรียน (ชั้น ณ ภาคนั้น)
  *   👤 รายคน    : ประวัติทุกภาคเรียนของนักเรียน 1 คน
- * ภาคปัจจุบันบันทึกได้ (acad_record) · ภาคที่ผ่านมาแก้ได้เฉพาะผู้ดูแล/ฝ่ายวิชาการ (acad_admin) · ยกเลิกเช็คไม่ลบประวัติ
+ * ภาคปัจจุบัน: ดูและบันทึกได้โดยไม่ต้องเข้าสู่ระบบ (พิมพ์ชื่อผู้บันทึกครั้งแรก จำไว้ในเครื่อง)
+ * ภาคที่ผ่านมา: แก้ได้เฉพาะผู้ดูแล/ฝ่ายวิชาการที่เข้าสู่ระบบ (acad_admin) · ยกเลิกเช็คไม่ลบประวัติ
  */
 (function () {
   const esc = Utils.esc;
+  const whoEl = document.getElementById('mt-who');
+  try { whoEl.value = Store.get('mult:who') || ''; } catch (e) { /* ignore */ }
+  whoEl.onchange = function () { whoEl.value = whoEl.value.trim(); try { Store.set('mult:who', whoEl.value); } catch (e) { /* ignore */ } };
+  function whoName() { return D.user || whoEl.value.trim(); }
   const D = { term: '', current_term: '', terms: [], tables: [], can_record: false, students: [], records: [] };
   const V = { cls: Store.get('mult:cls') || '', tab: 'record', kg: false, person: '', summary: null };
-  let rec = {};               // citizen_id → { แม่: { date, by } }
+  let rec = {};               // sid → { แม่: { date, by } }
   let queue = Promise.resolve();
 
   function termLabel(t) { const p = String(t).split('-'); return 'ปีการศึกษา ' + p[0] + ' ภาคเรียนที่ ' + p[1] + (t === D.current_term ? ' (ปัจจุบัน)' : ''); }
@@ -30,7 +35,7 @@
     return list().filter(function (s) { return !c || cls(s) === c; })
       .sort(function (a, b) { return String(a.student_code).localeCompare(String(b.student_code), undefined, { numeric: true }) || a.first_name.localeCompare(b.first_name, 'th'); });
   }
-  function passed(s) { const r = rec[s.citizen_id] || {}; return D.tables.filter(function (n) { return r[n]; }).length; }
+  function passed(s) { const r = rec[s.sid] || {}; return D.tables.filter(function (n) { return r[n]; }).length; }
   function pct(a, b) { return b ? Math.round(a / b * 100) : 0; }
   function step(p, n) { return !n ? 's0' : p === 0 ? 's0' : p < 25 ? 's1' : p < 50 ? 's2' : p < 75 ? 's3' : p < 100 ? 's4' : 's5'; }
   function fmtD(d) { return d ? Utils.fmtDateThai(d) : ''; }
@@ -46,7 +51,7 @@
     const d = await api('acad.mult_bootstrap', term ? { term: term } : {}, { loadingMsg: 'กำลังโหลด...' });
     Object.assign(D, d);
     rec = {};
-    d.records.forEach(function (r) { (rec[r.citizen_id] || (rec[r.citizen_id] = {}))[r.table_no] = { date: r.passed_date, by: r.recorded_by }; });
+    d.records.forEach(function (r) { (rec[r.sid] || (rec[r.sid] = {}))[r.table_no] = { date: r.passed_date, by: r.recorded_by }; });
     Object.keys(roomsOf).forEach(function (k) { delete roomsOf[k]; });
     const seen = {};
     D.students.forEach(function (s) { const k = s.grade + '|' + s.room; if (!seen[k]) { seen[k] = 1; roomsOf[s.grade] = (roomsOf[s.grade] || 0) + 1; } });
@@ -63,43 +68,53 @@
       return '<option value="' + esc(c) + '"' + (c === V.cls ? ' selected' : '') + '>' + esc(c) + ' — ครบ ' + full + '/' + l.length + ' คน</option>';
     }).join('');
     const past = D.term !== D.current_term;
+    document.getElementById('mt-whobox').classList.toggle('hidden', !!D.user);
     document.getElementById('mt-note').innerHTML = !past ? '' :
       '<div class="alert ' + (D.can_record ? 'alert-warning' : 'alert-info') + '" style="margin:10px 0 0;font-size:14px">🗂️ กำลังดู<strong>ภาคเรียนที่ผ่านมา</strong> — ' +
-      (D.can_record ? 'คุณแก้ไขย้อนหลังได้ (ผู้ดูแล/ฝ่ายวิชาการ) โปรดระวัง' : 'ดูได้อย่างเดียว') + ' · ชั้นที่แสดงคือชั้นของนักเรียน ณ ภาคเรียนนั้น</div>';
+      (D.can_record ? 'คุณแก้ไขย้อนหลังได้ (ผู้ดูแล/ฝ่ายวิชาการ) โปรดระวัง' : 'ดูได้อย่างเดียว · แก้ย้อนหลังได้เฉพาะผู้ดูแลระบบ/ฝ่ายวิชาการ <button class="btn btn-secondary" data-login style="padding:2px 10px;font-size:13px;margin:0 0 0 6px"><i class="bi bi-person-lock"></i> เข้าสู่ระบบ</button>') +
+      ' · ชั้นที่แสดงคือชั้นของนักเรียน ณ ภาคเรียนนั้น</div>';
+    const lg = document.querySelector('#mt-note [data-login]');
+    if (lg) lg.onclick = function () { TTAuth.require({}).then(async function () { await load(D.term); renderControls(); renderPane(); }); };
     document.getElementById('mt-sub').textContent = termLabel(D.term);
   }
 
   /* ════ บันทึก ════ */
   /** ส่งบันทึกเป็นคิวทีละคำขอ · แสดงผลทันที (optimistic) · ไม่สำเร็จ → คืนค่าเดิม */
   function save(items, after) {
-    const term = D.term, before = items.map(function (it) { const r = rec[it.citizen_id] || {}; return r[it.table_no] || null; });
+    const term = D.term, before = items.map(function (it) { const r = rec[it.sid] || {}; return r[it.table_no] || null; });
     items.forEach(function (it) {
-      const r = rec[it.citizen_id] || (rec[it.citizen_id] = {});
-      if (it.passed) r[it.table_no] = { date: it.date || (r[it.table_no] && r[it.table_no].date) || today(), by: (TTAuth.user() || {}).display_name || '' };
+      const r = rec[it.sid] || (rec[it.sid] = {});
+      if (it.passed) r[it.table_no] = { date: it.date || (r[it.table_no] && r[it.table_no].date) || today(), by: whoName() };
       else delete r[it.table_no];
     });
     after();
     queue = queue.then(async function () {
       for (let i = 0; i < items.length; i += 20) {
-        const r = await api('acad.mult_set_many', { term: term, items: items.slice(i, i + 20) }, { loading: false, noRetry: true });
-        r.saved.forEach(function (x) { if (x.passed && rec[x.citizen_id] && rec[x.citizen_id][x.table_no]) rec[x.citizen_id][x.table_no].date = x.passed_date; });
+        const r = await api('acad.mult_set_many', { term: term, items: items.slice(i, i + 20), recorded_by: whoName() }, { loading: false, noRetry: true });
+        r.saved.forEach(function (x) { if (x.passed && rec[x.sid] && rec[x.sid][x.table_no]) rec[x.sid][x.table_no].date = x.passed_date; });
       }
     }).catch(function () {
-      items.forEach(function (it, i) { const r = rec[it.citizen_id] || (rec[it.citizen_id] = {}); if (before[i]) r[it.table_no] = before[i]; else delete r[it.table_no]; });
+      items.forEach(function (it, i) { const r = rec[it.sid] || (rec[it.sid] = {}); if (before[i]) r[it.table_no] = before[i]; else delete r[it.table_no]; });
       after();
       Toast.show('บันทึกไม่สำเร็จ — คืนค่าเดิมแล้ว ลองอีกครั้ง', 'danger');
     });
   }
   function today() { const d = new Date(Date.now() + 7 * 3600 * 1000); return d.toISOString().slice(0, 10); }
   function toggle(s, no, after, date) {
-    if (!D.can_record) { Toast.show('บัญชีนี้บันทึกภาคเรียนนี้ไม่ได้', 'warning'); return; }
-    const has = !!(rec[s.citizen_id] || {})[no];
+    if (!D.can_record) { Toast.show('ภาคเรียนที่ผ่านมาแก้ได้เฉพาะผู้ดูแลระบบ/ฝ่ายวิชาการ (เข้าสู่ระบบ)', 'warning'); return; }
+    if (!whoName()) {
+      Toast.show('พิมพ์ชื่อผู้บันทึกก่อน (ด้านบน) — ใช้ครั้งเดียว ระบบจำไว้ในเครื่องนี้', 'warning', 5000);
+      document.querySelector('.modal-backdrop') && document.querySelector('.modal-backdrop').remove();
+      whoEl.focus(); whoEl.scrollIntoView({ block: 'center' });
+      return;
+    }
+    const has = !!(rec[s.sid] || {})[no];
     if (has && !confirm('ยกเลิกการเช็ค แม่ ' + no + ' ของ ' + s.first_name + '?')) return;
-    save([{ citizen_id: s.citizen_id, table_no: no, passed: !has, date: !has ? date : undefined }], after);
+    save([{ sid: s.sid, table_no: no, passed: !has, date: !has ? date : undefined }], after);
   }
 
   function cellHtml(s, no) {
-    const r = (rec[s.citizen_id] || {})[no];
+    const r = (rec[s.sid] || {})[no];
     return '<button class="mt-c' + (r ? ' ok' : '') + '" data-no="' + no + '"' + (D.can_record ? '' : ' disabled') +
       ' title="แม่ ' + no + (r ? ' · ท่องได้ ' + esc(fmtD(r.date)) + (r.by ? ' · ' + esc(r.by) : '') : ' · ยังไม่ผ่าน') + '" aria-pressed="' + (r ? 'true' : 'false') + '">' + (r ? '✓' : no) + '</button>';
   }
@@ -116,11 +131,11 @@
       (!ss.length ? '<div class="text-muted">ไม่มีนักเรียน</div>' :
       '<div class="mt-wrap"><table class="mt-grid"><thead><tr><th class="nm">ชื่อ</th>' + D.tables.map(function (n) { return '<th>แม่ ' + n + '</th>'; }).join('') + '<th>รวม</th></tr></thead><tbody>' +
       ss.map(function (s, i) {
-        return '<tr data-cid="' + esc(s.citizen_id) + '"><td class="nm" data-open>' + (i + 1) + '. ' + esc(s.first_name + ' ' + s.last_name) + (s.active ? '' : ' <small>(ออกแล้ว)</small>') + '</td>' +
+        return '<tr data-cid="' + esc(s.sid) + '"><td class="nm" data-open>' + (i + 1) + '. ' + esc(s.first_name + ' ' + s.last_name) + (s.active ? '' : ' <small>(ออกแล้ว)</small>') + '</td>' +
           D.tables.map(function (n) { return '<td>' + cellHtml(s, n) + '</td>'; }).join('') + '<td data-sum>' + sumHtml(s) + '</td></tr>';
       }).join('') + '</tbody></table></div>');
     host.querySelectorAll('tbody tr').forEach(function (tr) {
-      const s = D.students.find(function (x) { return x.citizen_id === tr.dataset.cid; });
+      const s = D.students.find(function (x) { return x.sid === tr.dataset.cid; });
       const redraw = function () {
         tr.querySelectorAll('[data-no]').forEach(function (b) { b.parentNode.innerHTML = cellHtml(s, Number(b.dataset.no)); });
         tr.querySelector('[data-sum]').innerHTML = sumHtml(s);
@@ -140,7 +155,7 @@
     document.body.appendChild(el);
     const close = function () { el.remove(); renderControls(); renderPane(); };
     function draw() {
-      const s = ss[idx], r = rec[s.citizen_id] || {}, n = passed(s), all = D.tables.length;
+      const s = ss[idx], r = rec[s.sid] || {}, n = passed(s), all = D.tables.length;
       el.innerHTML = '<div class="modal wide"><div class="mt-bar" style="justify-content:space-between"><h3 class="modal-title" style="margin:0">' + esc(name(s)) + '</h3><span class="tt-note">' + esc(cls(s)) + ' · คนที่ ' + (idx + 1) + '/' + ss.length + '</span></div>' +
         '<div style="margin-top:6px;font-size:15px"><strong>' + (n === all ? '🏆 ท่องครบทุกแม่แล้ว' : 'ท่องได้ ' + n + '/' + all + ' แม่') + '</strong></div><div class="mt-prog"><div style="width:' + pct(n, all) + '%"></div></div>' +
         '<div class="mt-big">' + D.tables.map(function (no) {
@@ -155,7 +170,7 @@
       el.querySelectorAll('[data-no]').forEach(function (b) { b.onclick = function () { toggle(s, Number(b.dataset.no), draw, date); }; });
       const a = el.querySelector('[data-all]');
       if (a) a.onclick = function () {
-        const items = D.tables.filter(function (no) { return !r[no]; }).map(function (no) { return { citizen_id: s.citizen_id, table_no: no, passed: true, date: date }; });
+        const items = D.tables.filter(function (no) { return !r[no]; }).map(function (no) { return { sid: s.sid, table_no: no, passed: true, date: date }; });
         if (confirm('บันทึกว่า ' + s.first_name + ' ท่องได้อีก ' + items.length + ' แม่ (รวมครบทุกแม่)?')) save(items, draw);
       };
       el.querySelector('[data-prev]').onclick = function () { idx--; draw(); };
@@ -174,7 +189,7 @@
     const counts = ss.map(passed);
     const full = counts.filter(function (n) { return n === all; }).length, none = counts.filter(function (n) { return !n; }).length;
     const avg = counts.reduce(function (a, b) { return a + b; }, 0) / ss.length;
-    const byTable = D.tables.map(function (no) { return ss.filter(function (s) { return (rec[s.citizen_id] || {})[no]; }).length; });
+    const byTable = D.tables.map(function (no) { return ss.filter(function (s) { return (rec[s.sid] || {})[no]; }).length; });
     const buckets = [['ยังไม่ผ่านเลย', 0, 0], ['1–3 แม่', 1, 3], ['4–6 แม่', 4, 6], ['7–10 แม่', 7, 10], ['ครบ 11 แม่', 11, 11]].map(function (b) {
       return { label: b[0], n: counts.filter(function (n) { return n >= b[1] && n <= b[2]; }).length };
     });
@@ -195,7 +210,7 @@
         cs.map(function (c) {
           const l = inClass(c), f = l.filter(function (s) { return passed(s) === all; }).length;
           return '<tr><td class="l">' + esc(c) + ' <span class="tt-note">(' + l.length + ')</span></td>' + D.tables.map(function (no) {
-            const k = l.filter(function (s) { return (rec[s.citizen_id] || {})[no]; }).length, p = pct(k, l.length);
+            const k = l.filter(function (s) { return (rec[s.sid] || {})[no]; }).length, p = pct(k, l.length);
             return '<td class="' + step(p, l.length) + '" title="' + esc(c + ' แม่ ' + no + ': ' + k + '/' + l.length + ' คน') + '">' + p + '</td>';
           }).join('') + '<td class="' + step(pct(f, l.length), l.length) + '" title="' + esc(c + ' ท่องครบ ' + f + '/' + l.length + ' คน') + '">' + pct(f, l.length) + '</td></tr>';
         }).join('') + '</tbody></table></div>' +
@@ -203,14 +218,14 @@
       '<h4 style="margin:18px 0 6px">ยังท่องไม่ครบ (' + behind.length + ' คน)</h4>' +
       (behind.length ? '<div class="table-wrap"><table class="tt-results"><thead><tr><th>ชื่อ</th><th>ชั้น</th><th>ได้</th><th>แม่ที่ยังไม่ผ่าน</th></tr></thead><tbody>' +
         behind.map(function (s) {
-          const r = rec[s.citizen_id] || {};
+          const r = rec[s.sid] || {};
           return '<tr><td>' + esc(name(s)) + '</td><td>' + esc(cls(s)) + '</td><td>' + passed(s) + '/' + all + '</td><td>' + D.tables.filter(function (n) { return !r[n]; }).map(function (n) { return '<span class="mt-miss">' + n + '</span>'; }).join('') + '</td></tr>';
         }).join('') + '</tbody></table></div>' : '<div class="text-muted">🎉 ทุกคนท่องครบแล้ว</div>') +
       '<button class="btn btn-secondary mt-2" data-csv><i class="bi bi-filetype-csv"></i> ส่งออก CSV (รายคน)</button>';
     host.querySelector('[data-csv]').onclick = function () {
       downloadCsv(['ภาคเรียน', 'ชั้น', 'รหัส', 'ชื่อ-สกุล'].concat(D.tables.map(function (n) { return 'แม่ ' + n; })).concat(['รวม (แม่)', 'ครบ']),
         ss.map(function (s) {
-          const r = rec[s.citizen_id] || {};
+          const r = rec[s.sid] || {};
           return [D.term, cls(s), s.student_code, name(s)].concat(D.tables.map(function (n) { return r[n] ? r[n].date : ''; })).concat([passed(s), passed(s) === all ? 'ครบ' : '']);
         }), 'multiplication_' + D.term + '_' + (V.cls || 'all').replace(/\//g, '-') + '.csv');
     };
@@ -256,13 +271,13 @@
     const host = document.getElementById('mt-pane-person');
     const opts = inClass(V.cls);
     host.innerHTML = '<h3 class="card-title">👤 ประวัติการท่องรายคน (ทุกภาคเรียน)</h3><div class="mt-bar"><select class="form-control" data-p><option value="">— เลือกนักเรียน' + (V.cls ? ' ชั้น ' + esc(V.cls) : '') + ' —</option>' +
-      opts.map(function (s) { return '<option value="' + esc(s.citizen_id) + '"' + (s.citizen_id === V.person ? ' selected' : '') + '>' + esc(cls(s) + ' · ' + name(s)) + '</option>'; }).join('') + '</select></div><div data-out style="margin-top:12px"></div>';
+      opts.map(function (s) { return '<option value="' + esc(s.sid) + '"' + (s.sid === V.person ? ' selected' : '') + '>' + esc(cls(s) + ' · ' + name(s)) + '</option>'; }).join('') + '</select></div><div data-out style="margin-top:12px"></div>';
     host.querySelector('[data-p]').onchange = function () { V.person = this.value; panePerson(); };
     if (!V.person) return;
     const out = host.querySelector('[data-out]');
     out.innerHTML = '<div class="text-muted">กำลังโหลด...</div>';
     let d;
-    try { d = await api('acad.mult_student', { citizen_id: V.person }, { loading: false }); } catch (e) { out.innerHTML = ''; return; }
+    try { d = await api('acad.mult_student', { sid: V.person }, { loading: false }); } catch (e) { out.innerHTML = ''; return; }
     const by = {};
     d.records.forEach(function (r) { (by[r.term] || (by[r.term] = {}))[r.table_no] = r; });
     const terms = d.terms.slice();
@@ -298,7 +313,7 @@
     };
   });
 
-  TTAuth.require({ caps: ['acad'] }).then(async function () {
+  TTAuth.peek().then(async function () {
     try { await load(); renderControls(); renderPane(); }
     catch (e) { document.getElementById('mt-pane-record').innerHTML = '<div class="alert alert-warning">' + esc(e.message || 'โหลดไม่สำเร็จ') + '</div>'; }
   });
