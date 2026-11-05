@@ -184,6 +184,15 @@
     } catch (e) { /* ignore */ }
   }
 
+  let recDay = null;   // ข้อมูลวันที่ที่เลือก (วันหยุด/เสาร์-อาทิตย์/อนาคต) จาก by_class
+  function renderDayWarn(d) {
+    const w = [];
+    if (d.holiday) w.push('🏖️ <strong>วันหยุด: ' + Utils.esc(d.holiday) + '</strong>');
+    else if (d.weekend) w.push('📅 วันนี้เป็น<strong>วัน' + Utils.esc(d.weekday) + '</strong>');
+    if (d.future) w.push('⏩ เป็น<strong>วันในอนาคต</strong>');
+    document.getElementById('rec-daywarn').innerHTML = w.length ?
+      '<div class="alert alert-warning" style="font-size:14px">⚠️ ' + w.join(' · ') + ' — ตรวจสอบวันที่ให้ถูกต้องก่อนบันทึก (วันที่เช็คนับเป็นวันมาเรียนในรายงาน)</div>' : '';
+  }
   function getRecDate() {
     return document.getElementById('rec-date').value || Utils.todayYmd();
   }
@@ -193,13 +202,18 @@
     const host = document.getElementById('rec-table');
     const actions = document.getElementById('rec-actions');
     document.getElementById('rec-result').classList.add('hidden');
+    document.getElementById('rec-fix').classList.add('hidden');
+    document.getElementById('rec-daywarn').innerHTML = '';
     if (!cls) { host.innerHTML = 'เลือกชั้นเพื่อแสดงรายชื่อนักเรียน'; host.className = 'text-muted'; actions.classList.add('hidden'); return; }
     const parts = cls.split('|');
     try {
       host.className = '';
       const d = await attApi('attendance.by_class', { grade: parts[0], room: parts[1], date: getRecDate() }, { loadingMsg: 'กำลังโหลดรายชื่อ...' });
+      recDay = d;
+      renderDayWarn(d);
       renderRecTable(d.results);
       actions.classList.remove('hidden');
+      document.getElementById('rec-fix').classList.toggle('hidden', !d.results.some(function (s) { return s.checked; }));
     } catch (e) { host.innerHTML = '<div class="alert alert-danger">' + Utils.esc(e.message) + '</div>'; }
   }
 
@@ -234,6 +248,19 @@
     if (document.getElementById('rec-class').value) loadRecStudents();
   });
 
+  /* ── เช็ควันผิด: ย้าย/ลบ ชั้นนี้ของวันที่เลือก (attendance-fix.js) ── */
+  function recFixTarget() { const p = document.getElementById('rec-class').value.split('|'); return { date: getRecDate(), grade: p[0], room: p[1] || '' }; }
+  const afterFix = function () { clearDashCache(); loadRecStudents(); };
+  document.getElementById('rec-move').onclick = function () { window.AttFix.move(recFixTarget(), afterFix); };
+  document.getElementById('rec-remove').onclick = function () {
+    const t = recFixTarget();
+    t.count = document.querySelectorAll('#rec-table .badge-pass').length;
+    window.AttFix.remove(t, afterFix);
+  };
+  /* ── ชื่อผู้บันทึก: จำไว้ในเครื่อง (ใช้ร่วมกับแท็บแก้วันที่) ── */
+  try { document.getElementById('rec-by').value = Store.get('att:by') || ''; } catch (e) { /* ignore */ }
+  document.getElementById('rec-by').addEventListener('change', function () { try { Store.set('att:by', this.value.trim()); } catch (e) { /* ignore */ } });
+
   document.getElementById('rec-allpresent').onclick = function () {
     document.querySelectorAll('#rec-table tbody tr').forEach(function (tr) {
       tr.querySelectorAll('.att-btn').forEach(function (b) { applyBtn(b, b.dataset.status === 'มา'); });
@@ -248,9 +275,13 @@
       const active = tr.querySelector('.att-btn.active');
       records.push({ citizen_id: tr.dataset.cid, status: active ? active.dataset.status : 'มา' });
     });
+    const day = recDay && recDay.date === getRecDate() ? recDay : null;
+    if (day && (day.holiday || day.weekend || day.future) &&
+      !confirm('วันที่ ' + Utils.fmtDateThai(day.date) + ' เป็น' + (day.holiday ? 'วันหยุด (' + day.holiday + ')' : day.weekend ? 'วัน' + day.weekday : '') + (day.future ? (day.holiday || day.weekend ? ' และ' : '') + 'วันในอนาคต' : '') +
+        '\n\nยืนยันบันทึกการเช็คชื่อในวันนี้? (จะนับเป็นวันมาเรียนในรายงาน)')) return;
     try {
       const r = await attApi('attendance.save', {
-        date: getRecDate(), records: records, recorded_by: document.getElementById('rec-by').value.trim() || 'admin',
+        date: getRecDate(), records: records, recorded_by: document.getElementById('rec-by').value.trim() || 'admin', force: !!(day && day.holiday),
       }, { loadingMsg: 'กำลังบันทึก...' });
       const res = document.getElementById('rec-result');
       res.className = 'alert alert-success mt-2';

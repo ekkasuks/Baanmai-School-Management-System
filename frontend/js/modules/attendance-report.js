@@ -47,9 +47,12 @@
     } catch (e) { host.innerHTML = '<div class="alert alert-danger">' + Utils.esc(e.message) + '</div>'; }
   }
 
+  /** วันหยุดที่มีการเช็คแต่ไม่นับในรายงาน */
+  function holNote(d) { const n = (d.holiday_days_skipped || []).length; return n ? ' (ไม่นับวันหยุด ' + n + ' วัน)' : ''; }
+
   function renderClass(d) {
     document.getElementById('r-info').textContent =
-      '📊 ' + ymLabel(d.year_month) + ' · มีการเช็คชื่อ ' + d.school_days + ' วัน · ' + d.class_count + ' ชั้น';
+      '📊 ' + ymLabel(d.year_month) + ' · มีการเช็คชื่อ ' + d.school_days + ' วัน' + holNote(d) + ' · ' + d.class_count + ' ชั้น';
     const host = document.getElementById('c-result');
     if (!d.rows.length) { host.innerHTML = '<div class="text-muted">ยังไม่มีข้อมูลนักเรียน</div>'; return; }
 
@@ -109,7 +112,7 @@
 
   function renderStudent(d) {
     document.getElementById('r-info').textContent =
-      '📊 ' + ymLabel(d.year_month) + ' · ชั้น ' + d.grade + (d.room ? '/' + d.room : '') + ' · มีการเช็คชื่อ ' + d.school_days + ' วัน';
+      '📊 ' + ymLabel(d.year_month) + ' · ชั้น ' + d.grade + (d.room ? '/' + d.room : '') + ' · มีการเช็คชื่อ ' + d.school_days + ' วัน' + holNote(d);
     const host = document.getElementById('st-result');
     if (!d.rows.length) { host.innerHTML = '<div class="text-muted">ไม่มีนักเรียนในชั้นนี้</div>'; return; }
 

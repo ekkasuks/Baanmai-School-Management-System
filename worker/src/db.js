@@ -44,6 +44,8 @@ export const TABLES = {
   GEO_TRAVEL:    { pk: 'citizen_id', cols: ['citizen_id', 'mode', 'updated_by', 'updated_at'] },
   GEO_POINT:     { pk: 'point_id',   cols: ['point_id', 'type', 'name', 'note', 'lat', 'lng', 'radius_m', 'updated_by', 'updated_at'] },
   GEO_LINK:      { pk: 'token_hash', secret: true, cols: ['token_hash', 'citizen_id', 'created_by', 'created_at', 'expires_at', 'used_at'] },   // token ลิงก์ผู้ปกครอง — ไม่รวมในไฟล์สำรอง
+  ATT_HOLIDAY:      { pk: 'date',      cols: ['date', 'name', 'created_by', 'created_at'] },   // วันหยุดโรงเรียน (ไม่นับในรายงาน)
+  ATTENDANCE_TRASH: { pk: 'trash_id',  cols: ['trash_id', 'batch_id', 'att_id', 'date', 'citizen_id', 'status', 'note', 'recorded_by', 'created_at', 'deleted_at', 'deleted_by', 'reason'] },   // ถังกู้คืนเช็คชื่อ
   ACAD_MULT:        { pk: 'rec_id',    cols: ['rec_id', 'term', 'citizen_id', 'table_no', 'passed', 'passed_date', 'recorded_by', 'updated_at'] },   // วิชาการ › ท่องสูตรคูณ
   ACAD_MULT_ROSTER: { pk: 'roster_id', cols: ['roster_id', 'term', 'citizen_id', 'grade', 'room', 'updated_at'] },
   // secret = ไม่รวมใน settings.backup/restore และ admin.import (รหัสผ่าน/ session ห้ามหลุดออกหรือถูกเขียนทับจากไฟล์)

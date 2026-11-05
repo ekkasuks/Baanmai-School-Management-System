@@ -17,6 +17,18 @@
   .sum-table tbody tr.unchecked { color:var(--muted); }
   .sum-table tfoot td { font-weight:700; border-top:2px solid var(--border); background:#FAFEFF; }
   .sum-table .grp-a { background:#E8F5E9; } .sum-table .grp-b { background:#FFF3E0; }
+  .fx-day { border:1px solid var(--border); border-radius:12px; padding:10px 12px; margin-bottom:8px; }
+  .fx-day.warn { border-color:#FFB74D; background:#FFF8E1; }
+  .fx-day.hol { border-color:#B0BEC5; background:#F5F7F8; }
+  .fx-day .hd { display:flex; justify-content:space-between; align-items:center; gap:8px; flex-wrap:wrap; }
+  .fx-flag { display:inline-block; padding:1px 8px; border-radius:999px; font-size:12px; font-weight:700; margin-left:4px; }
+  .fx-flag.we { background:#FFE0B2; color:#E65100; } .fx-flag.ho { background:#CFD8DC; color:#37474F; } .fx-flag.fu { background:#FFCDD2; color:#C62828; }
+  .fx-cls { display:flex; flex-wrap:wrap; gap:6px; margin-top:6px; }
+  .fx-cls span { display:inline-flex; align-items:center; gap:4px; background:#fff; border:1px solid var(--border); border-radius:999px; padding:2px 4px 2px 10px; font-size:13px; }
+  .fx-cls button { border:0; background:none; cursor:pointer; padding:2px 6px; border-radius:999px; font-size:14px; }
+  .fx-cls button:hover { background:var(--primary-light); }
+  .fx-bar { display:flex; gap:8px; flex-wrap:wrap; align-items:center; }
+  .fx-bar .btn { margin:0; }
 </style>
 </head>
 <body>
@@ -37,6 +49,7 @@
     <button class="tab" data-tab="record">📝 เช็คชื่อ</button>
     <button class="tab" data-tab="dashboard">📊 ภาพรวม</button>
     <button class="tab" data-tab="history">📜 ประวัติ</button>
+    <button class="tab" data-tab="fix">🛠️ แก้วันที่เช็คผิด</button>
   </div>
 
   <!-- ── สรุปรายวัน ── -->
@@ -72,6 +85,7 @@
         <label>ผู้บันทึก</label>
         <input class="form-control" id="rec-by" placeholder="ชื่อครูผู้เช็คชื่อ" style="max-width:320px">
       </div>
+      <div id="rec-daywarn"></div>
       <div class="alert alert-info" style="font-size:14px">💡 ค่าเริ่มต้นทุกคนคือ <strong>มา</strong> — แตะปุ่มเพื่อเปลี่ยนเป็น ขาด / ลา / สาย</div>
       <div id="rec-table" class="text-muted">เลือกชั้นเพื่อแสดงรายชื่อนักเรียน</div>
       <div id="rec-actions" class="hidden mt-2">
@@ -79,6 +93,13 @@
         <button class="btn btn-secondary" id="rec-allpresent"><i class="bi bi-check-all"></i> ตั้งทุกคนเป็นมา</button>
       </div>
       <div id="rec-result" class="alert alert-success hidden mt-2"></div>
+      <div id="rec-fix" class="hidden mt-2" style="border-top:1px dashed var(--border);padding-top:10px">
+        <div class="text-muted" style="font-size:14px;margin-bottom:6px">🛠️ เช็ควันผิด? แก้ได้เฉพาะชั้นนี้ของวันที่เลือก</div>
+        <div class="fx-bar">
+          <button class="btn btn-secondary" id="rec-move"><i class="bi bi-calendar-event"></i> ย้ายไปวันที่ถูกต้อง</button>
+          <button class="btn btn-danger" id="rec-remove"><i class="bi bi-trash"></i> ลบการเช็คชื่อวันนี้ (ชั้นนี้)</button>
+        </div>
+      </div>
     </div>
   </section>
 
@@ -140,6 +161,39 @@
     </div>
   </section>
 
+  <!-- ── แก้วันที่เช็คผิด ── -->
+  <section class="tab-pane hidden" id="tab-fix">
+    <div class="card">
+      <h3 class="card-title">🛠️ วันที่มีการเช็คชื่อ</h3>
+      <p class="text-muted" style="font-size:14px;margin-top:-6px">ตรวจหาวันที่เช็คผิด (เสาร์–อาทิตย์ วันหยุด วันในอนาคต จะมีแถบสีเตือน) แล้ว <strong>ย้าย</strong>ไปวันที่ถูกต้อง หรือ <strong>ลบ</strong> — ที่ลบไปอยู่ในถังกู้คืนด้านล่าง กู้คืนได้</p>
+      <div class="fx-bar" style="margin-bottom:10px">
+        <label style="margin:0">เดือน</label>
+        <select class="form-control" id="fx-month" style="max-width:220px"></select>
+        <label style="margin:0">ผู้แก้ไข</label>
+        <input class="form-control" id="fx-by" placeholder="ชื่อครูผู้แก้ไข" style="max-width:240px">
+      </div>
+      <div id="fx-days" class="text-muted">กำลังโหลด...</div>
+    </div>
+
+    <div class="card">
+      <h3 class="card-title">🏖️ วันหยุดโรงเรียน</h3>
+      <p class="text-muted" style="font-size:14px;margin-top:-6px">วันที่ตั้งเป็นวันหยุดจะ<strong>ไม่ถูกนับ</strong>ในรายงานการมาเรียนรายเดือน (ข้อมูลเช็คชื่อไม่ถูกลบ) และเตือนก่อนบันทึกเช็คชื่อในวันนั้น · ไม่ต้องตั้งเสาร์–อาทิตย์</p>
+      <div class="fx-bar" style="margin-bottom:10px">
+        <input class="form-control" id="hol-from" type="date" style="max-width:170px" aria-label="ตั้งแต่วันที่">
+        <span class="text-muted">ถึง</span>
+        <input class="form-control" id="hol-to" type="date" style="max-width:170px" aria-label="ถึงวันที่ (ไม่บังคับ)">
+        <input class="form-control" id="hol-name" placeholder="ชื่อวันหยุด เช่น วันปิยมหาราช" style="max-width:260px">
+        <button class="btn btn-primary" id="hol-add"><i class="bi bi-plus-lg"></i> เพิ่มวันหยุด</button>
+      </div>
+      <div id="hol-list" class="text-muted">กำลังโหลด...</div>
+    </div>
+
+    <div class="card">
+      <h3 class="card-title">♻️ ถังกู้คืน</h3>
+      <div id="fx-trash" class="text-muted">กำลังโหลด...</div>
+    </div>
+  </section>
+
 </main>
 
 <script src="js/config.js"></script>
@@ -149,5 +203,6 @@
 <script src="js/utils.js"></script>
 <script src="js/pdf.js"></script>
 <script src="js/modules/attendance.js"></script>
+<script src="js/modules/attendance-fix.js"></script>
 </body>
 </html>
