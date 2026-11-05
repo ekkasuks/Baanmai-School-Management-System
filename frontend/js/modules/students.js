@@ -188,6 +188,7 @@
     if (!s) return;
     const form = document.getElementById('edit-form');
     EDIT_FIELDS.forEach(function (k) { if (form[k]) form[k].value = s[k] !== undefined && s[k] !== null ? s[k] : ''; });
+    form.citizen_id.value = String(s.citizen_id || '');
     document.getElementById('edit-modal').classList.add('show');
   };
   document.getElementById('edit-cancel').onclick = function () { document.getElementById('edit-modal').classList.remove('show'); };
@@ -197,16 +198,34 @@
     const form = e.target;
     const fields = {};
     EDIT_FIELDS.forEach(function (k) { fields[k] = form[k].value; });
+    const oldCid = String(editingCid);
+    const newCid = String(form.citizen_id.value || '').replace(/[\s-]/g, '').toUpperCase();
+    if (!/^[0-9A-Z]\d{12}$/.test(newCid)) {
+      Toast.show('เลขประจำตัวต้องมี 13 หลัก: ตัวเลข 13 หลัก หรือตัวอักษรอังกฤษ 1 ตัว + ตัวเลข 12 หลัก (เช่น G123456789012)', 'error');
+      form.citizen_id.focus();
+      return;
+    }
+    const changing = newCid !== oldCid.toUpperCase();
+    if (changing && allStudents.some(function (x) { return String(x.citizen_id).toUpperCase() === newCid; })) {
+      Toast.show('เลขประจำตัว ' + newCid + ' เป็นของนักเรียนอีกคนแล้ว', 'error');
+      form.citizen_id.focus();
+      return;
+    }
+    if (changing && !confirm('ยืนยันเปลี่ยนเลขประจำตัว?\n\nเดิม: ' + oldCid + '\nใหม่: ' + newCid +
+        '\n\nข้อมูลทุกโมดูลของนักเรียนคนนี้จะย้ายไปใช้เลขใหม่ (ข้อมูลไม่หาย และเปลี่ยนกลับได้)')) return;
+    if (changing) fields.citizen_id = newCid;
     try {
-      await api('students.update', { citizen_id: editingCid, fields: fields, recorded_by: 'admin' }, { loadingMsg: 'กำลังบันทึก...' });
+      const d = await api('students.update', { citizen_id: oldCid, fields: fields, recorded_by: 'admin' }, { loadingMsg: changing ? 'กำลังเปลี่ยนเลขประจำตัว...' : 'กำลังบันทึก...' });
+      const cid = String((d && d.citizen_id) || oldCid);
       clearDashCache();
-      Toast.show('บันทึกข้อมูลนักเรียนสำเร็จ', 'success');
+      Toast.show(changing ? 'บันทึกและเปลี่ยนเลขประจำตัวสำเร็จ' : 'บันทึกข้อมูลนักเรียนสำเร็จ', 'success');
       document.getElementById('edit-modal').classList.remove('show');
       // อัปเดต cache ในหน่วยความจำ
-      const idx = allStudents.findIndex(function (x) { return String(x.citizen_id) === String(editingCid); });
-      if (idx >= 0) EDIT_FIELDS.forEach(function (k) { allStudents[idx][k] = fields[k]; });
+      const idx = allStudents.findIndex(function (x) { return String(x.citizen_id) === oldCid; });
+      if (idx >= 0) { EDIT_FIELDS.forEach(function (k) { allStudents[idx][k] = fields[k]; }); allStudents[idx].citizen_id = cid; }
+      editingCid = cid;
       renderList();
-      openProfile(editingCid);
+      openProfile(cid);
     } catch (err) { /* Toast แสดงแล้ว */ }
   });
 

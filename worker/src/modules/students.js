@@ -12,6 +12,44 @@ const EDITABLE = ['student_code', 'prefix', 'first_name', 'last_name', 'gender',
   'guardian_relation', 'guardian_name', 'guardian_phone', 'address',
   'weight_init', 'height_init'];
 
+/** ตารางที่ PK ประกอบจาก citizen_id (term:cid…) — ต้องสร้าง PK ใหม่ตามเลขใหม่ด้วย ไม่งั้นบันทึกครั้งถัดไปจะเกิดแถวซ้ำ */
+const PK_REBUILD = {
+  ACAD_MULT:        "rec_id = term || ':' || ? || ':' || table_no",
+  ACAD_MULT_ROSTER: "roster_id = term || ':' || ?",
+};
+
+/** เปลี่ยนเลขประจำตัว: ย้ายทุกแถวที่ citizen_id = เดิม → ใหม่ (ทุกตารางใน TABLES ที่มีคอลัมน์ citizen_id) ใน batch เดียว */
+async function changeCitizenId(db, s, newId, by) {
+  const oldId = String(s.citizen_id);
+  const tables = Object.keys(TABLES).filter(function (t) { return TABLES[t].cols.indexOf('citizen_id') >= 0; });
+  // นับแถวของเลขเดิม/เลขใหม่ ตารางละ 1 คำสั่งใน batch เดียว (SQLite จำกัด UNION · D1 plan ฟรีจำกัดจำนวนคำสั่งต่อคำขอ ~50 → รวมทั้งหมด ≈ 2×ตาราง + 6)
+  const res = await db.batch(tables.map(function (t) {
+    return db.prepare('SELECT COALESCE(SUM(citizen_id = ?), 0) AS n_new, COALESCE(SUM(citizen_id = ?), 0) AS n_old FROM ' + t + ' WHERE citizen_id IN (?, ?)').bind(newId, oldId, newId, oldId);
+  }));
+  const cnt = {};
+  tables.forEach(function (t, i) { const r = (res[i].results || [])[0] || {}; cnt[t] = { n_new: Number(r.n_new) || 0, n_old: Number(r.n_old) || 0 }; });
+  // เลขใหม่ต้องไม่มีอยู่ที่ใดเลย (ทั้งนักเรียนคนอื่น และข้อมูลค้างในตารางอื่น) — กันข้อมูลสองคนปนกัน
+  const clash = tables.filter(function (t) { return cnt[t] && cnt[t].n_new > 0; });
+  if (clash.indexOf('STUDENTS') >= 0) {
+    const o = await getBy(db, 'STUDENTS', 'citizen_id', newId);
+    apiError('VALIDATION', 'เลขประจำตัว ' + newId + ' เป็นของนักเรียนอีกคนแล้ว (' + studentName(o) + ' ' + (o.grade || '') + ')');
+  }
+  if (clash.length) apiError('VALIDATION', 'มีข้อมูลของเลข ' + newId + ' ค้างอยู่ในระบบแล้ว (' + clash.join(', ') + ') — ไม่สามารถเปลี่ยนได้ กรุณาติดต่อผู้ดูแลระบบ');
+  const moved = {};
+  const stmts = [];
+  tables.forEach(function (t) {
+    const n = cnt[t] ? cnt[t].n_old : 0;
+    if (!n) return;
+    moved[t] = n;
+    stmts.push(PK_REBUILD[t]
+      ? db.prepare('UPDATE ' + t + ' SET citizen_id = ?, ' + PK_REBUILD[t] + ' WHERE citizen_id = ?').bind(newId, newId, oldId)
+      : db.prepare('UPDATE ' + t + ' SET citizen_id = ? WHERE citizen_id = ?').bind(newId, oldId));
+  });
+  await db.batch(stmts);
+  await audit(db, 'students', 'CHANGE_ID', newId, { old_citizen_id: oldId, new_citizen_id: newId, name: studentName(s), rows: moved }, by);
+  return newId;
+}
+
 export const StudentsAPI = {
 
   list: async function (params, ctx) {
@@ -37,16 +75,29 @@ export const StudentsAPI = {
     return { student: found };
   },
 
+  /**
+   * แก้ไขข้อมูลนักเรียน · ถ้า fields.citizen_id ต่างจากเดิม = เปลี่ยนเลขประจำตัว:
+   * ย้ายแถวของนักเรียนคนนี้ในทุกตารางที่มี citizen_id ไปเลขใหม่ใน db.batch เดียว (ข้อมูลไม่หาย เปลี่ยนกลับได้)
+   * AUDIT_LOG เดิมคงไว้ตามเดิม (ประวัติ) + บันทึก CHANGE_ID เดิม→ใหม่
+   */
   update: async function (params, ctx) {
     if (!params.citizen_id) apiError('VALIDATION', 'ไม่ได้ระบุ citizen_id');
-    const cur = await getBy(ctx.db, 'STUDENTS', 'citizen_id', String(params.citizen_id));
+    const db = ctx.db, oldId = String(params.citizen_id);
+    const cur = await getBy(db, 'STUDENTS', 'citizen_id', oldId);
     if (!cur) apiError('NOT_FOUND', 'ไม่พบนักเรียน');
     const fields = params.fields || {};
+    let cid = oldId;
+    if (fields.citizen_id !== undefined && String(fields.citizen_id).trim() !== '' &&
+        String(fields.citizen_id).replace(/[\s-]/g, '').toUpperCase() !== oldId.toUpperCase()) {
+      const newId = normCitizenId(fields.citizen_id);
+      if (!newId) apiError('VALIDATION', 'เลขประจำตัวต้องมี 13 หลัก: ตัวเลข 13 หลัก หรือรหัส G (ตัวอักษรอังกฤษ 1 ตัว + ตัวเลข 12 หลัก)');
+      cid = await changeCitizenId(db, cur, newId, params.recorded_by);
+    }
     const update = { updated_at: now() };
     Object.keys(fields).forEach(function (k) { if (EDITABLE.indexOf(k) >= 0) update[k] = fields[k]; });
-    await updateWhere(ctx.db, 'STUDENTS', 'citizen_id', String(params.citizen_id), update);
-    await audit(ctx.db, 'students', 'UPDATE', params.citizen_id, { fields: Object.keys(fields) }, params.recorded_by);
-    return { ok: true };
+    await updateWhere(db, 'STUDENTS', 'citizen_id', cid, update);
+    await audit(db, 'students', 'UPDATE', cid, { fields: Object.keys(fields) }, params.recorded_by);
+    return { ok: true, citizen_id: cid };
   },
 
   create: async function (params, ctx) {
