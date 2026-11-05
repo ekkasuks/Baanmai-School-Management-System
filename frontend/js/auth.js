@@ -12,8 +12,12 @@ const PUBLIC_ACTIONS = ['settings.get', 'settings.init', 'settings.promote_previ
 
 function tokenKey(mod) { return mod === 'bank' ? TOKEN_KEY : TOKEN_KEY + '_' + mod; }
 
+// action ของโมดูลอื่นที่ต้องใช้ PIN ของโมดูลที่กำหนด
+const PIN_ACTIONS = { 'students.purge': 'settings' };   // ลบนักเรียนถาวร = PIN ตั้งค่าระบบ
+
 function actionToModule(action) {
   if (!action || PUBLIC_ACTIONS.indexOf(String(action)) >= 0) return null;
+  if (PIN_ACTIONS[String(action)]) return PIN_ACTIONS[String(action)];
   const prefix = String(action).split('.')[0];
   return PIN_MODULES.indexOf(prefix) >= 0 ? prefix : null;
 }

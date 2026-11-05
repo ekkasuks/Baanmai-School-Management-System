@@ -2,6 +2,13 @@
 import { readAll, getBy } from './db.js';
 
 /** ชื่อเต็มนักเรียน */
+/** เลขประจำตัวนักเรียน 13 หลัก: เลขบัตรประชาชน หรือรหัส G (นักเรียนต่างด้าว/ไม่มีเลขบัตร — ตัวอักษรอังกฤษ 1 ตัว + ตัวเลข 12 หลัก)
+ *  ตัดช่องว่าง/ขีด · ตัวอักษรเป็นตัวพิมพ์ใหญ่ → คืน '' ถ้ารูปแบบไม่ถูกต้อง */
+export function normCitizenId(v) {
+  const s = String(v == null ? '' : v).replace(/[\s-]/g, '').toUpperCase();
+  return /^[0-9A-Z]\d{12}$/.test(s) ? s : '';
+}
+
 export function studentName(s) {
   return [s.prefix, s.first_name, s.last_name]
     .map(function (x) { return x === undefined || x === null ? '' : String(x).trim(); })

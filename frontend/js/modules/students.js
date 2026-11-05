@@ -231,6 +231,50 @@
     setStudentStatus('restore', 'active', 'ยืนยันกู้คืนสถานะนักเรียนคนนี้เป็น "กำลังศึกษา"?');
   };
 
+  /* ════ ลบออกจากฐานข้อมูลถาวร (PIN ตั้งค่าระบบ) — เช่น เพิ่มนักเรียนผิด/ซ้ำ ════ */
+  document.getElementById('p-purge').onclick = function () {
+    if (!editingCid) return;
+    const s = allStudents.find(function (x) { return String(x.citizen_id) === String(editingCid); });
+    if (!s) return;
+    const cid = String(editingCid), name = Utils.fullName(s);
+    const el = document.createElement('div');
+    el.className = 'modal-backdrop show';
+    el.innerHTML = '<div class="modal" style="max-width:460px"><h3 class="modal-title" style="color:#B71C1C">🗑️ ลบออกจากฐานข้อมูลถาวร</h3>' +
+      '<p><strong>' + Utils.esc(name) + '</strong> · ' + Utils.esc(s.grade + (s.room ? '/' + s.room : '')) + '</p>' +
+      '<div class="alert alert-danger" style="font-size:14px">ข้อมูลทั้งหมดของนักเรียนคนนี้จะถูกลบ <strong>กู้คืนไม่ได้</strong>: ทะเบียน · เช็คชื่อ · พฤติกรรม · สุขภาพ · การเจริญเติบโต · นม · ทุน · ลูกเสือ · ประวัติธนาคาร · พิกัดบ้าน · ท่องสูตรคูณ<br>' +
+        'ถ้านักเรียนแค่ย้ายออก/จบ ให้ใช้ปุ่ม <strong>ลบนักเรียน (พ้นสภาพ)</strong> แทน (ข้อมูลยังอยู่)</div>' +
+      '<div class="text-muted" style="font-size:13px;margin-bottom:8px">ยังมีเงินฝากคงเหลือ → ลบไม่ได้ (ถอนให้เป็น 0 ก่อน) · ระบบจะดาวน์โหลดไฟล์สำเนาข้อมูลที่ลบเก็บไว้ให้</div>' +
+      '<label>พิมพ์ชื่อ <strong>' + Utils.esc(s.first_name) + '</strong> เพื่อยืนยัน</label><input class="form-control" data-confirm autocomplete="off">' +
+      '<div class="flex" style="justify-content:flex-end;gap:8px;margin-top:14px"><button class="btn btn-secondary" data-cancel>ยกเลิก</button>' +
+      '<button class="btn btn-danger" data-ok style="background:#B71C1C" disabled>ลบถาวร</button></div></div>';
+    document.body.appendChild(el);
+    const input = el.querySelector('[data-confirm]'), ok = el.querySelector('[data-ok]');
+    setTimeout(function () { input.focus(); }, 100);
+    input.oninput = function () { ok.disabled = input.value.trim() !== String(s.first_name).trim(); };
+    el.querySelector('[data-cancel]').onclick = function () { el.remove(); };
+    ok.onclick = async function () {
+      el.remove();
+      try {
+        const r = await Auth.withPin('settings', function () {
+          return api('students.purge', { citizen_id: cid, confirm: true, recorded_by: 'admin' }, { loadingMsg: 'กำลังลบถาวร...', noRetry: true });
+        });
+        // สำเนาข้อมูลที่ลบ (หลักฐาน) — ไม่ใช่ไฟล์สำรองทั้งระบบ นำไปกู้คืนผ่านหน้าตั้งค่าไม่ได้
+        const blob = new Blob([JSON.stringify(r.record, null, 1)], { type: 'application/json' });
+        const a = document.createElement('a');
+        a.href = URL.createObjectURL(blob);
+        a.download = 'deleted_student_' + (s.student_code || cid.slice(-4)) + '_' + Utils.todayYmd() + '.json';
+        document.body.appendChild(a); a.click(); setTimeout(function () { URL.revokeObjectURL(a.href); a.remove(); }, 1000);
+        const total = Object.keys(r.deleted).reduce(function (t, k) { return t + r.deleted[k]; }, 0);
+        clearDashCache();
+        allStudents = allStudents.filter(function (x) { return String(x.citizen_id) !== cid; });
+        editingCid = null;
+        document.getElementById('profile-panel').classList.add('hidden');
+        renderList();
+        Toast.show('ลบ ' + r.name + ' ออกจากฐานข้อมูลแล้ว (' + total + ' รายการ)', 'success', 5000);
+      } catch (e) { /* api แสดง Toast แล้ว (เช่น ยังมีเงินฝาก) · กดยกเลิก PIN = ไม่ทำอะไร */ }
+    };
+  };
+
   /* ════ เพิ่มนักเรียนใหม่ ════ */
   const CREATE_FIELDS = ['citizen_id', 'student_code', 'prefix', 'first_name', 'last_name', 'gender',
     'grade', 'room', 'birth_date', 'blood_type', 'religion', 'nationality', 'guardian_name',
@@ -247,6 +291,13 @@
     const form = e.target;
     const fields = {};
     CREATE_FIELDS.forEach(function (k) { fields[k] = form[k].value; });
+    // เลขประจำตัว: ตัวเลข 13 หลัก หรือ ตัวอักษรอังกฤษ 1 ตัว + ตัวเลข 12 หลัก (รหัส G นักเรียนต่างด้าว)
+    fields.citizen_id = String(fields.citizen_id || '').replace(/[\s-]/g, '').toUpperCase();
+    if (!/^[0-9A-Z]\d{12}$/.test(fields.citizen_id)) {
+      Toast.show('เลขประจำตัวต้องมี 13 หลัก: ตัวเลขทั้งหมด หรือตัวอักษรอังกฤษ 1 ตัว (เช่น G) + ตัวเลข 12 หลัก', 'warning', 6000);
+      form.citizen_id.focus();
+      return;
+    }
     try {
       const d = await api('students.create', { fields: fields, recorded_by: 'admin' }, { loadingMsg: 'กำลังบันทึก...' });
       clearDashCache();

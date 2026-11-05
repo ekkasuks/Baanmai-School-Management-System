@@ -1,9 +1,10 @@
 /** Students — CRUD + โปรไฟล์รวมข้ามโมดูล + สถิติ + Import DMC */
 import {
-  readAll, getBy, selectWhere, insertRows, updateWhere, buildIndex,
+  TABLES, readAll, getBy, selectWhere, insertRows, updateWhere, buildIndex,
   now, yearMonth, toYmd, toYm, audit, apiError,
 } from '../db.js';
-import { studentName, mapDmcStudent, behaviorStart } from '../shared.js';
+import { studentName, mapDmcStudent, behaviorStart, normCitizenId } from '../shared.js';
+import { requirePin } from './auth.js';
 import { getSetting } from './settings.js';
 
 const EDITABLE = ['student_code', 'prefix', 'first_name', 'last_name', 'gender',
@@ -50,8 +51,8 @@ export const StudentsAPI = {
 
   create: async function (params, ctx) {
     const fields = params.fields || {};
-    const cid = String(fields.citizen_id || '').trim();
-    if (!/^\d{13}$/.test(cid)) apiError('VALIDATION', 'เลขบัตรประชาชนต้องเป็นตัวเลข 13 หลัก');
+    const cid = normCitizenId(fields.citizen_id);
+    if (!cid) apiError('VALIDATION', 'เลขประจำตัวต้องมี 13 หลัก: ตัวเลข 13 หลัก หรือรหัส G (ตัวอักษรอังกฤษ 1 ตัว + ตัวเลข 12 หลัก)');
     if (!String(fields.first_name || '').trim()) apiError('VALIDATION', 'กรุณากรอกชื่อ');
     if (!String(fields.grade || '').trim()) apiError('VALIDATION', 'กรุณาเลือกชั้นเรียน');
     if (await getBy(ctx.db, 'STUDENTS', 'citizen_id', cid)) apiError('VALIDATION', 'มีเลขบัตรประชาชนนี้ในระบบแล้ว');
@@ -172,6 +173,32 @@ export const StudentsAPI = {
   },
 
   /** Import DMC (chunk ละ ~50 แถว) — ใหม่=insert, มีอยู่=update เฉพาะ field ที่ map (คง status/created_at) */
+  /**
+   * ลบนักเรียนออกจากฐานข้อมูลถาวร (ต่างจาก remove ที่แค่ตั้งพ้นสภาพ) — ต้อง PIN ตั้งค่าระบบ + confirm
+   * ลบแถวของนักเรียนคนนี้ในทุกตารางที่มี citizen_id · ไม่ให้ลบถ้ายังมีเงินฝากคงเหลือ (ถอนให้เป็น 0 ก่อน)
+   * คืนสำเนาข้อมูลที่ลบ (ไม่รวมตารางลับ) ให้หน้าเว็บดาวน์โหลดเก็บไว้เป็นหลักฐาน · AUDIT_LOG บันทึกชื่อ + จำนวนแถว
+   */
+  purge: async function (params, ctx) {
+    await requirePin(ctx, 'settings');
+    const db = ctx.db, cid = String(params.citizen_id || '');
+    if (params.confirm !== true) apiError('VALIDATION', 'ต้องยืนยันก่อนลบถาวร (confirm=true)');
+    const s = cid ? await getBy(db, 'STUDENTS', 'citizen_id', cid) : null;
+    if (!s) apiError('NOT_FOUND', 'ไม่พบนักเรียน');
+    const bal = await getBy(db, 'BANK_BALANCE', 'citizen_id', cid);
+    if (bal && Math.abs(Number(bal.balance) || 0) > 0.0001) apiError('HAS_BALANCE', 'นักเรียนยังมีเงินฝากคงเหลือ ' + bal.balance + ' บาท — ถอนเงินให้เป็น 0 ก่อนลบถาวร');
+    const tables = Object.keys(TABLES).filter(function (t) { return TABLES[t].cols.indexOf('citizen_id') >= 0; });
+    const snapshot = {}, counts = {};
+    for (const t of tables) {
+      const rows = await selectWhere(db, t, 'citizen_id', cid);
+      if (!rows.length) continue;
+      counts[t] = rows.length;
+      if (!TABLES[t].secret) snapshot[t] = rows;
+    }
+    await db.batch(Object.keys(counts).map(function (t) { return db.prepare('DELETE FROM ' + t + ' WHERE citizen_id = ?').bind(cid); }));
+    await audit(db, 'students', 'PURGE', cid, { name: studentName(s), grade: s.grade || '', room: s.room || '', rows: counts }, params.recorded_by);
+    return { citizen_id: cid, name: studentName(s), deleted: counts, record: { kind: 'student-purge', created_at: now(), rows: snapshot } };   // ไม่ใช้รูปแบบ {data} ของไฟล์สำรองทั้งระบบ — กันเผลอนำไปกู้คืนแล้วตารางอื่นถูกล้าง
+  },
+
   import_dmc: async function (params, ctx) {
     const rows = params.rows;
     if (!Array.isArray(rows)) apiError('VALIDATION', 'rows ต้องเป็น array');
@@ -181,7 +208,8 @@ export const StudentsAPI = {
 
     for (const raw of rows) {
       const m = mapDmcStudent(raw);
-      if (!m.citizen_id || String(m.citizen_id).length !== 13) { skipped++; continue; }
+      m.citizen_id = normCitizenId(m.citizen_id);   // รองรับรหัส G ของนักเรียนต่างด้าว
+      if (!m.citizen_id) { skipped++; continue; }
       if (existing[String(m.citizen_id)]) {
         m.updated_at = now();
         await updateWhere(ctx.db, 'STUDENTS', 'citizen_id', String(m.citizen_id), m);

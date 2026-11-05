@@ -71,8 +71,9 @@
         <div class="flex" style="gap:8px;flex-wrap:wrap">
           <button class="btn btn-primary" id="p-edit"><i class="bi bi-pencil-square"></i> แก้ไขข้อมูล</button>
           <button class="btn btn-success" id="p-geo" title="อ่านพิกัดบ้านจาก GPS หรือปักหมุดบนแผนที่ (ต้องเข้าสู่ระบบ)"><i class="bi bi-geo-alt-fill"></i> พิกัดบ้าน</button>
-          <button class="btn btn-danger hidden" id="p-delete"><i class="bi bi-person-dash"></i> ลบนักเรียน</button>
+          <button class="btn btn-danger hidden" id="p-delete" title="ตั้งเป็นพ้นสภาพ — ข้อมูลยังอยู่ในระบบ กู้คืนได้"><i class="bi bi-person-dash"></i> ลบนักเรียน (พ้นสภาพ)</button>
           <button class="btn btn-secondary hidden" id="p-restore"><i class="bi bi-arrow-counterclockwise"></i> กู้คืนสถานะ</button>
+          <button class="btn btn-danger" id="p-purge" style="background:#B71C1C" title="ลบข้อมูลนักเรียนคนนี้ออกจากฐานข้อมูลทั้งหมด (กู้คืนไม่ได้) — ต้องใช้ PIN ตั้งค่าระบบ"><i class="bi bi-trash3-fill"></i> ลบออกจากฐานข้อมูล</button>
         </div>
       </div>
 
@@ -163,7 +164,7 @@
     <h3 class="modal-title">➕ เพิ่มนักเรียนใหม่</h3>
     <form id="create-form">
       <div class="form-row">
-        <div class="form-group"><label>เลขบัตรประชาชน (13 หลัก)</label><input class="form-control" name="citizen_id" maxlength="13" inputmode="numeric" required></div>
+        <div class="form-group"><label>เลขบัตรประชาชน / รหัส G (13 หลัก)</label><input class="form-control" name="citizen_id" maxlength="17" autocapitalize="characters" autocomplete="off" spellcheck="false" required placeholder="เช่น 1234567890123 หรือ G123456789012"><div class="text-muted" style="font-size:12px;margin-top:4px">นักเรียนต่างด้าว/ไม่มีเลขบัตร: ขึ้นต้นด้วยตัวอักษรอังกฤษ (เช่น G) ตามด้วยตัวเลข 12 หลัก</div></div>
         <div class="form-group"><label>รหัสนักเรียน</label><input class="form-control" name="student_code"></div>
       </div>
       <div class="form-row">
