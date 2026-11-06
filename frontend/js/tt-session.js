@@ -9,6 +9,12 @@
 const TTAuth = (function () {
   const KEY = 'baanmai_tt_session';
   let user = null, gate = null, roles = [];
+  let cancelLogin = null;   // หน้าเข้าสู่ระบบแบบไม่บังคับ (TTAuth.signIn) — มีลิงก์ "ใช้ต่อโดยไม่เข้าสู่ระบบ"
+  function cancelLink() { return cancelLogin ? '<a href="#" data-cancel-login>ใช้ต่อโดยไม่เข้าสู่ระบบ</a> · ' : ''; }
+  function bindCancel(el) {
+    const c = el.querySelector('[data-cancel-login]');
+    if (c) c.onclick = function (e) { e.preventDefault(); const f = cancelLogin; cancelLogin = null; closeScreen(); if (f) f(); };
+  }
   const esc = function (s) { return Utils.esc(s); };
 
   function load() {
@@ -49,10 +55,11 @@ const TTAuth = (function () {
       '<label class="tt-chip" style="margin-top:10px"><input type="checkbox" name="remember"> จดจำการเข้าสู่ระบบ 30 วัน</label>' +
       '<div class="alert alert-danger hidden" data-err style="margin-top:10px"></div>' +
       '<button class="btn btn-primary" style="width:100%;margin-top:12px" type="submit"><i class="bi bi-box-arrow-in-right"></i> เข้าสู่ระบบ</button></form>' +
-      '<div class="tt-auth-links"><a href="#" data-byname>เข้าด้วยชื่อผู้ใช้</a> · <a href="index.html">กลับหน้าหลัก</a></div>' +
+      '<div class="tt-auth-links">' + cancelLink() + '<a href="#" data-byname>เข้าด้วยชื่อผู้ใช้</a> · <a href="index.html">กลับหน้าหลัก</a></div>' +
       '<p class="tt-note" style="text-align:center;margin:8px 0 0">ไม่มีชื่อ/ลืมรหัสผ่าน — ติดต่อผู้ดูแลระบบหรือฝ่ายวิชาการ</p>');
     const f = el.querySelector('[data-form]');
     el.querySelector('[data-byname]').onclick = function (e) { e.preventDefault(); loginScreen(resolve, msg, true); };
+    bindCancel(el);
     setTimeout(function () { (f.uid.value ? f.password : f.uid).focus(); }, 50);
     f.uid.onchange = function () { if (f.uid.value) f.password.focus(); };
     f.onsubmit = async function (e) {
@@ -77,8 +84,9 @@ const TTAuth = (function () {
       '<label class="tt-chip" style="margin-top:10px"><input type="checkbox" name="remember"> จดจำการเข้าสู่ระบบ 30 วัน</label>' +
       '<div class="alert alert-danger hidden" data-err style="margin-top:10px"></div>' +
       '<button class="btn btn-primary" style="width:100%;margin-top:12px" type="submit"><i class="bi bi-box-arrow-in-right"></i> เข้าสู่ระบบ</button></form>' +
-      '<div class="tt-auth-links"><a href="timetable-view.html">ดูตารางเรียน (ไม่ต้องเข้าสู่ระบบ)</a> · <a href="index.html">กลับหน้าหลัก</a></div>');
+      '<div class="tt-auth-links">' + (cancelLogin ? cancelLink() : '<a href="timetable-view.html">ดูตารางเรียน (ไม่ต้องเข้าสู่ระบบ)</a> · ') + '<a href="index.html">กลับหน้าหลัก</a></div>');
     const f = el.querySelector('[data-form]');
+    bindCancel(el);
     setTimeout(function () { f.username.focus(); }, 50);
     f.onsubmit = async function (e) {
       e.preventDefault();
@@ -117,6 +125,7 @@ const TTAuth = (function () {
   }
 
   function signedIn(r, resolve) {
+    cancelLogin = null;
     save({ token: r.token, expires_at: r.expires_at, user: r.user });
     user = r.user;
     closeScreen();
@@ -206,6 +215,18 @@ const TTAuth = (function () {
     can: function (cap) { return !!(user && (user.caps || []).indexOf(cap) >= 0); },
     renderHeader: renderHeader,
     logout: logout,
+    changePassword: changePassword,
+
+    /** เปิดหน้าเข้าสู่ระบบแบบไม่บังคับ (มีปุ่ม "ใช้ต่อโดยไม่เข้าสู่ระบบ") → ผู้ใช้ หรือ null ถ้ายกเลิก · ตรวจสถานะใหม่หลังเข้าสู่ระบบ (ได้ข้อมูลครูประจำชั้น) */
+    signIn: function (msg) {
+      return new Promise(function (resolve) {
+        cancelLogin = function () { resolve(null); };
+        loginScreen(async function () {
+          try { const st = await api('tt.auth_status', {}, { silent: true, loading: false }); user = st.user; const s = load(); if (s && user) save(Object.assign(s, { user: user })); } catch (e) { /* ใช้ข้อมูลจาก login */ }
+          resolve(user);
+        }, msg);
+      });
+    },
 
     /** ตรวจสถานะกับ server (ไม่บังคับเข้าสู่ระบบ) → ผู้ใช้หรือ null */
     peek: async function () {

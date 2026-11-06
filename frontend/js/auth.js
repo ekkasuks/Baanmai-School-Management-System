@@ -40,11 +40,12 @@ function readToken(mod) {
 const Auth = {
 
   getToken: function (action) {
-    // ระบบจัดตารางสอน (tt.*) และแผนที่บ้านนักเรียน (geo.*) ใช้ session ผู้ใช้ (js/tt-session.js) — แยกจาก PIN เดิม
+    // ระบบจัดตารางสอน (tt.*) แผนที่บ้าน (geo.*) วิชาการ (acad.*) ใช้ session บัญชีบุคลากร (js/tt-session.js)
     if (/^(tt|geo|acad)\./.test(String(action))) return window.TTAuth ? TTAuth.token() : null;
-    // ส่ง token เฉพาะ action ของโมดูลที่ต้อง PIN
+    // โมดูลที่ยังใช้ PIN (ธนาคาร/ตั้งค่า) ส่ง token PIN · โมดูลอื่นส่ง token บัญชี (ถ้าเข้าสู่ระบบ) → server รู้ว่าใครบันทึก
     const mod = actionToModule(action);
-    return mod ? readToken(mod) : null;
+    if (mod) return readToken(mod);
+    return window.TTAuth ? TTAuth.token() : null;
   },
 
   setToken: function (mod, token, ttlSec) {

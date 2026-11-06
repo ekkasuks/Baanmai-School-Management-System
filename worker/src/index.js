@@ -25,6 +25,7 @@ import { AcademicAPI } from './modules/academic.js';
 import { GradebookActions } from './modules/gradebook.js';
 import { now } from './db.js';
 import { isWrite, logWrite } from './write-log.js';
+import { currentUser } from './modules/tt-auth.js';
 
 const ROUTER = {
   settings: SettingsAPI,
@@ -105,8 +106,14 @@ async function runOne(action, params, base) {
   }
   try {
     const ctx = { db: base.db, env: base.env, token: base.token, ip: base.ip, action: action };
+    const write = isWrite(action);
+    // ผู้บันทึกจากบัญชีที่เข้าสู่ระบบ (ไม่เชื่อชื่อที่หน้าเว็บส่งมา) — tt/geo/acad จัดการเอง (ท่องสูตรคูณไม่ต้องเข้าสู่ระบบ)
+    if (write && !/^(tt|geo|acad)\./.test(action) && params && typeof params === 'object') {
+      const u = await currentUser(ctx);
+      if (u) params.recorded_by = u.display_name || u.username;
+    }
     const data = await method(params, ctx);
-    if (isWrite(action)) await logWrite(ctx, action, params, data);   // ประวัติการบันทึก (WRITE_LOG)
+    if (write) await logWrite(ctx, action, params, data);   // ประวัติการบันทึก (WRITE_LOG)
     return { ok: true, data: data === undefined ? null : data, error: null };
   } catch (err) {
     return { ok: false, data: null, error: { code: (err && err.code) || 'INTERNAL', message: (err && err.message) || String(err) } };
