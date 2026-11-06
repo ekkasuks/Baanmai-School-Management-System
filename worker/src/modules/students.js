@@ -16,6 +16,8 @@ const EDITABLE = ['student_code', 'prefix', 'first_name', 'last_name', 'gender',
 const PK_REBUILD = {
   ACAD_MULT:        "rec_id = term || ':' || ? || ':' || table_no",
   ACAD_MULT_ROSTER: "roster_id = term || ':' || ?",
+  GB_ROSTER:        "roster_id = course_id || ':' || ?",
+  GB_SCORE:         "score_id = item_id || ':' || ?",
 };
 
 /** เปลี่ยนเลขประจำตัว: ย้ายทุกแถวที่ citizen_id = เดิม → ใหม่ (ทุกตารางใน TABLES ที่มีคอลัมน์ citizen_id) ใน batch เดียว */

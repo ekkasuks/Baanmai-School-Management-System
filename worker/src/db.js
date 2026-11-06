@@ -48,6 +48,11 @@ export const TABLES = {
   ATTENDANCE_TRASH: { pk: 'trash_id',  cols: ['trash_id', 'batch_id', 'att_id', 'date', 'citizen_id', 'status', 'note', 'recorded_by', 'created_at', 'deleted_at', 'deleted_by', 'reason'] },   // ถังกู้คืนเช็คชื่อ
   ACAD_MULT:        { pk: 'rec_id',    cols: ['rec_id', 'term', 'citizen_id', 'table_no', 'passed', 'passed_date', 'recorded_by', 'updated_at'] },   // วิชาการ › ท่องสูตรคูณ
   ACAD_MULT_ROSTER: { pk: 'roster_id', cols: ['roster_id', 'term', 'citizen_id', 'grade', 'room', 'updated_at'] },
+  // วิชาการ › บันทึกคะแนน (schema-gradebook.sql)
+  GB_COURSE:        { pk: 'course_id', cols: ['course_id', 'term', 'class_id', 'subject_id', 'teacher_id', 'subject_code', 'subject_name', 'class_label', 'teacher_name', 'weights', 'grade_scale', 'status', 'submitted_at', 'submitted_by', 'created_by', 'created_at', 'updated_by', 'updated_at'] },
+  GB_ROSTER:        { pk: 'roster_id', cols: ['roster_id', 'course_id', 'citizen_id', 'left_class', 'special', 'updated_at'] },
+  GB_ITEM:          { pk: 'item_id',   cols: ['item_id', 'course_id', 'period', 'title', 'max_score', 'item_date', 'late_pct', 'note', 'active', 'created_by', 'created_at', 'updated_by', 'updated_at'] },
+  GB_SCORE:         { pk: 'score_id',  cols: ['score_id', 'item_id', 'course_id', 'citizen_id', 'score', 'flag', 'recorded_by', 'updated_at'] },
   // secret = ไม่รวมใน settings.backup/restore และ admin.import (รหัสผ่าน/ session ห้ามหลุดออกหรือถูกเขียนทับจากไฟล์)
   TT_USER:       { pk: 'user_id',    secret: true, cols: ['user_id', 'username', 'display_name', 'role', 'password_hash', 'teacher_id', 'class_id', 'active', 'failed_count', 'locked_until', 'last_login', 'created_at', 'updated_at'] },
   TT_SESSION:    { pk: 'token_hash', secret: true, cols: ['token_hash', 'user_id', 'created_at', 'expires_at'] },

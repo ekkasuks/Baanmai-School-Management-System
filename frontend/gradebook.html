@@ -27,7 +27,71 @@
   .gb-head { display:flex; gap:10px; align-items:flex-start; flex-wrap:wrap; justify-content:space-between; }
   .gb-head h3 { margin:0; }
   .gb-info { display:flex; gap:8px 16px; flex-wrap:wrap; font-size:14px; color:var(--muted); margin-top:6px; }
-  .gb-roster td:first-child, .gb-roster th:first-child { width:48px; text-align:center; color:var(--muted); }
+  .gb-actions { display:flex; gap:8px; flex-wrap:wrap; }
+  .gb-actions .btn { margin:0; }
+  /* แถบสถานะบันทึก */
+  .gb-save { font-size:13px; padding:3px 10px; border-radius:999px; border:1px solid var(--border); color:var(--muted); white-space:nowrap; }
+  .gb-save.pending { color:#8a6d00; border-color:var(--yellow); background:#FFF8E1; }
+  .gb-save.ok { color:var(--green-dark); border-color:#C8E6C9; background:#E8F5E9; }
+  .gb-save.err { color:#B71C1C; border-color:#FFCDD2; background:#FFEBEE; cursor:pointer; }
+  /* งาน */
+  .gb-period { border:1px solid var(--border); border-radius:14px; padding:12px; margin-bottom:12px; }
+  .gb-period.zero { opacity:.6; }
+  .gb-period-h { display:flex; align-items:center; gap:8px; flex-wrap:wrap; margin-bottom:8px; }
+  .gb-period-h strong { font-size:16px; }
+  .gb-w { font-size:13px; font-weight:700; color:var(--primary-dark); background:var(--primary-light); border-radius:999px; padding:1px 9px; }
+  .gb-item { display:flex; align-items:center; gap:10px; flex-wrap:wrap; padding:8px 0; border-top:1px dashed var(--border); }
+  .gb-item .t { flex:1; min-width:160px; }
+  .gb-item .t b { font-weight:600; }
+  .gb-item .t small { display:block; color:var(--muted); font-size:13px; }
+  .gb-item .btn { margin:0; padding:6px 12px; font-size:14px; }
+  .gb-bar-p { height:6px; border-radius:3px; background:var(--border); overflow:hidden; width:80px; }
+  .gb-bar-p > i { display:block; height:100%; background:var(--green); }
+  .btn-sm { padding:6px 12px; font-size:14px; }
+  .btn-link { background:none; border:none; color:var(--primary-dark); cursor:pointer; font-family:inherit; font-size:14px; padding:4px 6px; text-decoration:underline; }
+  /* ตารางคะแนน */
+  .gb-gridwrap { overflow:auto; max-height:calc(100vh - 160px); border:1px solid var(--border); border-radius:12px; }
+  table.gb-grid-t { border-collapse:separate; border-spacing:0; font-size:14px; min-width:100%; }
+  .gb-grid-t th, .gb-grid-t td { border-bottom:1px solid var(--border); border-right:1px solid var(--border); padding:4px 6px; text-align:center; background:var(--card); white-space:nowrap; }
+  .gb-grid-t thead th { position:sticky; top:0; z-index:2; background:var(--primary-light); font-weight:600; }
+  .gb-grid-t thead tr:nth-child(2) th { top:var(--gb-h1, 30px); }
+  .gb-grid-t .c-no { position:sticky; left:0; z-index:1; box-sizing:border-box; width:36px; min-width:36px; max-width:36px; color:var(--muted); }
+  .gb-grid-t .c-name { position:sticky; left:36px; z-index:1; text-align:left; min-width:150px; max-width:220px; overflow:hidden; text-overflow:ellipsis; box-shadow:2px 0 0 var(--border); }
+  .gb-grid-t thead .c-no, .gb-grid-t thead .c-name { z-index:3; }
+  .gb-grid-t th.it { font-weight:500; max-width:110px; white-space:normal; line-height:1.25; font-size:13px; }
+  .gb-grid-t th.it small { display:block; color:var(--muted); }
+  .gb-grid-t td.sum, .gb-grid-t th.sum { background:#F1F8E9; font-weight:600; }
+  .gb-grid-t td.tot, .gb-grid-t th.tot { background:#E8F5E9; font-weight:700; }
+  .gb-grid-t tr.left td { color:var(--muted); font-style:italic; }
+  .gb-grid-t tfoot td { background:#FAFAFA; color:var(--muted); font-size:13px; }
+  .gb-cell { width:58px; padding:5px 4px; border:1px solid transparent; border-radius:6px; text-align:center; font:inherit; background:transparent; color:inherit; }
+  .gb-cell:hover { border-color:var(--border); }
+  .gb-cell:focus { outline:none; border-color:var(--primary); background:var(--primary-light); }
+  .gb-cell.bad { border-color:var(--red); background:#FFEBEE; }
+  .gb-cell.dirty { background:#FFF8E1; }
+  /* บันทึกทีละงาน */
+  .gb-entry { list-style:none; margin:0; padding:0; }
+  .gb-entry li { display:flex; align-items:center; gap:10px; padding:8px 2px; border-bottom:1px solid var(--border); }
+  .gb-entry .n { width:28px; color:var(--muted); text-align:right; }
+  .gb-entry .nm { flex:1; min-width:0; }
+  .gb-entry .gb-cell { width:84px; font-size:17px; padding:8px; border-color:var(--border); }
+  .gb-entry .mx { color:var(--muted); font-size:13px; width:44px; }
+  .modal-backdrop > .modal.gb-modal-full { max-width:560px; max-height:calc(100vh - 36px); overflow-y:auto; }
+  .gb-wrow { display:flex; align-items:center; gap:10px; margin-bottom:10px; }
+  .gb-wrow label { flex:1; }
+  .gb-wrow input { width:90px; text-align:center; }
+  @media (max-width:640px) {
+    .gb-grid-t .c-name { min-width:112px; max-width:132px; font-size:13px; }
+    .modal-backdrop > .modal.gb-modal-full { max-width:none; max-height:none; height:100%; border-radius:0; padding:16px; }
+    .modal-backdrop:has(.gb-modal-full) { padding:0; }
+  }
+  html[data-theme="dark"] .gb-grid-t thead th { background:#12324A; }
+  html[data-theme="dark"] .gb-grid-t td.sum, html[data-theme="dark"] .gb-grid-t th.sum { background:#1B3324; }
+  html[data-theme="dark"] .gb-grid-t td.tot, html[data-theme="dark"] .gb-grid-t th.tot { background:#1E3A28; }
+  html[data-theme="dark"] .gb-grid-t tfoot td { background:#13202B; }
+  html[data-theme="dark"] .gb-cell.dirty, html[data-theme="dark"] .gb-save.pending { background:#3A3212; }
+  html[data-theme="dark"] .gb-cell.bad, html[data-theme="dark"] .gb-save.err { background:#3E1A1A; }
+  html[data-theme="dark"] .gb-save.ok { background:#16301C; }
 </style>
 </head>
 <body data-tt-page="acad" data-tt-login="pick">
@@ -63,15 +127,73 @@
           <h3 id="gb-c-title"></h3>
           <div class="gb-info" id="gb-c-info"></div>
         </div>
+        <div class="gb-actions hidden" id="gb-c-actions">
+          <button class="btn btn-secondary" id="gb-btn-settings"><i class="bi bi-sliders"></i> ตั้งค่าวิชา</button>
+          <button class="btn btn-primary" id="gb-btn-add"><i class="bi bi-plus-lg"></i> เพิ่มงาน</button>
+        </div>
       </div>
     </div>
     <div class="card">
-      <h3 class="card-title">👥 รายชื่อนักเรียน <span class="tt-note" id="gb-c-count"></span></h3>
-      <p class="tt-note" style="margin-top:-6px">ดึงจากข้อมูลนักเรียนตามชั้น/ห้องอัตโนมัติ (เฉพาะสถานะกำลังศึกษา) · การสร้างช่องคะแนนและบันทึกคะแนนจะเปิดในขั้นถัดไป</p>
-      <div id="gb-c-roster"></div>
+      <div class="gb-bar" style="margin-bottom:12px">
+        <div class="tabs" style="margin:0;flex:1" role="tablist">
+          <button class="tab active" data-tab="grid" role="tab">📊 ตารางคะแนน</button>
+          <button class="tab" data-tab="items" role="tab">📝 งาน/ช่องคะแนน <span id="gb-n-items"></span></button>
+        </div>
+        <span class="gb-save hidden" id="gb-save" aria-live="polite"></span>
+      </div>
+      <div id="gb-tab-grid"></div>
+      <div id="gb-tab-items" class="hidden"></div>
     </div>
   </div>
 </main>
+
+<!-- ตั้งค่าวิชา -->
+<div class="modal-backdrop" id="gb-m-settings">
+  <div class="modal">
+    <h3 class="modal-title">⚙️ ตั้งค่าวิชา — น้ำหนักคะแนน</h3>
+    <p class="tt-note" style="margin-top:-8px">คะแนนแต่ละช่วงย่อจากคะแนนงานในช่วงนั้นอัตโนมัติ (ได้รวม ÷ เต็มรวม × น้ำหนัก) · รวมต้องเท่ากับ 100</p>
+    <div id="gb-w-rows"></div>
+    <div class="gb-wrow"><label><strong>รวม</strong></label><strong id="gb-w-sum" style="width:90px;text-align:center"></strong></div>
+    <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:14px">
+      <button class="btn btn-secondary" data-close>ยกเลิก</button>
+      <button class="btn btn-primary" id="gb-w-save">บันทึก</button>
+    </div>
+  </div>
+</div>
+
+<!-- เพิ่ม/แก้ไขงาน -->
+<div class="modal-backdrop" id="gb-m-item">
+  <div class="modal">
+    <h3 class="modal-title" id="gb-i-title">➕ เพิ่มงาน</h3>
+    <div class="form-group"><label for="gb-i-period">ช่วงคะแนน</label><select class="form-control" id="gb-i-period"></select></div>
+    <div class="form-group"><label for="gb-i-name">ชื่องาน / ช่องคะแนน</label><input class="form-control" id="gb-i-name" maxlength="80" placeholder="เช่น แบบฝึกหัดบทที่ 1, สอบย่อย, ชิ้นงาน"></div>
+    <div style="display:flex;gap:10px">
+      <div class="form-group" style="flex:1"><label for="gb-i-max">คะแนนเต็ม</label><input class="form-control" id="gb-i-max" type="number" inputmode="decimal" min="0.5" max="1000" step="0.5"></div>
+      <div class="form-group" style="flex:1.3"><label for="gb-i-date">วันที่ (ไม่บังคับ)</label><input class="form-control" id="gb-i-date" type="date"></div>
+    </div>
+    <div class="form-group"><label for="gb-i-note">หมายเหตุ (ไม่บังคับ)</label><input class="form-control" id="gb-i-note" maxlength="200"></div>
+    <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:14px">
+      <button class="btn btn-secondary" data-close>ยกเลิก</button>
+      <button class="btn btn-primary" id="gb-i-save">บันทึก</button>
+    </div>
+  </div>
+</div>
+
+<!-- บันทึกคะแนนทีละงาน -->
+<div class="modal-backdrop" id="gb-m-entry">
+  <div class="modal gb-modal-full">
+    <div style="display:flex;align-items:flex-start;gap:8px">
+      <div style="flex:1"><h3 class="modal-title" style="margin-bottom:2px" id="gb-e-title"></h3><div class="tt-note" id="gb-e-sub"></div></div>
+      <button class="btn btn-secondary btn-sm" data-close style="margin:0">เสร็จ</button>
+    </div>
+    <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin:10px 0">
+      <button class="btn btn-secondary btn-sm" id="gb-e-fill" style="margin:0"><i class="bi bi-check2-all"></i> เติมคะแนนเต็มในช่องว่าง</button>
+      <span class="gb-save hidden" id="gb-save2" aria-live="polite"></span>
+    </div>
+    <ul class="gb-entry" id="gb-e-list"></ul>
+    <p class="tt-note" style="margin:10px 0 0">บันทึกอัตโนมัติ · Enter = ไปคนถัดไป · เว้นว่าง = ยังไม่ให้คะแนน</p>
+  </div>
+</div>
 
 <script src="js/config.js"></script>
 <script src="js/auth.js"></script>
