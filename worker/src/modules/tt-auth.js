@@ -17,9 +17,9 @@ const MIN_PASSWORD = 8;
 
 /** บทบาท → ความสามารถ */
 export const ROLES = {
-  admin:    { label: 'ผู้ดูแลระบบ',              caps: ['view', 'edit_data', 'edit_timetable', 'approve', 'announce', 'manage_users', 'geo', 'geo_edit', 'geo_admin', 'acad_admin', 'gb', 'gb_admin', 'gb_view'] },
+  admin:    { label: 'ผู้ดูแลระบบ',              caps: ['view', 'edit_data', 'edit_timetable', 'approve', 'announce', 'manage_users', 'geo', 'geo_edit', 'geo_admin', 'acad_admin', 'gb', 'gb_admin', 'gb_view', 'audit_view'] },
   director: { label: 'ผู้บริหาร',                 caps: ['view', 'approve', 'announce', 'geo', 'gb_view'] },
-  academic: { label: 'ฝ่ายวิชาการ (ผู้จัดตาราง)', caps: ['view', 'edit_data', 'edit_timetable', 'announce', 'geo', 'geo_edit', 'acad_admin', 'gb', 'gb_admin', 'gb_view'] },
+  academic: { label: 'ฝ่ายวิชาการ (ผู้จัดตาราง)', caps: ['view', 'edit_data', 'edit_timetable', 'announce', 'geo', 'geo_edit', 'acad_admin', 'gb', 'gb_admin', 'gb_view', 'audit_view'] },
   teacher:  { label: 'ครู',                       caps: ['view', 'geo', 'geo_edit', 'gb'] },
   student:  { label: 'นักเรียน',                  caps: [] },
   parent:   { label: 'ผู้ปกครอง',                 caps: [] },
@@ -353,6 +353,54 @@ export const AuthActions = {
     const v = params.required === true ? '1' : '0';
     await upsert(ctx.db, 'SETTINGS', { key: 'staff_login_required', value: v, updated_at: now(), updated_by: me.username });
     return { required: v === '1' };
+  },
+
+  /**
+   * ประวัติการบันทึก (WRITE_LOG) — ผู้ดูแล/ฝ่ายวิชาการ (audit_view)
+   * params { from:'YYYY-MM-DD', to, user_id? ('-' = ไม่ได้เข้าสู่ระบบ), module?, limit? (≤500), before? (cursor "at|log_id") }
+   * → { rows[{log_id, at, user_id, user_name, role, module, action, ref_date, grade, room, n, target, target_label, detail}], next, by_user[], by_module[], users[] }
+   * เป้าหมายที่เป็นเลขประจำตัวนักเรียน → แสดงชื่อ+ชั้นแทน (ไม่ส่งเลขประจำตัว) · user_id → ชื่อบัญชี
+   */
+  write_log_list: async function (params, ctx) {
+    await requireCap(ctx, 'audit_view');
+    const db = ctx.db, ymd = /^\d{4}-\d{2}-\d{2}$/;
+    const from = ymd.test(String(params.from || '')) ? String(params.from) : '0000-00-00';
+    const to = ymd.test(String(params.to || '')) ? String(params.to) : '9999-12-31';
+    const where = ['at >= ?', 'at <= ?'], binds = [from + 'T00:00:00', to + 'T23:59:59'];
+    if (params.module) { where.push('module = ?'); binds.push(String(params.module)); }
+    const base = where.slice(), baseB = binds.slice();     // สรุปใช้ช่วงวันที่ + เมนู (ไม่กรองผู้ใช้)
+    if (params.user_id === '-') where.push("(user_id IS NULL OR user_id = '')");
+    else if (params.user_id) { where.push('user_id = ?'); binds.push(String(params.user_id)); }
+    const m = /^(.{19})\|(.+)$/.exec(String(params.before || ''));
+    if (m) { where.push('(at < ? OR (at = ? AND log_id < ?))'); binds.push(m[1], m[1], m[2]); }
+    const limit = Math.max(1, Math.min(500, Number(params.limit) || 200));
+    const q = function (sql, b) { const st = db.prepare(sql); return st.bind.apply(st, b).all().then(function (r) { return r.results || []; }); };
+    const [rows, byUser, byMod, users] = await Promise.all([
+      q('SELECT * FROM WRITE_LOG WHERE ' + where.join(' AND ') + ' ORDER BY at DESC, log_id DESC LIMIT ' + (limit + 1), binds),
+      m ? Promise.resolve(null) : q("SELECT COALESCE(user_id, '') AS user_id, MAX(user_name) AS user_name, COUNT(*) AS n FROM WRITE_LOG WHERE " + base.join(' AND ') + " GROUP BY COALESCE(user_id, '') ORDER BY n DESC", baseB),
+      m ? Promise.resolve(null) : q('SELECT module, COUNT(*) AS n FROM WRITE_LOG WHERE ' + base.join(' AND ') + ' GROUP BY module ORDER BY n DESC', baseB),
+      readAll(db, 'TT_USER'),
+    ]);
+    const more = rows.length > limit; if (more) rows.pop();
+    const U = {}; users.forEach(function (u) { U[u.user_id] = u.display_name || u.username; });
+    // ชื่อนักเรียนของเป้าหมาย (เลขประจำตัว) — ไม่ส่งเลขประจำตัวออกไป
+    const ids = rows.map(function (r) { return r.target; }).filter(function (t, i, a) { return t && !U[t] && /^[0-9A-Z]\d{12}$/.test(t) && a.indexOf(t) === i; });
+    const S = {};
+    for (let i = 0; i < ids.length; i += 90) {
+      const part = ids.slice(i, i + 90), st = db.prepare('SELECT citizen_id, prefix, first_name, last_name, grade, room FROM STUDENTS WHERE citizen_id IN (' + part.map(function () { return '?'; }).join(',') + ')');
+      ((await st.bind.apply(st, part).all()).results || []).forEach(function (x) { S[x.citizen_id] = normName((x.prefix || '') + (x.first_name || '') + ' ' + (x.last_name || '')) + ' (' + (x.grade || '') + (x.room ? '/' + x.room : '') + ')'; });
+    }
+    const out = rows.map(function (r) {
+      const t = r.target || '', isCid = !!S[t] || (/^[0-9A-Z]\d{12}$/.test(t) && !U[t]);
+      let detail = null; try { detail = r.detail ? JSON.parse(r.detail) : null; } catch (e) { detail = null; }
+      return { log_id: r.log_id, at: r.at, user_id: r.user_id || '', user_name: r.user_name || '', role: r.role || '', module: r.module, action: r.action,
+        ref_date: r.ref_date || '', grade: r.grade || '', room: r.room || '', n: Number(r.n) || 0,
+        target: isCid ? '' : t, target_label: S[t] || (U[t] ? '👤 ' + U[t] : (isCid ? '(นักเรียนที่ไม่มีในระบบแล้ว)' : '')), detail: detail };
+    });
+    const last = out[out.length - 1];
+    return { rows: out, next: more && last ? last.at + '|' + last.log_id : '', by_user: byUser, by_module: byMod,
+      users: users.filter(function (u) { return STAFF_ROLES.indexOf(u.role) >= 0; }).map(function (u) { return { user_id: u.user_id, name: u.display_name || u.username }; })
+        .sort(function (a, b) { return a.name.localeCompare(b.name, 'th'); }) };
   },
 
   teacher_accounts: async function (params, ctx) {

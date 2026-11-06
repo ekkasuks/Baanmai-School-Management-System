@@ -9,7 +9,7 @@
   if (!host) return;
   const CAP_LABEL = { view: 'ดูข้อมูล', edit_data: 'แก้ข้อมูลตารางสอน', edit_timetable: 'จัด/แก้ตาราง', approve: 'อนุมัติ/เผยแพร่', announce: 'ประกาศ', manage_users: 'จัดการผู้ใช้',
     geo: 'ดูแผนที่บ้าน', geo_edit: 'บันทึกพิกัดบ้าน', geo_admin: 'ตั้งพิกัดโรงเรียน',
-    acad_admin: 'แก้ผลท่องสูตรคูณภาคก่อน', gb: 'บันทึกคะแนนวิชาที่สอน', gb_admin: 'จัดการคะแนนทุกวิชา', gb_view: 'ดูภาพรวมคะแนน' };
+    acad_admin: 'แก้ผลท่องสูตรคูณภาคก่อน', gb: 'บันทึกคะแนนวิชาที่สอน', gb_admin: 'จัดการคะแนนทุกวิชา', gb_view: 'ดูภาพรวมคะแนน', audit_view: 'ดูประวัติการบันทึก' };
   let users = [], A = null, tAcc = [], started = false;
 
   function roles() { return TTAuth.roles(); }

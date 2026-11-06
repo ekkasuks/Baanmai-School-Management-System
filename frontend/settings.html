@@ -29,6 +29,16 @@
   .su-check:has(input:checked) { border-color:var(--primary); background:var(--primary-light); }
   .su-check input { width:16px; height:16px; margin:0; }
   .btn-sm { padding:6px 12px; font-size:14px; margin:0; }
+  .lg-filters { display:flex; flex-wrap:wrap; gap:8px 12px; align-items:flex-end; }
+  .lg-filters label { display:flex; flex-direction:column; gap:2px; font-size:13px; color:var(--muted); margin:0; }
+  .lg-filters .form-control { min-width:140px; margin:0; }
+  .lg-filters .btn { margin:0; }
+  .lg-sum { display:flex; flex-direction:column; gap:8px; }
+  .lg-chips { display:flex; flex-wrap:wrap; gap:6px; align-items:center; }
+  .lg-chip { border:1px solid var(--border); background:var(--card,#fff); border-radius:999px; padding:3px 10px; font:inherit; font-size:13px; cursor:pointer; color:inherit; }
+  .lg-chip:hover { border-color:var(--primary); }
+  .lg-table td { vertical-align:top; }
+  .nw { white-space:nowrap; }
   .su-pol { padding:10px 12px; border-radius:12px; border:1px solid var(--border); }
   .su-pol.on { background:#E8F5E9; border-color:#C8E6C9; color:var(--green-dark); }
   .su-pol.off { background:#FAFAFA; }
@@ -42,7 +52,7 @@
   <span class="logo">⚙️</span>
   <div>
     <div class="title">ตั้งค่าระบบ</div>
-    <div style="font-size:13px;opacity:.9">ข้อมูลโรงเรียน · ผู้ใช้ · DMC · PIN · สำรองข้อมูล</div>
+    <div style="font-size:13px;opacity:.9">ข้อมูลโรงเรียน · ผู้ใช้ · ประวัติ · DMC · สำรองข้อมูล</div>
   </div>
 </header>
 
@@ -51,6 +61,7 @@
   <div class="tabs">
     <button class="tab active" data-tab="school">🏫 ข้อมูลโรงเรียน</button>
     <button class="tab" data-tab="users">👥 ผู้ใช้</button>
+    <button class="tab" data-tab="log">📜 ประวัติการบันทึก</button>
     <button class="tab" data-tab="dmc">📥 นำเข้า DMC</button>
     <button class="tab" data-tab="pin">🔒 PIN</button>
     <button class="tab" data-tab="backup">💾 สำรองข้อมูล</button>
@@ -93,6 +104,8 @@
   <!-- นำเข้า DMC -->
   <!-- ผู้ใช้ (บัญชีบุคลากร) — js/modules/settings-users.js · ต้องเข้าสู่ระบบด้วยบัญชีผู้ดูแลระบบ -->
   <section class="tab-pane hidden" id="tab-users"></section>
+  <!-- ประวัติการบันทึก (WRITE_LOG) — js/modules/settings-log.js · ผู้ดูแล/ฝ่ายวิชาการ -->
+  <section class="tab-pane hidden" id="tab-log"></section>
 
   <section class="tab-pane hidden" id="tab-dmc">
     <div class="card">
@@ -193,6 +206,7 @@
 <script src="js/tt-session.js"></script>
 <script src="js/modules/settings.js"></script>
 <script src="js/modules/settings-users.js"></script>
+<script src="js/modules/settings-log.js"></script>
 <script src="js/staff-bar.js"></script>
 </body>
 </html>
