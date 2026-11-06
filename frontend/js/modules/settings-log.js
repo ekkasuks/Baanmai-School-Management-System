@@ -26,7 +26,7 @@
     'acad.gb_submit': 'ส่งผลการเรียน', 'acad.gb_unlock': 'ปลดล็อกรายวิชา',
     'geo.save_home': 'บันทึกพิกัดบ้าน', 'geo.delete_home': 'ลบพิกัดบ้าน', 'geo.save_travel': 'บันทึกการเดินทาง', 'geo.link_create': 'สร้างลิงก์ผู้ปกครอง', 'geo.link_submit': 'ผู้ปกครองส่งพิกัด',
     'geo.point_save': 'แก้จุดสำคัญ', 'geo.point_delete': 'ลบจุดสำคัญ', 'geo.save_config': 'ตั้งค่าแผนที่',
-    'tt.user_save': 'เพิ่ม/แก้ผู้ใช้', 'tt.user_reset_password': 'ตั้งรหัสผ่านใหม่', 'tt.user_create_teacher': 'สร้างบัญชีครู', 'tt.homeroom_save': 'กำหนดครูประจำชั้น',
+    'tt.user_save': 'เพิ่ม/แก้ผู้ใช้', 'tt.user_delete': 'ลบบัญชีผู้ใช้', 'tt.user_reset_password': 'ตั้งรหัสผ่านใหม่', 'tt.user_create_teacher': 'สร้างบัญชีครู', 'tt.homeroom_save': 'กำหนดครูประจำชั้น',
     'tt.homeroom_import': 'ดึงครูประจำชั้น', 'tt.write_policy_save': 'เปิด/ปิดบังคับเข้าสู่ระบบ',
   };
   const DETAIL = { amount: 'จำนวนเงิน', type: 'ประเภท', status: 'สถานะ', points: 'คะแนน', month: 'เดือน', year: 'ปี', reason: 'เหตุผล', title: 'ชื่อ', table_no: 'แม่', passed: 'ผ่าน',

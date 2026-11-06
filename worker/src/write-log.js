@@ -20,7 +20,7 @@ export const WRITE_ACTIONS = {
   settings: ['update', 'init', 'backup', 'restore', 'promote'],
   acad: ['mult_set', 'mult_set_many', 'gb_course_save', 'gb_item_save', 'gb_item_remove', 'gb_score_save', 'gb_special_save', 'gb_deduct_add', 'gb_deduct_void', 'gb_submit', 'gb_unlock'],
   geo: ['save_home', 'delete_home', 'save_travel', 'link_create', 'link_submit', 'point_save', 'point_delete', 'save_config'],
-  tt: ['user_save', 'user_reset_password', 'user_create_teacher', 'homeroom_save', 'homeroom_import', 'write_policy_save'],
+  tt: ['user_save', 'user_reset_password', 'user_create_teacher', 'user_delete', 'homeroom_save', 'homeroom_import', 'write_policy_save'],
 };
 
 export function isWrite(action) {

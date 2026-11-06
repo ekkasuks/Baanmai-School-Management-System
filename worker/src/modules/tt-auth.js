@@ -139,6 +139,13 @@ function initialPassword() {
 }
 
 /* ════ actions (เรียกผ่าน tt.*) ════ */
+/** บัญชีที่มีในประวัติการบันทึก (ลบถาวรไม่ได้) → { user_id: true } */
+async function usedUserIds(db) {
+  const o = {};
+  ((await db.prepare("SELECT DISTINCT user_id FROM WRITE_LOG WHERE user_id IS NOT NULL AND user_id <> ''").all()).results || []).forEach(function (r) { o[r.user_id] = true; });
+  return o;
+}
+
 /** ชั้นที่บัญชีนี้เป็นครูประจำชั้น (STAFF_HOMEROOM) → [{grade, room}] เรียงตามชั้น */
 export async function homeroomsOf(db, userId) {
   if (!userId) return [];
@@ -216,11 +223,35 @@ export const AuthActions = {
   },
 
   users_list: async function (params, ctx) {
-    await requireCap(ctx, 'manage_users');
+    const me = await requireCap(ctx, 'manage_users');
+    const used = await usedUserIds(ctx.db);
     const users = (await readAll(ctx.db, 'TT_USER')).map(function (u) {
-      return Object.assign(publicUser(u), { active: String(u.active) !== '0', last_login: u.last_login || '', locked: !!(u.locked_until && String(u.locked_until) > now()), created_at: u.created_at });
+      return Object.assign(publicUser(u), { active: String(u.active) !== '0', last_login: u.last_login || '', locked: !!(u.locked_until && String(u.locked_until) > now()), created_at: u.created_at,
+        deletable: u.user_id !== me.user_id && !u.last_login && !used[u.user_id] });
     }).sort(function (a, b) { return Object.keys(ROLES).indexOf(a.role) - Object.keys(ROLES).indexOf(b.role) || a.username.localeCompare(b.username); });
     return { users: users };
+  },
+
+  /**
+   * ลบบัญชีถาวร — เฉพาะบัญชีที่ "ไม่เคยใช้งาน" (ไม่เคยเข้าสู่ระบบ และไม่มีในประวัติการบันทึก) เช่น สร้างผิด/ซ้ำ
+   * บัญชีที่เคยใช้แล้วให้ปิดใช้งานแทน (ประวัติยังอ้างชื่อได้) · ลบครูประจำชั้น/เซสชันของบัญชีนั้นด้วย
+   */
+  user_delete: async function (params, ctx) {
+    const me = await requireCap(ctx, 'manage_users');
+    const db = ctx.db, id = String(params.user_id || '');
+    const u = await getBy(db, 'TT_USER', 'user_id', id);
+    if (!u) apiError('NOT_FOUND', 'ไม่พบผู้ใช้');
+    if (u.user_id === me.user_id) apiError('VALIDATION', 'ลบบัญชีของตัวเองไม่ได้');
+    if (u.last_login || (await usedUserIds(db))[u.user_id]) apiError('VALIDATION', 'บัญชีนี้เคยใช้งานแล้ว — ลบไม่ได้ (ประวัติการบันทึกอ้างถึงบัญชีนี้) ให้ปิดใช้งานแทน');
+    if (u.role === 'admin' && String(u.active) !== '0') {
+      const admins = (await readAll(db, 'TT_USER')).filter(function (x) { return x.role === 'admin' && String(x.active) !== '0'; });
+      if (admins.length <= 1) apiError('VALIDATION', 'ต้องมีผู้ดูแลระบบที่ใช้งานได้อย่างน้อย 1 คน');
+    }
+    await db.batch([db.prepare('DELETE FROM TT_SESSION WHERE user_id = ?').bind(id), db.prepare('DELETE FROM STAFF_HOMEROOM WHERE user_id = ?').bind(id),
+      db.prepare('DELETE FROM TT_USER WHERE user_id = ?').bind(id)]);
+    params.username = u.username;   // ให้ประวัติการบันทึกเก็บชื่อผู้ใช้ที่ถูกลบ (write-log DETAIL_KEYS)
+    await log(db, 'DELETE', id, me.username, { username: u.username, role: u.role });
+    return { user_id: id, username: u.username };
   },
 
   /** เพิ่ม/แก้ผู้ใช้ — params = { user_id?, username, display_name, role, teacher_id?, class_id?, active?, password? (ต้องมีตอนเพิ่ม) } */

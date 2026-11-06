@@ -10,7 +10,7 @@
   const CAP_LABEL = { view: 'ดูข้อมูล', edit_data: 'แก้ข้อมูลตารางสอน', edit_timetable: 'จัด/แก้ตาราง', approve: 'อนุมัติ/เผยแพร่', announce: 'ประกาศ', manage_users: 'จัดการผู้ใช้',
     geo: 'ดูแผนที่บ้าน', geo_edit: 'บันทึกพิกัดบ้าน', geo_admin: 'ตั้งพิกัดโรงเรียน',
     acad_admin: 'แก้ผลท่องสูตรคูณภาคก่อน', gb: 'บันทึกคะแนนวิชาที่สอน', gb_admin: 'จัดการคะแนนทุกวิชา', gb_view: 'ดูภาพรวมคะแนน', audit_view: 'ดูประวัติการบันทึก' };
-  let users = [], A = null, tAcc = [], started = false;
+  let users = [], A = null, tAcc = [], started = false, showInactive = false;
 
   function roles() { return TTAuth.roles(); }
   function classLabel(c) { return c.grade + (c.room ? '/' + c.room : ''); }
@@ -71,8 +71,13 @@
 
   function renderList() {
     const me = TTAuth.user();
-    host.querySelector('[data-list]').innerHTML = '<div class="table-wrap"><table class="su-table"><thead><tr><th>ชื่อผู้ใช้</th><th>ชื่อที่แสดง</th><th>บทบาท</th><th>ครูประจำชั้น</th><th>ผูกกับ</th><th>สถานะ</th><th>เข้าใช้ล่าสุด</th><th></th></tr></thead><tbody>' +
-      users.map(function (u, i) {
+    const nOff = users.filter(function (u) { return !u.active; }).length;
+    const shown = users.filter(function (u) { return u.active || showInactive; });
+    host.querySelector('[data-list]').innerHTML =
+      (nOff ? '<div class="su-note" style="margin:0 0 8px"><label class="su-check" style="display:inline-flex;border:none;padding:0"><input type="checkbox" data-show-off' + (showInactive ? ' checked' : '') + '> แสดงบัญชีที่ปิดใช้งาน (' + nOff + ')</label></div>' : '') +
+      '<div class="table-wrap"><table class="su-table"><thead><tr><th>ชื่อผู้ใช้</th><th>ชื่อที่แสดง</th><th>บทบาท</th><th>ครูประจำชั้น</th><th>ผูกกับ</th><th>สถานะ</th><th>เข้าใช้ล่าสุด</th><th></th></tr></thead><tbody>' +
+      shown.map(function (u) {
+        const i = users.indexOf(u);
         const link = u.teacher_id ? '👩‍🏫 ' + esc(teacherName(u.teacher_id) || '(ครูภาคก่อน)') : u.class_id ? '🎒 ' + esc(ttClassLabel(u.class_id)) : '-';
         const st = !u.active ? '<span class="su-badge off">ปิดใช้งาน</span>' : u.locked ? '<span class="su-badge bad">ถูกล็อก</span>' : '<span class="su-badge ok">ใช้งาน</span>';
         const hr = hrOf(u.user_id).map(function (h) { return '<span class="su-chip">' + esc(classLabel(h)) + '</span>'; }).join(' ');
@@ -82,11 +87,25 @@
           '<td class="su-note">' + (u.last_login ? esc(Utils.fmtDateTime(u.last_login)) : '-') + '</td>' +
           '<td class="su-actions"><button class="btn btn-secondary" data-e="' + i + '" title="แก้ไข"><i class="bi bi-pencil"></i></button>' +
           (canHr ? '<button class="btn btn-secondary" data-h="' + i + '" title="ครูประจำชั้น">🏫</button>' : '') +
-          '<button class="btn btn-secondary" data-p="' + i + '" title="ตั้งรหัสผ่านใหม่"><i class="bi bi-key"></i></button></td></tr>';
+          '<button class="btn btn-secondary" data-p="' + i + '" title="ตั้งรหัสผ่านใหม่"><i class="bi bi-key"></i></button>' +
+          (u.deletable ? '<button class="btn btn-secondary" data-del="' + i + '" title="ลบบัญชี (ยังไม่เคยใช้งาน)"><i class="bi bi-trash"></i></button>' : '') + '</td></tr>';
       }).join('') + '</tbody></table></div>';
     host.querySelectorAll('[data-e]').forEach(function (b) { b.onclick = function () { edit(users[Number(b.dataset.e)]); }; });
     host.querySelectorAll('[data-h]').forEach(function (b) { b.onclick = function () { editHomeroom(users[Number(b.dataset.h)]); }; });
     host.querySelectorAll('[data-p]').forEach(function (b) { b.onclick = function () { resetPassword(users[Number(b.dataset.p)]); }; });
+    host.querySelectorAll('[data-del]').forEach(function (b) { b.onclick = function () { removeUser(users[Number(b.dataset.del)]); }; });
+    const so = host.querySelector('[data-show-off]');
+    if (so) so.onchange = function () { showInactive = so.checked; renderList(); };
+  }
+
+  /** ลบถาวร — server ยอมเฉพาะบัญชีที่ไม่เคยเข้าสู่ระบบและไม่มีในประวัติการบันทึก */
+  async function removeUser(u) {
+    if (!confirm('ลบบัญชี "' + u.display_name + '" (' + u.username + ') ถาวร?\n\nบัญชีนี้ยังไม่เคยใช้งาน จึงลบได้โดยไม่กระทบประวัติ · ลบแล้วกู้คืนไม่ได้ (สร้างใหม่ได้)')) return;
+    try {
+      await api('tt.user_delete', { user_id: u.user_id }, { loadingMsg: 'กำลังลบ...', noRetry: true });
+      Toast.show('ลบบัญชี ' + u.username + ' แล้ว', 'success');
+      load();
+    } catch (e) { }
   }
 
   /* ── สวิตช์บังคับเข้าสู่ระบบ ── */
@@ -240,7 +259,7 @@
         '<div data-link-c><label>ผูกกับชั้นเรียน</label><select class="form-control" name="class_id"><option value="">-</option>' + opt(A.tt_classes.map(function (c) { return [c.class_id, c.label]; }), u ? u.class_id : '') + '</select></div>' +
         (u ? '<div><label class="su-check" style="margin-top:26px"><input type="checkbox" name="active"' + (u.active ? ' checked' : '') + '> ใช้งาน</label></div>'
           : '<div><label>รหัสผ่าน</label><input class="form-control" name="password" type="password" autocomplete="new-password" placeholder="อย่างน้อย 8 ตัวอักษร" required></div>') +
-      '</div><p class="su-note" style="margin:8px 0 0">เปลี่ยนบทบาทหรือปิดใช้งาน = ผู้ใช้นั้นถูกออกจากระบบทันที</p>',
+      '</div><p class="su-note" style="margin:8px 0 0">เปลี่ยนบทบาทหรือปิดใช้งาน = ผู้ใช้นั้นถูกออกจากระบบทันที · ปิดใช้งาน = เข้าสู่ระบบไม่ได้ ชื่อหายจากหน้าเลือกชื่อ แต่ประวัติยังแสดงชื่อเดิม' + (u && u.deletable ? ' · บัญชีนี้ยังไม่เคยใช้งาน ลบถาวรได้ที่ปุ่ม 🗑' : '') + '</p>',
       async function (f) {
         await api('tt.user_save', {
           user_id: u ? u.user_id : undefined, username: f.username.value, display_name: f.display_name.value, role: f.role.value,
