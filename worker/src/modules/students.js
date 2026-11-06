@@ -4,7 +4,7 @@ import {
   now, yearMonth, toYmd, toYm, audit, apiError,
 } from '../db.js';
 import { studentName, mapDmcStudent, behaviorStart, normCitizenId } from '../shared.js';
-import { requirePin } from './auth.js';
+import { requireStaffOrPin } from './auth.js';
 import { getSetting } from './settings.js';
 
 const EDITABLE = ['student_code', 'prefix', 'first_name', 'last_name', 'gender',
@@ -232,7 +232,7 @@ export const StudentsAPI = {
    * คืนสำเนาข้อมูลที่ลบ (ไม่รวมตารางลับ) ให้หน้าเว็บดาวน์โหลดเก็บไว้เป็นหลักฐาน · AUDIT_LOG บันทึกชื่อ + จำนวนแถว
    */
   purge: async function (params, ctx) {
-    await requirePin(ctx, 'settings');
+    await requireStaffOrPin(ctx, 'settings', 'admin');
     const db = ctx.db, cid = String(params.citizen_id || '');
     if (params.confirm !== true) apiError('VALIDATION', 'ต้องยืนยันก่อนลบถาวร (confirm=true)');
     const s = cid ? await getBy(db, 'STUDENTS', 'citizen_id', cid) : null;
@@ -253,6 +253,7 @@ export const StudentsAPI = {
   },
 
   import_dmc: async function (params, ctx) {
+    await requireStaffOrPin(ctx, 'settings', 'admin');   // นำเข้า DMC = ผู้ดูแล (หรือ PIN ตั้งค่า ช่วงเปลี่ยนผ่าน)
     const rows = params.rows;
     if (!Array.isArray(rows)) apiError('VALIDATION', 'rows ต้องเป็น array');
     const existing = buildIndex(await readAll(ctx.db, 'STUDENTS'), 'citizen_id');

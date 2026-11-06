@@ -1167,7 +1167,7 @@ const NEED = {
   bootstrap: 'view', dashboard: 'view', list: 'view', versions: 'view', get_version: 'view', changes: 'view', constraints_get: 'view',
   save: 'edit_data', remove: 'edit_data', assign_save: 'edit_data', combine: 'edit_data', uncombine: 'edit_data', seed_periods: 'edit_data', sync_classes: 'edit_data', import_entities: 'edit_data',
   terms: 'view',
-  staff_admin_data: 'manage_users', homeroom_save: 'manage_users', homeroom_import: 'manage_users',
+  staff_admin_data: 'manage_users', homeroom_save: 'manage_users', homeroom_import: 'manage_users', write_policy: 'manage_users', write_policy_save: 'manage_users',
   copy_term: function (p) { const pt = (p && p.parts) || {}; return pt.version_id ? ['edit_data', 'edit_timetable'] : ['edit_data']; },
   save_version: 'edit_timetable', update_slots: 'edit_timetable', duplicate_version: 'edit_timetable', delete_version: 'edit_timetable',
   announce: 'announce', ticker_hide: 'announce',

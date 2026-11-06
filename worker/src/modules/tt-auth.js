@@ -6,7 +6,7 @@
  * session: token สุ่ม 256 บิต ส่งให้เบราว์เซอร์ · ฐานข้อมูลเก็บเฉพาะ SHA-256 ของ token
  * กันเดารหัส: ผิด 5 ครั้ง ล็อก 10 นาที
  */
-import { getBy, selectWhere, readAll, insertRows, updateWhere, deleteWhere, now, genId, hashPin, apiError } from '../db.js';
+import { getBy, selectWhere, readAll, insertRows, updateWhere, deleteWhere, upsert, now, genId, hashPin, apiError } from '../db.js';
 import { getSetting } from './settings.js';
 import { listClasses } from '../shared.js';
 
@@ -154,7 +154,8 @@ export const AuthActions = {
     const n = (await readAll(ctx.db, 'TT_USER')).length;
     const u = await currentUser(ctx);
     const pu = u ? Object.assign(publicUser(u), { homeroom: await homeroomsOf(ctx.db, u.user_id) }) : null;
-    return { setup_required: n === 0, user: pu, roles: Object.keys(ROLES).map(function (k) { return { key: k, label: ROLES[k].label, caps: ROLES[k].caps }; }) };
+    const req = String((await getSetting(ctx.db, 'staff_login_required')) || '') === '1';
+    return { setup_required: n === 0, user: pu, write_login_required: req, roles: Object.keys(ROLES).map(function (k) { return { key: k, label: ROLES[k].label, caps: ROLES[k].caps }; }) };
   },
 
   /** ตั้งผู้ดูแลคนแรก — ทำได้ครั้งเดียว (ยังไม่มีผู้ใช้เลย) และต้องยืนยันด้วย PIN ธนาคารโรงเรียนของระบบเดิม */
@@ -336,6 +337,22 @@ export const AuthActions = {
     });
     if (stmts.length) await db.batch(stmts);
     return { added: stmts.length, skipped: skipped };
+  },
+
+  /** สวิตช์ "บังคับเข้าสู่ระบบเมื่อบันทึก" + ความพร้อม (บัญชีบุคลากรที่เคยเข้าสู่ระบบแล้ว) */
+  write_policy: async function (params, ctx) {
+    await requireCap(ctx, 'manage_users');
+    const db = ctx.db, users = (await readAll(db, 'TT_USER')).filter(function (u) { return String(u.active) !== '0' && ['admin', 'academic', 'teacher'].indexOf(u.role) >= 0; });
+    return { required: String((await getSetting(db, 'staff_login_required')) || '') === '1', writers: users.length,
+      signed_in: users.filter(function (u) { return !!u.last_login; }).length,
+      never: users.filter(function (u) { return !u.last_login; }).map(function (u) { return u.display_name || u.username; }).sort(function (a, b) { return a.localeCompare(b, 'th'); }) };
+  },
+  /** เปิด/ปิดสวิตช์ · params { required: true|false } — เปิดแล้ว: บันทึกทุกเมนูต้องเข้าสู่ระบบ, PIN ธนาคาร/ตั้งค่าใช้ไม่ได้ */
+  write_policy_save: async function (params, ctx) {
+    const me = await requireCap(ctx, 'manage_users');
+    const v = params.required === true ? '1' : '0';
+    await upsert(ctx.db, 'SETTINGS', { key: 'staff_login_required', value: v, updated_at: now(), updated_by: me.username });
+    return { required: v === '1' };
   },
 
   teacher_accounts: async function (params, ctx) {

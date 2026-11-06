@@ -29,6 +29,9 @@
   .su-check:has(input:checked) { border-color:var(--primary); background:var(--primary-light); }
   .su-check input { width:16px; height:16px; margin:0; }
   .btn-sm { padding:6px 12px; font-size:14px; margin:0; }
+  .su-pol { padding:10px 12px; border-radius:12px; border:1px solid var(--border); }
+  .su-pol.on { background:#E8F5E9; border-color:#C8E6C9; color:var(--green-dark); }
+  .su-pol.off { background:#FAFAFA; }
   @media (max-width:640px) { .su-form { grid-template-columns:1fr; } }
 </style>
 </head>
@@ -112,7 +115,7 @@
   <section class="tab-pane hidden" id="tab-pin">
     <div class="card">
       <h3 class="card-title">🔒 ตั้งค่า PIN</h3>
-      <div class="alert alert-info">PIN ใช้เข้าโมดูล <strong>ธนาคาร</strong> และ<strong>ตั้งค่าระบบ</strong> (บันทึก · สำรอง/กู้คืน · เลื่อนชั้น) · กรอกวันละ 1 ครั้ง · ถ้ายังไม่ตั้ง PIN ตั้งค่าระบบ จะใช้ PIN ธนาคารแทน</div>
+      <div class="alert alert-warning"><strong>ธนาคารและตั้งค่าระบบใช้บัญชีบุคลากรแทน PIN แล้ว</strong> (ธนาคาร = ครูทุกคน · ตั้งค่า = ผู้ดูแลระบบ) — PIN ด้านล่างใช้สำรองในช่วงเปลี่ยนผ่านเท่านั้น และจะ <strong>ใช้ไม่ได้</strong> เมื่อเปิด "บังคับเข้าสู่ระบบเมื่อบันทึก" ที่แท็บผู้ใช้</div>
       <form id="pin-form">
         <div class="form-group"><label>PIN ตั้งค่าระบบ (ผู้ดูแล)</label><input class="form-control" type="password" name="pin_settings" inputmode="numeric" placeholder="ว่าง = ไม่เปลี่ยน"></div>
         <div class="form-row">
@@ -190,5 +193,6 @@
 <script src="js/tt-session.js"></script>
 <script src="js/modules/settings.js"></script>
 <script src="js/modules/settings-users.js"></script>
+<script src="js/staff-bar.js"></script>
 </body>
 </html>

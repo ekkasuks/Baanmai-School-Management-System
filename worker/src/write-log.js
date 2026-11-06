@@ -20,7 +20,7 @@ export const WRITE_ACTIONS = {
   settings: ['update', 'init', 'backup', 'restore', 'promote'],
   acad: ['mult_set', 'mult_set_many', 'gb_course_save', 'gb_item_save', 'gb_item_remove', 'gb_score_save', 'gb_special_save', 'gb_deduct_add', 'gb_deduct_void', 'gb_submit', 'gb_unlock'],
   geo: ['save_home', 'delete_home', 'save_travel', 'link_create', 'link_submit', 'point_save', 'point_delete', 'save_config'],
-  tt: ['user_save', 'user_reset_password', 'user_create_teacher', 'homeroom_save', 'homeroom_import'],
+  tt: ['user_save', 'user_reset_password', 'user_create_teacher', 'homeroom_save', 'homeroom_import', 'write_policy_save'],
 };
 
 export function isWrite(action) {
@@ -30,7 +30,7 @@ export function isWrite(action) {
 
 const LIST_KEYS = ['records', 'items', 'scores', 'rows', 'citizen_ids', 'students', 'members', 'entries', 'classes'];
 const TARGET_KEYS = ['citizen_id', 'course_id', 'item_id', 'group_id', 'activity_id', 'deduct_id', 'user_id', 'teacher_id', 'point_id', 'key'];
-const DETAIL_KEYS = ['amount', 'type', 'status', 'points', 'month', 'year', 'reason', 'title', 'table_no', 'passed', 'from', 'to', 'to_date', 'role', 'username'];
+const DETAIL_KEYS = ['required', 'amount', 'type', 'status', 'points', 'month', 'year', 'reason', 'title', 'table_no', 'passed', 'from', 'to', 'to_date', 'role', 'username'];
 
 function str(v, n) { return v == null ? '' : String(v).slice(0, n || 60); }
 

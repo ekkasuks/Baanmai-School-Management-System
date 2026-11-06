@@ -87,14 +87,32 @@
     });
   }
 
-  async function signIn() {
-    const u = await TTAuth.signIn();
-    if (!u) return;
-    user = u;
-    render(); applyRecorder(); applyHomeroom();
-    Toast.show('เข้าสู่ระบบแล้ว — บันทึกในชื่อ ' + u.display_name, 'success');
-    document.dispatchEvent(new CustomEvent('staff:change', { detail: user }));
+  async function signIn(msg) {
+    const u = await TTAuth.signIn(typeof msg === 'string' ? msg : undefined);
+    if (u) Toast.show('เข้าสู่ระบบแล้ว — บันทึกในชื่อ ' + u.display_name, 'success');
+    return u;
   }
+  // เข้าสู่ระบบจากที่ใดก็ตาม (ปุ่มบนแถบ / ธนาคาร / ตั้งค่า / บันทึกที่ถูกปฏิเสธ) → อัปเดตแถบ + ช่องผู้บันทึก + ชั้นเริ่มต้น
+  document.addEventListener('tt:signin', function (e) {
+    if (!e.detail) return;
+    user = e.detail;
+    render(); applyRecorder(); applyHomeroom();
+    document.dispatchEvent(new CustomEvent('staff:change', { detail: user }));
+  });
+
+  // เปิดสวิตช์บังคับแล้ว: บันทึกโดยไม่ได้เข้าสู่ระบบ → server ตอบ AUTH_REQUIRED → เปิดหน้าเข้าสู่ระบบ แล้วส่งคำสั่งเดิมซ้ำให้ 1 ครั้ง
+  const baseApi = window.api;
+  let prompting = null;
+  window.api = async function (action, params, opts) {
+    try { return await baseApi(action, params, opts); }
+    catch (e) {
+      if (e.code !== 'AUTH_REQUIRED' || /^(tt|geo|acad)\./.test(String(action)) || TTAuth.token()) throw e;
+      prompting = prompting || signIn('กรุณาเข้าสู่ระบบก่อนบันทึกข้อมูล').finally(function () { prompting = null; });
+      const u = await prompting;
+      if (!u) throw e;
+      return await baseApi(action, params, Object.assign({}, opts || {}, { token: undefined }));
+    }
+  };
 
   const ready = TTAuth.peek().then(function (u) {
     user = u;

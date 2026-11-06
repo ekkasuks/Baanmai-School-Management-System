@@ -19,5 +19,5 @@
 ## เฟส
 1. (เสร็จ) ย้ายผู้ใช้ไป ตั้งค่าระบบ › ผู้ใช้ (`js/modules/settings-users.js`, ต้อง manage_users) · ครูประจำชั้น STAFF_HOMEROOM (`tt.staff_admin_data`, `tt.homeroom_save`, `tt.homeroom_import` จาก TT_CLASS.homeroom_teacher_id) · `auth_status.user.homeroom` · WRITE_LOG ผ่าน router (`worker/src/write-log.js` WRITE_ACTIONS) — ยังไม่บังคับ
 2. (เสร็จ) `js/staff-bar.js` บนหน้าบันทึก 9 หน้า (ปุ่มเข้าสู่ระบบ/เมนูผู้ใช้, ช่องผู้บันทึก = ชื่อบัญชีแบบล็อก, เลือกชั้นครูประจำชั้นใน rec-class/p-class) · `TTAuth.signIn()` เข้าสู่ระบบแบบไม่บังคับ · auth.js ส่ง token บัญชีกับทุกคำสั่งที่ไม่ใช่ PIN · index.js ใส่ recorded_by จากบัญชี (ยกเว้น tt/geo/acad)
-3. สวิตช์บังคับ (ตั้งค่าระบบ) → server ปฏิเสธการเขียนที่ไม่มีบัญชี/บัญชีผู้บริหาร · ธนาคารและตั้งค่าเปลี่ยนจาก PIN เป็นบัญชี
+3. (เสร็จ) SETTINGS.staff_login_required + `tt.write_policy(_save)` (การ์ดในตั้งค่า › ผู้ใช้) · index.js: บัญชีที่ไม่ใช่ครู/วิชาการ/ผู้ดูแล บันทึกไม่ได้เสมอ, เปิดสวิตช์แล้วไม่มีบัญชี = AUTH_REQUIRED · `requireStaffOrPin` (auth.js) ใช้กับ bank (read/write) settings/purge/import_dmc (admin) — PIN ใช้ได้เฉพาะตอนสวิตช์ปิด · frontend: Auth.requirePin เปิดเข้าสู่ระบบด้วยบัญชีก่อน PIN, staff-bar ดัก AUTH_REQUIRED → เข้าสู่ระบบแล้วส่งซ้ำ · tt-session.js ต้องโหลดก่อน js/modules/
 4. หน้า "ประวัติการบันทึก" (ผู้ดูแล/วิชาการ) กรองครู/วันที่/เมนู + CSV

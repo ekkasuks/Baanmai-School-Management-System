@@ -1,7 +1,7 @@
 /** Settings — ข้อมูลโรงเรียน + PIN · backup/restore · เลื่อนชั้น
  *  get / init / promote_preview อ่านได้สาธารณะ · update / backup / restore / promote ต้องมี PIN session โมดูล 'settings' */
 import { TABLES, readAll, getBy, upsert, updateWhere, insertRows, clearTable, now, hashPin, audit, apiError } from '../db.js';
-import { requirePin, revokeSessions } from './auth.js';
+import { requireStaffOrPin, revokeSessions } from './auth.js';
 
 /** อ่านค่า setting ดิบ (ใช้ภายใน เช่น auth) */
 export async function getSetting(db, key) {
@@ -36,7 +36,7 @@ export const SettingsAPI = {
   },
 
   update: async function (params, ctx) {
-    await requirePin(ctx, 'settings');
+    await requireStaffOrPin(ctx, 'settings', 'admin');
     const key = params.key;
     if (!key) apiError('VALIDATION', 'missing key');
     let value = params.value;
@@ -75,7 +75,7 @@ export const SettingsAPI = {
 
   /** สำรองข้อมูลทุกตาราง → { version, created_at, data:{TABLE:[...]} } (ฝั่ง frontend เอาไปดาวน์โหลดเป็นไฟล์) */
   backup: async function (params, ctx) {
-    await requirePin(ctx, 'settings');
+    await requireStaffOrPin(ctx, 'settings', 'admin');
     const data = {};
     for (const table of Object.keys(TABLES)) { if (!TABLES[table].secret) data[table] = await readAll(ctx.db, table); }
     return { version: 2, source: 'cloudflare-d1', created_at: now(), data: data };
@@ -83,7 +83,7 @@ export const SettingsAPI = {
 
   /** กู้คืน — ลบของเดิมในตารางที่อยู่ใน backup แล้วเขียนใหม่ (ต้อง confirm:true) */
   restore: async function (params, ctx) {
-    await requirePin(ctx, 'settings');
+    await requireStaffOrPin(ctx, 'settings', 'admin');
     const backup = params.backup;
     if (!backup || !backup.data) apiError('VALIDATION', 'ไฟล์สำรองไม่ถูกต้อง');
     if (params.confirm !== true) apiError('VALIDATION', 'ต้องยืนยันก่อนกู้คืน (confirm=true)');
@@ -126,7 +126,7 @@ export const SettingsAPI = {
 
   /** เลื่อนชั้นจริง — เลื่อนทุกคน (active), ป.6→จบ(inactive), เพิ่มปีการศึกษา +1 · ต้อง confirm:true */
   promote: async function (params, ctx) {
-    await requirePin(ctx, 'settings');
+    await requireStaffOrPin(ctx, 'settings', 'admin');
     const db = ctx.db;
     if (params.confirm !== true) apiError('VALIDATION', 'ต้องยืนยันก่อนเลื่อนชั้น (confirm=true)');
     const ts = now();

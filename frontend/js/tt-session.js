@@ -9,7 +9,8 @@
 const TTAuth = (function () {
   const KEY = 'baanmai_tt_session';
   let user = null, gate = null, roles = [];
-  let cancelLogin = null;   // หน้าเข้าสู่ระบบแบบไม่บังคับ (TTAuth.signIn) — มีลิงก์ "ใช้ต่อโดยไม่เข้าสู่ระบบ"
+  let cancelLogin = null;
+  let loginReq = false;     // สวิตช์ "บังคับเข้าสู่ระบบเมื่อบันทึก" (จาก tt.auth_status)   // หน้าเข้าสู่ระบบแบบไม่บังคับ (TTAuth.signIn) — มีลิงก์ "ใช้ต่อโดยไม่เข้าสู่ระบบ"
   function cancelLink() { return cancelLogin ? '<a href="#" data-cancel-login>ใช้ต่อโดยไม่เข้าสู่ระบบ</a> · ' : ''; }
   function bindCancel(el) {
     const c = el.querySelector('[data-cancel-login]');
@@ -130,6 +131,7 @@ const TTAuth = (function () {
     user = r.user;
     closeScreen();
     renderHeader();
+    document.dispatchEvent(new CustomEvent('tt:signin', { detail: user }));   // แถบบัญชี (staff-bar.js) อัปเดตตาม
     if (resolve) resolve(user);
   }
 
@@ -216,13 +218,16 @@ const TTAuth = (function () {
     renderHeader: renderHeader,
     logout: logout,
     changePassword: changePassword,
+    loginRequired: function () { return loginReq; },
 
     /** เปิดหน้าเข้าสู่ระบบแบบไม่บังคับ (มีปุ่ม "ใช้ต่อโดยไม่เข้าสู่ระบบ") → ผู้ใช้ หรือ null ถ้ายกเลิก · ตรวจสถานะใหม่หลังเข้าสู่ระบบ (ได้ข้อมูลครูประจำชั้น) */
     signIn: function (msg) {
+      if (!document.body.dataset.ttLogin) document.body.dataset.ttLogin = 'pick';   // หน้าบันทึกข้อมูลใช้แบบเลือกชื่อ
       return new Promise(function (resolve) {
         cancelLogin = function () { resolve(null); };
         loginScreen(async function () {
-          try { const st = await api('tt.auth_status', {}, { silent: true, loading: false }); user = st.user; const s = load(); if (s && user) save(Object.assign(s, { user: user })); } catch (e) { /* ใช้ข้อมูลจาก login */ }
+          try { const st = await api('tt.auth_status', {}, { silent: true, loading: false }); user = st.user; loginReq = !!st.write_login_required; const s = load(); if (s && user) save(Object.assign(s, { user: user })); } catch (e) { /* ใช้ข้อมูลจาก login */ }
+          document.dispatchEvent(new CustomEvent('tt:signin', { detail: user }));
           resolve(user);
         }, msg);
       });
@@ -234,6 +239,7 @@ const TTAuth = (function () {
       try {
         const st = await api('tt.auth_status', {}, { silent: true, loading: false });
         roles = st.roles || [];
+        loginReq = !!st.write_login_required;
         user = st.user;
         if (user && s) save(Object.assign(s, { user: user }));
         if (!user && s) clear();

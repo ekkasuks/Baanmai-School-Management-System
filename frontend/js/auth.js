@@ -13,7 +13,7 @@ const PUBLIC_ACTIONS = ['settings.get', 'settings.init', 'settings.promote_previ
 function tokenKey(mod) { return mod === 'bank' ? TOKEN_KEY : TOKEN_KEY + '_' + mod; }
 
 // action ของโมดูลอื่นที่ต้องใช้ PIN ของโมดูลที่กำหนด
-const PIN_ACTIONS = { 'students.purge': 'settings' };   // ลบนักเรียนถาวร = PIN ตั้งค่าระบบ
+const PIN_ACTIONS = { 'students.purge': 'settings', 'students.import_dmc': 'settings' };   // ลบถาวร / นำเข้า DMC = ผู้ดูแล (หรือ PIN ตั้งค่า ช่วงเปลี่ยนผ่าน)
 
 function actionToModule(action) {
   if (!action || PUBLIC_ACTIONS.indexOf(String(action)) >= 0) return null;
@@ -43,9 +43,11 @@ const Auth = {
     // ระบบจัดตารางสอน (tt.*) แผนที่บ้าน (geo.*) วิชาการ (acad.*) ใช้ session บัญชีบุคลากร (js/tt-session.js)
     if (/^(tt|geo|acad)\./.test(String(action))) return window.TTAuth ? TTAuth.token() : null;
     // โมดูลที่ยังใช้ PIN (ธนาคาร/ตั้งค่า) ส่ง token PIN · โมดูลอื่นส่ง token บัญชี (ถ้าเข้าสู่ระบบ) → server รู้ว่าใครบันทึก
+    // เข้าสู่ระบบด้วยบัญชีแล้ว → ใช้บัญชีกับทุกโมดูล (รวมธนาคาร/ตั้งค่า — server ตรวจสิทธิ์ตามบทบาท)
+    const tt = window.TTAuth ? TTAuth.token() : null;
     const mod = actionToModule(action);
-    if (mod) return readToken(mod);
-    return window.TTAuth ? TTAuth.token() : null;
+    if (mod) return tt || readToken(mod);
+    return tt;
   },
 
   setToken: function (mod, token, ttlSec) {
@@ -74,13 +76,19 @@ const Auth = {
     }
   },
 
-  /** เปิด modal กรอก PIN ถ้ายังไม่มี token — คืน Promise */
-  requirePin: function (mod) {
+  /**
+   * ก่อนเรียกคำสั่งของโมดูลที่เคยใช้ PIN (ธนาคาร/ตั้งค่า): มีบัญชีแล้ว → ผ่าน · ยังมี PIN ของวันนี้ → ผ่าน
+   * ไม่งั้นเปิดหน้าเข้าสู่ระบบด้วยบัญชีก่อน (กด "ใช้ต่อโดยไม่เข้าสู่ระบบ" → กรอก PIN แบบเดิม ใช้ได้จนกว่าจะเปิดสวิตช์บังคับ)
+   */
+  requirePin: async function (mod) {
+    if (window.TTAuth && TTAuth.token()) return;
+    if (this.hasValid(mod)) return;
+    if (window.TTAuth) {
+      const u = await TTAuth.signIn(mod === 'bank' ? 'ธนาคารโรงเรียนใช้บัญชีบุคลากรแทน PIN แล้ว' : mod === 'settings' ? 'ตั้งค่าระบบใช้บัญชีผู้ดูแลระบบแทน PIN แล้ว' : '');
+      if (u) return;
+    }
     const self = this;
-    return new Promise(function (resolve, reject) {
-      if (self.hasValid(mod)) { resolve(); return; }
-      self.openPinModal(mod, resolve, reject);
-    });
+    return new Promise(function (resolve, reject) { self.openPinModal(mod, resolve, reject); });
   },
 
   openPinModal: function (mod, onSuccess, onCancel) {

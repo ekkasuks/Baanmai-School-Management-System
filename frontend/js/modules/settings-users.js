@@ -36,6 +36,7 @@
   function shell(me) {
     host.innerHTML =
       '<div class="su-who"><span>👤 เข้าสู่ระบบในชื่อ <strong data-no-i18n>' + esc(me.display_name) + '</strong> · ' + esc(me.role_label) + '</span><button class="btn btn-secondary btn-sm" data-out><i class="bi bi-box-arrow-right"></i> ออกจากระบบ</button></div>' +
+      '<div class="card" data-policy><h3 class="card-title">🔒 บังคับเข้าสู่ระบบเมื่อบันทึก</h3><div data-pol class="text-muted">กำลังโหลด...</div></div>' +
       '<div class="card"><div class="su-head"><h3 class="card-title" style="margin:0">👥 ผู้ใช้และสิทธิ์</h3><button class="btn btn-primary" data-add><i class="bi bi-person-plus"></i> เพิ่มผู้ใช้</button></div>' +
         '<div data-list class="text-muted">กำลังโหลด...</div></div>' +
       '<div class="card"><div class="su-head"><h3 class="card-title" style="margin:0">🏫 ครูประจำชั้น</h3><button class="btn btn-secondary" data-import><i class="bi bi-download"></i> ดึงจากตารางสอน</button></div>' +
@@ -56,7 +57,7 @@
       const [r, a] = await Promise.all([api('tt.users_list', {}, { loadingMsg: 'กำลังโหลดผู้ใช้...' }), api('tt.staff_admin_data', {}, { loading: false })]);
       users = r.users; A = a;
       renderList(); renderHomerooms(); renderMatrix();
-      loadTeachers();
+      loadTeachers(); loadPolicy();
     } catch (e) { host.querySelector('[data-list]').innerHTML = '<div class="alert alert-danger">' + esc(e.message) + '</div>'; }
   }
 
@@ -86,6 +87,32 @@
     host.querySelectorAll('[data-e]').forEach(function (b) { b.onclick = function () { edit(users[Number(b.dataset.e)]); }; });
     host.querySelectorAll('[data-h]').forEach(function (b) { b.onclick = function () { editHomeroom(users[Number(b.dataset.h)]); }; });
     host.querySelectorAll('[data-p]').forEach(function (b) { b.onclick = function () { resetPassword(users[Number(b.dataset.p)]); }; });
+  }
+
+  /* ── สวิตช์บังคับเข้าสู่ระบบ ── */
+  async function loadPolicy() {
+    const box = host.querySelector('[data-pol]');
+    try {
+      const p = await api('tt.write_policy', {}, { loading: false });
+      box.innerHTML =
+        '<div class="su-pol ' + (p.required ? 'on' : 'off') + '"><strong>' + (p.required ? '🟢 เปิดอยู่' : '⚪ ปิดอยู่') + '</strong> — ' +
+          (p.required ? 'บันทึกทุกเมนูต้องเข้าสู่ระบบ · ผู้บริหารดูได้อย่างเดียว · PIN ธนาคาร/ตั้งค่าใช้ไม่ได้แล้ว'
+            : 'ยังบันทึกโดยไม่เข้าสู่ระบบได้ (ถ้าเข้าสู่ระบบ ระบบจะเก็บชื่อจริง) · ธนาคาร/ตั้งค่ายังใช้ PIN สำรองได้') + '</div>' +
+        '<p class="su-note" style="margin:10px 0 6px">ความพร้อม: บัญชีครู/วิชาการ/ผู้ดูแลที่ใช้งานอยู่ <strong>' + p.writers + '</strong> บัญชี · เคยเข้าสู่ระบบแล้ว <strong>' + p.signed_in + '</strong>' +
+          (p.never.length ? ' · ยังไม่เคยเข้า: ' + p.never.map(function (n) { return '<span class="su-chip" data-no-i18n>' + esc(n) + '</span>'; }).join(' ') : ' · ครบทุกคนแล้ว ✓') + '</p>' +
+        '<p class="su-note" style="margin:0 0 10px">ท่องสูตรคูณยังบันทึกได้โดยไม่ต้องเข้าสู่ระบบ · การดูข้อมูลไม่ต้องเข้าสู่ระบบเหมือนเดิม · มีปัญหาปิดกลับได้ทันที</p>' +
+        '<button class="btn ' + (p.required ? 'btn-secondary' : 'btn-primary') + '" data-toggle>' + (p.required ? '<i class="bi bi-unlock"></i> ปิดการบังคับ' : '<i class="bi bi-lock"></i> เปิดบังคับเข้าสู่ระบบ') + '</button>';
+      box.querySelector('[data-toggle]').onclick = async function () {
+        const on = !p.required;
+        if (!confirm(on ? 'เปิดบังคับเข้าสู่ระบบเมื่อบันทึก?' + (p.never.length ? '\n\n⚠️ ยังมี ' + p.never.length + ' บัญชีที่ไม่เคยเข้าสู่ระบบ' : '') + '\n\nหลังเปิด: ครูต้องเข้าสู่ระบบก่อนบันทึกทุกเมนู และ PIN ธนาคาร/ตั้งค่าจะใช้ไม่ได้'
+          : 'ปิดการบังคับ? ครูจะบันทึกโดยไม่เข้าสู่ระบบได้อีกครั้ง')) return;
+        try {
+          await api('tt.write_policy_save', { required: on }, { loadingMsg: 'กำลังบันทึก...', noRetry: true });
+          Toast.show(on ? 'เปิดบังคับเข้าสู่ระบบแล้ว' : 'ปิดการบังคับแล้ว', 'success');
+          loadPolicy();
+        } catch (e) { }
+      };
+    } catch (e) { box.innerHTML = '<div class="alert alert-danger">' + esc(e.message) + '</div>'; }
   }
 
   /* ── ครูประจำชั้น ── */

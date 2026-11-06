@@ -1,6 +1,7 @@
 /** Auth — ตรวจ PIN + session token (เก็บใน SESSIONS table แทน CacheService) */
 import { getBy, insertRows, deleteWhere, now, today, genId, hashPin, audit, apiError } from '../db.js';
 import { getSetting } from './settings.js';
+import { currentUser, can } from './tt-auth.js';
 
 const PIN_MODULES = ['bank', 'attendance', 'settings'];
 
@@ -82,6 +83,28 @@ export async function revokeSessions(db, moduleName) {
 }
 
 /** เรียกต้น method ที่ต้องใช้ PIN — throw ถ้าไม่ผ่าน */
+/* ── บัญชีบุคลากรแทน PIN (เฟส 3) ── */
+export const WRITER_ROLES = ['admin', 'academic', 'teacher'];        // บันทึกข้อมูลได้ · ผู้บริหารดูอย่างเดียว
+const STAFF_ROLES = ['admin', 'director', 'academic', 'teacher'];
+/** สวิตช์ "บังคับเข้าสู่ระบบเมื่อบันทึก" (SETTINGS.staff_login_required = '1') — เปิดแล้ว PIN ใช้แทนบัญชีไม่ได้ */
+export async function loginRequired(db) { return String((await getSetting(db, 'staff_login_required')) || '') === '1'; }
+
+/**
+ * ตรวจสิทธิ์โมดูลที่เคยใช้ PIN (ธนาคาร/ตั้งค่า): มีบัญชี → ตรวจตามระดับ · ไม่มีบัญชี → PIN (เฉพาะช่วงยังไม่เปิดสวิตช์บังคับ)
+ * level: 'read' = บุคลากรทุกบทบาท · 'write' = ครู/วิชาการ/ผู้ดูแล · 'admin' = ผู้ดูแลระบบ (manage_users)
+ */
+export async function requireStaffOrPin(ctx, moduleName, level) {
+  const u = await currentUser(ctx);
+  if (u) {
+    const ok = level === 'admin' ? can(u, 'manage_users') : level === 'write' ? WRITER_ROLES.indexOf(u.role) >= 0 : STAFF_ROLES.indexOf(u.role) >= 0;
+    if (!ok) apiError('FORBIDDEN', level === 'admin' ? 'ต้องเข้าสู่ระบบด้วยบัญชีผู้ดูแลระบบ' : level === 'write' ? 'บัญชีนี้ดูข้อมูลได้อย่างเดียว บันทึกไม่ได้' : 'บัญชีนี้ไม่มีสิทธิ์ใช้เมนูนี้');
+    return u;
+  }
+  if (await loginRequired(ctx.db)) apiError('AUTH_REQUIRED', 'กรุณาเข้าสู่ระบบด้วยบัญชีบุคลากร (ใช้ PIN แทนไม่ได้แล้ว)');
+  await requirePin(ctx, moduleName);
+  return null;
+}
+
 export async function requirePin(ctx, moduleName) {
   if (!(await isTokenValid(ctx.db, ctx.token, moduleName))) {
     apiError('TOKEN_EXPIRED', 'กรุณากรอก PIN ใหม่');

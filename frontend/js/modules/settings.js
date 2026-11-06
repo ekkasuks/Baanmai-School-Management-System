@@ -15,7 +15,7 @@
 
   const SCHOOL_KEYS = ['school_code','school_name','address','phone','email','website','director','current_year','current_semester'];
 
-  // บันทึก/สำรอง/กู้คืน/เลื่อนชั้น ต้องกรอก PIN ตั้งค่าระบบก่อน (backend ตรวจซ้ำทุกครั้ง)
+  // บันทึก/สำรอง/กู้คืน/เลื่อนชั้น/นำเข้า DMC ต้องเข้าสู่ระบบด้วยบัญชีผู้ดูแล (หรือ PIN ตั้งค่า ช่วงเปลี่ยนผ่าน) — backend ตรวจซ้ำทุกครั้ง
   function withPin(fn) { return Auth.withPin('settings', fn); }
 
   // ── โหลดค่าตั้งต้น ──
@@ -137,9 +137,9 @@
       document.getElementById('dmc-bar').style.width = pct + '%';
       document.getElementById('dmc-status').textContent = 'กำลังนำเข้า ชุด ' + (i + 1) + '/' + totalChunks + ' (' + chunk.length + ' แถว)...';
       try {
-        const r = await api('students.import_dmc', {
-          rows: chunk, chunk_index: i + 1, total_chunks: totalChunks, recorded_by: 'admin',
-        }, { silent: true, loading: false });
+        const r = await withPin(function () {
+          return api('students.import_dmc', { rows: chunk, chunk_index: i + 1, total_chunks: totalChunks, recorded_by: 'admin' }, { silent: true, loading: false });
+        });
         ins += r.inserted || 0; upd += r.updated || 0; skip += r.skipped || 0;
       } catch (err) {
         document.getElementById('dmc-status').textContent = '❌ ผิดพลาดที่ชุด ' + (i + 1) + ': ' + err.message;

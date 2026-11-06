@@ -4,12 +4,12 @@ import {
   now, today, yearMonth, toYmd, toYm, genId, audit, apiError,
 } from '../db.js';
 import { studentName, listClasses, studentsInClass } from '../shared.js';
-import { requirePin } from './auth.js';
+import { requireStaffOrPin } from './auth.js';
 
 export const BankAPI = {
 
   dashboard: async function (params, ctx) {
-    await requirePin(ctx, 'bank');
+    await requireStaffOrPin(ctx, 'bank', 'read');
     const db = ctx.db;
     const students = (await readAll(db, 'STUDENTS')).filter(function (s) { return s.status === 'active' || !s.status; });
     const balIndex = buildIndex(await readAll(db, 'BANK_BALANCE'), 'citizen_id');
@@ -53,12 +53,12 @@ export const BankAPI = {
   },
 
   classes: async function (params, ctx) {
-    await requirePin(ctx, 'bank');
+    await requireStaffOrPin(ctx, 'bank', 'read');
     return { classes: await listClasses(ctx.db) };
   },
 
   by_class: async function (params, ctx) {
-    await requirePin(ctx, 'bank');
+    await requireStaffOrPin(ctx, 'bank', 'read');
     if (!params.grade) apiError('VALIDATION', 'กรุณาเลือกชั้นเรียน');
     const balIndex = buildIndex(await readAll(ctx.db, 'BANK_BALANCE'), 'citizen_id');
     const results = (await studentsInClass(ctx.db, params.grade, params.room)).map(function (s) {
@@ -73,7 +73,7 @@ export const BankAPI = {
   },
 
   search: async function (params, ctx) {
-    await requirePin(ctx, 'bank');
+    await requireStaffOrPin(ctx, 'bank', 'read');
     const q = String(params.q || '').trim().toLowerCase();
     if (!q) return { results: [] };
     const balIndex = buildIndex(await readAll(ctx.db, 'BANK_BALANCE'), 'citizen_id');
@@ -93,24 +93,24 @@ export const BankAPI = {
   },
 
   balance: async function (params, ctx) {
-    await requirePin(ctx, 'bank');
+    await requireStaffOrPin(ctx, 'bank', 'read');
     if (!params.citizen_id) apiError('VALIDATION', 'กรุณาระบุนักเรียน');
     const row = await getBy(ctx.db, 'BANK_BALANCE', 'citizen_id', String(params.citizen_id));
     return { citizen_id: params.citizen_id, balance: row ? Number(row.balance) || 0 : 0 };
   },
 
   deposit: async function (params, ctx) {
-    await requirePin(ctx, 'bank');
+    await requireStaffOrPin(ctx, 'bank', 'write');
     return applyTransaction(ctx.db, 'deposit', params);
   },
 
   withdraw: async function (params, ctx) {
-    await requirePin(ctx, 'bank');
+    await requireStaffOrPin(ctx, 'bank', 'write');
     return applyTransaction(ctx.db, 'withdraw', params);
   },
 
   history: async function (params, ctx) {
-    await requirePin(ctx, 'bank');
+    await requireStaffOrPin(ctx, 'bank', 'read');
     const p = params || {};
     const stIndex = buildIndex(await readAll(ctx.db, 'STUDENTS'), 'citizen_id');
     let rows = p.citizen_id
@@ -138,7 +138,7 @@ export const BankAPI = {
   },
 
   passbook: async function (params, ctx) {
-    await requirePin(ctx, 'bank');
+    await requireStaffOrPin(ctx, 'bank', 'read');
     const cid = params.citizen_id;
     if (!cid) apiError('VALIDATION', 'กรุณาระบุนักเรียน');
     const s = await getBy(ctx.db, 'STUDENTS', 'citizen_id', String(cid));
@@ -161,7 +161,7 @@ export const BankAPI = {
 
   /** สถิตินิสัยการออม — ความถี่การฝาก (จำนวนครั้ง) รายเดือน + จัดอันดับ */
   saving_habit: async function (params, ctx) {
-    await requirePin(ctx, 'bank');
+    await requireStaffOrPin(ctx, 'bank', 'read');
     const p = params || {};
     const ym = p.year_month || yearMonth();
     const months = lastMonths(ym, 6);

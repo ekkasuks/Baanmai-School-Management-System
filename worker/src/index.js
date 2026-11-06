@@ -26,6 +26,7 @@ import { GradebookActions } from './modules/gradebook.js';
 import { now } from './db.js';
 import { isWrite, logWrite } from './write-log.js';
 import { currentUser } from './modules/tt-auth.js';
+import { WRITER_ROLES, loginRequired } from './modules/auth.js';
 
 const ROUTER = {
   settings: SettingsAPI,
@@ -96,6 +97,8 @@ export default {
   },
 };
 
+function throwErr(code, message) { const e = new Error(message); e.code = code; throw e; }
+
 /** dispatch 1 action → { ok, data, error } (ไม่ throw) */
 async function runOne(action, params, base) {
   const parts = String(action).split('.');
@@ -110,6 +113,12 @@ async function runOne(action, params, base) {
     // ผู้บันทึกจากบัญชีที่เข้าสู่ระบบ (ไม่เชื่อชื่อที่หน้าเว็บส่งมา) — tt/geo/acad จัดการเอง (ท่องสูตรคูณไม่ต้องเข้าสู่ระบบ)
     if (write && !/^(tt|geo|acad)\./.test(action) && params && typeof params === 'object') {
       const u = await currentUser(ctx);
+      // ผู้บริหาร (และบัญชีนักเรียน/ผู้ปกครอง) ดูข้อมูลได้อย่างเดียว
+      if (u && WRITER_ROLES.indexOf(u.role) < 0) throwErr('FORBIDDEN', 'บัญชีนี้ดูข้อมูลได้อย่างเดียว บันทึกไม่ได้');
+      // สวิตช์บังคับเข้าสู่ระบบ (ตั้งค่าระบบ › ผู้ใช้) — ธนาคาร/ตั้งค่าตรวจในโมดูลเอง (requireStaffOrPin)
+      if (!u && !/^(bank|settings)\./.test(action) && action !== 'students.purge' && action !== 'students.import_dmc' && await loginRequired(ctx.db)) {
+        throwErr('AUTH_REQUIRED', 'กรุณาเข้าสู่ระบบก่อนบันทึกข้อมูล');
+      }
       if (u) params.recorded_by = u.display_name || u.username;
     }
     const data = await method(params, ctx);
