@@ -24,12 +24,12 @@ const PK_REBUILD = {
 async function changeCitizenId(db, s, newId, by) {
   const oldId = String(s.citizen_id);
   const tables = Object.keys(TABLES).filter(function (t) { return TABLES[t].cols.indexOf('citizen_id') >= 0; });
-  // นับแถวของเลขเดิม/เลขใหม่ ตารางละ 1 คำสั่งใน batch เดียว (SQLite จำกัด UNION · D1 plan ฟรีจำกัดจำนวนคำสั่งต่อคำขอ ~50 → รวมทั้งหมด ≈ 2×ตาราง + 6)
-  const res = await db.batch(tables.map(function (t) {
-    return db.prepare('SELECT COALESCE(SUM(citizen_id = ?), 0) AS n_new, COALESCE(SUM(citizen_id = ?), 0) AS n_old FROM ' + t + ' WHERE citizen_id IN (?, ?)').bind(newId, oldId, newId, oldId);
-  }));
+  // นับแถวของเลขเดิม/เลขใหม่ทุกตารางใน "คำสั่งเดียว" (scalar subquery · ?1 = ใหม่, ?2 = เดิม) — SQLite จำกัด UNION และ D1 plan ฟรีจำกัดจำนวนคำสั่งต่อคำขอ ~50
+  const r = (await db.prepare('SELECT ' + tables.map(function (t, i) {
+    return '(SELECT COUNT(*) FROM ' + t + ' WHERE citizen_id = ?1) AS n' + i + ', (SELECT COUNT(*) FROM ' + t + ' WHERE citizen_id = ?2) AS o' + i;
+  }).join(', ')).bind(newId, oldId).first()) || {};
   const cnt = {};
-  tables.forEach(function (t, i) { const r = (res[i].results || [])[0] || {}; cnt[t] = { n_new: Number(r.n_new) || 0, n_old: Number(r.n_old) || 0 }; });
+  tables.forEach(function (t, i) { cnt[t] = { n_new: Number(r['n' + i]) || 0, n_old: Number(r['o' + i]) || 0 }; });
   // เลขใหม่ต้องไม่มีอยู่ที่ใดเลย (ทั้งนักเรียนคนอื่น และข้อมูลค้างในตารางอื่น) — กันข้อมูลสองคนปนกัน
   const clash = tables.filter(function (t) { return cnt[t] && cnt[t].n_new > 0; });
   if (clash.indexOf('STUDENTS') >= 0) {

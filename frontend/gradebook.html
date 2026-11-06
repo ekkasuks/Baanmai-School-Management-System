@@ -76,15 +76,46 @@
   .gb-entry .nm { flex:1; min-width:0; }
   .gb-entry .gb-cell { width:84px; font-size:17px; padding:8px; border-color:var(--border); }
   .gb-entry .mx { color:var(--muted); font-size:13px; width:44px; }
+  .modal-backdrop > .modal.modal-scroll { max-height:calc(100vh - 36px); overflow-y:auto; }
   .modal-backdrop > .modal.gb-modal-full { max-width:560px; max-height:calc(100vh - 36px); overflow-y:auto; }
   .gb-wrow { display:flex; align-items:center; gap:10px; margin-bottom:10px; }
   .gb-wrow label { flex:1; }
   .gb-wrow input { width:90px; text-align:center; }
   @media (max-width:640px) {
     .gb-grid-t .c-name { min-width:112px; max-width:132px; font-size:13px; }
-    .modal-backdrop > .modal.gb-modal-full { max-width:none; max-height:none; height:100%; border-radius:0; padding:16px; }
+    .gb-entry li { gap:6px; }
+    .gb-entry .gb-cell { width:62px; font-size:16px; padding:7px 4px; }
+    .gb-entry select { width:72px; font-size:13px; }
+    .gb-entry .mx { display:none; }
+    .gb-entry .n { width:20px; }
+    .modal-backdrop > .modal.modal-scroll { max-height:calc(100vh - 36px); overflow-y:auto; }
+  .modal-backdrop > .modal.gb-modal-full { max-width:none; max-height:none; height:100%; border-radius:0; padding:16px; }
     .modal-backdrop:has(.gb-modal-full) { padding:0; }
   }
+  /* เฟส 3: ป้าย/หัก/ผล */
+  .gb-cell.late { border-color:var(--orange); }
+  .gb-flag { font:inherit; font-size:12px; border:1px dashed var(--border); border-radius:6px; padding:3px 6px; background:transparent; color:var(--muted); cursor:pointer; white-space:nowrap; }
+  .gb-flag.miss { color:#C62828; border-color:#EF9A9A; }
+  .gb-grid-t td.ded, .gb-grid-t th.ded { color:#C62828; }
+  .gb-grid-t td.ded button { font:inherit; color:inherit; background:none; border:none; cursor:pointer; text-decoration:underline dotted; padding:2px 4px; }
+  .gb-grid-t td.res, .gb-grid-t th.res { background:#FFFDE7; font-weight:700; }
+  .gb-sp { font:inherit; font-weight:700; border:1px solid var(--border); border-radius:6px; padding:3px 2px; background:var(--card); color:inherit; min-width:62px; }
+  .gb-sp.special { color:#C62828; }
+  .gb-entry select { font:inherit; font-size:14px; border:1px solid var(--border); border-radius:8px; padding:7px 4px; background:var(--card); color:inherit; width:86px; }
+  .gb-entry .eff { display:block; font-size:12px; color:var(--orange); }
+  .gb-banner { display:flex; gap:10px; align-items:center; flex-wrap:wrap; margin:12px 0 0; padding:10px 12px; border-radius:12px; background:#E8F5E9; border:1px solid #C8E6C9; color:var(--green-dark); }
+  .gb-banner .btn { margin:0; }
+  .gb-ded-t td.v, .gb-ded-t tr.void td { text-decoration:line-through; color:var(--muted); }
+  .gb-ded-t tr.void td.vr { text-decoration:none; }
+  .gb-pick { max-height:240px; overflow:auto; border:1px solid var(--border); border-radius:10px; padding:4px 8px; }
+  .gb-pick label { display:flex; gap:8px; align-items:center; padding:5px 0; border-bottom:1px solid var(--border); font-weight:400; }
+  .gb-pick label:last-child { border-bottom:none; }
+  .gb-th { display:grid; grid-template-columns:repeat(auto-fill,minmax(88px,1fr)); gap:8px; }
+  .gb-th label { font-size:13px; color:var(--muted); display:block; }
+  .gb-th input { width:100%; text-align:center; }
+  .gb-status-tag { color:var(--green-dark); border-color:#C8E6C9; background:#E8F5E9; }
+  html[data-theme="dark"] .gb-grid-t td.res, html[data-theme="dark"] .gb-grid-t th.res { background:#2E2A12; }
+  html[data-theme="dark"] .gb-banner, html[data-theme="dark"] .gb-status-tag { background:#16301C; border-color:#2E5233; color:#A5D6A7; }
   html[data-theme="dark"] .gb-grid-t thead th { background:#12324A; }
   html[data-theme="dark"] .gb-grid-t td.sum, html[data-theme="dark"] .gb-grid-t th.sum { background:#1B3324; }
   html[data-theme="dark"] .gb-grid-t td.tot, html[data-theme="dark"] .gb-grid-t th.tot { background:#1E3A28; }
@@ -129,31 +160,49 @@
         </div>
         <div class="gb-actions hidden" id="gb-c-actions">
           <button class="btn btn-secondary" id="gb-btn-settings"><i class="bi bi-sliders"></i> ตั้งค่าวิชา</button>
+          <button class="btn btn-secondary" id="gb-btn-deduct"><i class="bi bi-dash-circle"></i> หักคะแนน</button>
           <button class="btn btn-primary" id="gb-btn-add"><i class="bi bi-plus-lg"></i> เพิ่มงาน</button>
+          <button class="btn btn-success" id="gb-btn-submit"><i class="bi bi-send-check"></i> ส่งผลการเรียน</button>
         </div>
       </div>
+      <div id="gb-c-status"></div>
     </div>
     <div class="card">
       <div class="gb-bar" style="margin-bottom:12px">
         <div class="tabs" style="margin:0;flex:1" role="tablist">
           <button class="tab active" data-tab="grid" role="tab">📊 ตารางคะแนน</button>
           <button class="tab" data-tab="items" role="tab">📝 งาน/ช่องคะแนน <span id="gb-n-items"></span></button>
+          <button class="tab" data-tab="ded" role="tab">➖ หักคะแนน <span id="gb-n-ded"></span></button>
         </div>
         <span class="gb-save hidden" id="gb-save" aria-live="polite"></span>
       </div>
       <div id="gb-tab-grid"></div>
       <div id="gb-tab-items" class="hidden"></div>
+      <div id="gb-tab-ded" class="hidden"></div>
     </div>
   </div>
 </main>
 
 <!-- ตั้งค่าวิชา -->
 <div class="modal-backdrop" id="gb-m-settings">
-  <div class="modal">
-    <h3 class="modal-title">⚙️ ตั้งค่าวิชา — น้ำหนักคะแนน</h3>
+  <div class="modal modal-scroll">
+    <h3 class="modal-title">⚙️ ตั้งค่าวิชา</h3>
     <p class="tt-note" style="margin-top:-8px">คะแนนแต่ละช่วงย่อจากคะแนนงานในช่วงนั้นอัตโนมัติ (ได้รวม ÷ เต็มรวม × น้ำหนัก) · รวมต้องเท่ากับ 100</p>
     <div id="gb-w-rows"></div>
     <div class="gb-wrow"><label><strong>รวม</strong></label><strong id="gb-w-sum" style="width:90px;text-align:center"></strong></div>
+    <hr style="border:none;border-top:1px solid var(--border);margin:14px 0">
+    <h4 style="margin:0 0 8px">🎓 ผลการเรียน</h4>
+    <div class="form-group">
+      <select class="form-control" id="gb-s-mode" aria-label="รูปแบบผลการเรียน">
+        <option value="grade">ตัดเกรด 0–4</option>
+        <option value="pass">ผ่าน / ไม่ผ่าน (ผ/มผ) — วิชากิจกรรม</option>
+      </select>
+    </div>
+    <div id="gb-s-grade">
+      <p class="tt-note" style="margin:0 0 6px">คะแนนรวมขั้นต่ำของแต่ละเกรด (ปัดคะแนนรวมเป็นจำนวนเต็มก่อนตัด · ต่ำกว่าเกรด 1 = 0)</p>
+      <div class="gb-th" id="gb-s-th"></div>
+    </div>
+    <div id="gb-s-pass" class="gb-wrow hidden"><label for="gb-s-passv">ผ่าน (ผ) เมื่อคะแนนรวมตั้งแต่</label><input class="form-control" id="gb-s-passv" type="number" inputmode="numeric" min="1" max="100"></div>
     <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:14px">
       <button class="btn btn-secondary" data-close>ยกเลิก</button>
       <button class="btn btn-primary" id="gb-w-save">บันทึก</button>
@@ -171,10 +220,32 @@
       <div class="form-group" style="flex:1"><label for="gb-i-max">คะแนนเต็ม</label><input class="form-control" id="gb-i-max" type="number" inputmode="decimal" min="0.5" max="1000" step="0.5"></div>
       <div class="form-group" style="flex:1.3"><label for="gb-i-date">วันที่ (ไม่บังคับ)</label><input class="form-control" id="gb-i-date" type="date"></div>
     </div>
+    <div class="form-group"><label for="gb-i-late">% หักเมื่อส่งช้า <span class="tt-note">(0 = ไม่หัก · ใช้กับนักเรียนที่ติดป้าย "ช้า")</span></label><input class="form-control" id="gb-i-late" type="number" inputmode="decimal" min="0" max="100" step="5"></div>
     <div class="form-group"><label for="gb-i-note">หมายเหตุ (ไม่บังคับ)</label><input class="form-control" id="gb-i-note" maxlength="200"></div>
     <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:14px">
       <button class="btn btn-secondary" data-close>ยกเลิก</button>
       <button class="btn btn-primary" id="gb-i-save">บันทึก</button>
+    </div>
+  </div>
+</div>
+
+<!-- หักคะแนนจากคะแนนรวม -->
+<div class="modal-backdrop" id="gb-m-ded">
+  <div class="modal modal-scroll">
+    <h3 class="modal-title">➖ หักคะแนนจากคะแนนรวม</h3>
+    <div class="form-group">
+      <div style="display:flex;justify-content:space-between;align-items:center"><label style="margin:0">นักเรียน</label><button class="btn-link" id="gb-d-all" type="button">เลือกทั้งหมด</button></div>
+      <div class="gb-pick" id="gb-d-pick"></div>
+    </div>
+    <div style="display:flex;gap:10px">
+      <div class="form-group" style="flex:1"><label for="gb-d-pts">หักกี่คะแนน</label><input class="form-control" id="gb-d-pts" type="number" inputmode="decimal" min="0.5" max="100" step="0.5"></div>
+      <div class="form-group" style="flex:1.3"><label for="gb-d-date">วันที่</label><input class="form-control" id="gb-d-date" type="date"></div>
+    </div>
+    <div class="form-group"><label for="gb-d-reason">เหตุผล</label><input class="form-control" id="gb-d-reason" maxlength="200" placeholder="เช่น ทุจริตในการสอบ, ไม่เข้าเรียนโดยไม่แจ้ง"></div>
+    <p class="tt-note" style="margin:0">หักจากคะแนนรวม (คะแนนรวมไม่ติดลบ) · ยกเลิกภายหลังได้ ประวัติยังเก็บไว้</p>
+    <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:14px">
+      <button class="btn btn-secondary" data-close>ยกเลิก</button>
+      <button class="btn btn-danger" id="gb-d-save">หักคะแนน</button>
     </div>
   </div>
 </div>
@@ -191,7 +262,7 @@
       <span class="gb-save hidden" id="gb-save2" aria-live="polite"></span>
     </div>
     <ul class="gb-entry" id="gb-e-list"></ul>
-    <p class="tt-note" style="margin:10px 0 0">บันทึกอัตโนมัติ · Enter = ไปคนถัดไป · เว้นว่าง = ยังไม่ให้คะแนน</p>
+    <p class="tt-note" style="margin:10px 0 0">บันทึกอัตโนมัติ · Enter = ไปคนถัดไป · เว้นว่าง = ยังไม่ให้คะแนน · ป้าย: ช้า (หักตาม % ของงาน) · ไม่ส่ง (= 0) · ยกเว้น (ไม่นับงานนี้)</p>
   </div>
 </div>
 
