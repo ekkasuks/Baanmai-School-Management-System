@@ -8,6 +8,7 @@
  */
 import { getBy, selectWhere, readAll, insertRows, updateWhere, deleteWhere, now, genId, hashPin, apiError } from '../db.js';
 import { getSetting } from './settings.js';
+import { listClasses } from '../shared.js';
 
 const PBKDF2_ITER = 10000;          // Worker ฟรีจำกัด CPU ~10ms/คำขอ — ปรับเพิ่มได้ (เก็บรอบไว้ในค่า hash)
 const MAX_FAILS = 5, LOCK_MIN = 10;
@@ -138,13 +139,22 @@ function initialPassword() {
 }
 
 /* ════ actions (เรียกผ่าน tt.*) ════ */
+/** ชั้นที่บัญชีนี้เป็นครูประจำชั้น (STAFF_HOMEROOM) → [{grade, room}] เรียงตามชั้น */
+export async function homeroomsOf(db, userId) {
+  if (!userId) return [];
+  return (await selectWhere(db, 'STAFF_HOMEROOM', 'user_id', userId)).map(function (r) { return { grade: r.grade, room: r.room == null ? '' : String(r.room) }; })
+    .sort(function (a, b) { return String(a.grade).localeCompare(String(b.grade), 'th', { numeric: true }) || String(a.room).localeCompare(String(b.room), undefined, { numeric: true }); });
+}
+function roomKey(r) { const x = String(r == null ? '' : r).trim(); return x === '' || x === '0' ? '1' : x; }
+
 export const AuthActions = {
 
   /** สถานะ: ต้องตั้งผู้ดูแลคนแรกไหม + ผู้ใช้ปัจจุบัน (ถ้ามี token ที่ใช้ได้) */
   auth_status: async function (params, ctx) {
     const n = (await readAll(ctx.db, 'TT_USER')).length;
     const u = await currentUser(ctx);
-    return { setup_required: n === 0, user: u ? publicUser(u) : null, roles: Object.keys(ROLES).map(function (k) { return { key: k, label: ROLES[k].label, caps: ROLES[k].caps }; }) };
+    const pu = u ? Object.assign(publicUser(u), { homeroom: await homeroomsOf(ctx.db, u.user_id) }) : null;
+    return { setup_required: n === 0, user: pu, roles: Object.keys(ROLES).map(function (k) { return { key: k, label: ROLES[k].label, caps: ROLES[k].caps }; }) };
   },
 
   /** ตั้งผู้ดูแลคนแรก — ทำได้ครั้งเดียว (ยังไม่มีผู้ใช้เลย) และต้องยืนยันด้วย PIN ธนาคารโรงเรียนของระบบเดิม */
@@ -255,6 +265,79 @@ export const AuthActions = {
   },
 
   /** ครูในตารางสอนภาคปัจจุบัน + บัญชีที่ผูกไว้ (ถ้ามี) — สำหรับปุ่มสร้างบัญชีครูทั้งหมด */
+  /**
+   * ข้อมูลประกอบหน้าจัดการผู้ใช้ (ตั้งค่าระบบ › ผู้ใช้) — ครู/ชั้นเรียนของภาคปัจจุบัน (ไว้ผูกบัญชี) · ชั้นจากข้อมูลนักเรียน · ครูประจำชั้นทั้งหมด
+   * → { term, teachers[{teacher_id,name}], tt_classes[{class_id,label}], classes[{grade,room,count}], homerooms[{user_id,grade,room}] }
+   */
+  staff_admin_data: async function (params, ctx) {
+    await requireCap(ctx, 'manage_users');
+    const db = ctx.db, term = await activeTerm(db);
+    const [teachers, ttc, classes, hr] = await Promise.all([selectWhere(db, 'TT_TEACHER', 'term_id', term), selectWhere(db, 'TT_CLASS', 'term_id', term), listClasses(db), readAll(db, 'STAFF_HOMEROOM')]);
+    return {
+      term: term,
+      teachers: teachers.filter(function (t) { return String(t.active) !== '0'; }).map(function (t) { return { teacher_id: t.teacher_id, name: normName((t.title || '') + ' ' + (t.name || '')) || t.name || '' }; })
+        .sort(function (a, b) { return a.name.localeCompare(b.name, 'th'); }),
+      tt_classes: ttc.filter(function (c) { return String(c.active) !== '0'; }).map(function (c) { return { class_id: c.class_id, label: String(c.grade || '') + (c.room && String(c.room) !== '1' ? '/' + c.room : '') }; }),
+      classes: classes,
+      homerooms: hr.map(function (r) { return { user_id: r.user_id, grade: r.grade, room: r.room == null ? '' : String(r.room) }; }),
+    };
+  },
+
+  /** กำหนดชั้นที่เป็นครูประจำชั้นของบัญชี 1 บัญชี (แทนที่ทั้งชุด) · params { user_id, classes:[{grade, room}] } (ว่าง = ไม่เป็นครูประจำชั้น) */
+  homeroom_save: async function (params, ctx) {
+    const me = await requireCap(ctx, 'manage_users');
+    const db = ctx.db, u = await getBy(db, 'TT_USER', 'user_id', String(params.user_id || ''));
+    if (!u) apiError('NOT_FOUND', 'ไม่พบผู้ใช้');
+    if (STAFF_ROLES.indexOf(u.role) < 0 || u.role === 'director') apiError('VALIDATION', 'กำหนดครูประจำชั้นได้เฉพาะบัญชีครู/ฝ่ายวิชาการ/ผู้ดูแล');
+    const list = Array.isArray(params.classes) ? params.classes : [];
+    if (list.length > 12) apiError('VALIDATION', 'เลือกได้ไม่เกิน 12 ชั้น');
+    const valid = {}; (await listClasses(db)).forEach(function (c) { valid[c.grade + '|' + c.room] = true; });
+    const seen = {}, rows = [];
+    list.forEach(function (c) {
+      const g = String((c && c.grade) || '').trim(), r = String((c && c.room) == null ? '' : c.room).trim(), k = g + '|' + r;
+      if (!valid[k]) apiError('VALIDATION', 'ไม่พบชั้น ' + g + (r ? '/' + r : '') + ' ในข้อมูลนักเรียน');
+      if (!seen[k]) { seen[k] = 1; rows.push({ hr_id: u.user_id + '|' + k, user_id: u.user_id, grade: g, room: r, created_by: me.username, created_at: now() }); }
+    });
+    const stmts = [db.prepare('DELETE FROM STAFF_HOMEROOM WHERE user_id = ?').bind(u.user_id)];
+    rows.forEach(function (r) { stmts.push(db.prepare('INSERT INTO STAFF_HOMEROOM (hr_id, user_id, grade, room, created_by, created_at) VALUES (?,?,?,?,?,?)').bind(r.hr_id, r.user_id, r.grade, r.room, r.created_by, r.created_at)); });
+    await db.batch(stmts);
+    return { user_id: u.user_id, classes: rows.map(function (r) { return { grade: r.grade, room: r.room }; }) };
+  },
+
+  /**
+   * ดึงครูประจำชั้นจากตารางสอนภาคปัจจุบัน (TT_CLASS.homeroom_teacher_id) → บัญชีที่ผูกครูคนเดียวกัน (sameTeacher) · เพิ่มอย่างเดียว ไม่ลบของเดิม
+   * → { added, skipped[ชั้นที่ไม่มีบัญชีครู/ไม่พบในข้อมูลนักเรียน] }
+   */
+  homeroom_import: async function (params, ctx) {
+    const me = await requireCap(ctx, 'manage_users');
+    const db = ctx.db, term = await activeTerm(db);
+    const [ttc, teachers, users, classes, have] = await Promise.all([selectWhere(db, 'TT_CLASS', 'term_id', term), selectWhere(db, 'TT_TEACHER', 'term_id', term),
+      readAll(db, 'TT_USER'), listClasses(db), readAll(db, 'STAFF_HOMEROOM')]);
+    const T = {}; teachers.forEach(function (t) { T[t.teacher_id] = t; });
+    const linked = [];
+    for (const u of users) {
+      if (!u.teacher_id || String(u.active) === '0' || STAFF_ROLES.indexOf(u.role) < 0 || u.role === 'director') continue;
+      const t = T[u.teacher_id] || await getBy(db, 'TT_TEACHER', 'teacher_id', String(u.teacher_id));
+      if (t) linked.push({ u: u, t: t });
+    }
+    const exists = {}; have.forEach(function (r) { exists[r.hr_id] = true; });
+    const stmts = [], skipped = [];
+    ttc.forEach(function (c) {
+      if (String(c.active) === '0' || !c.homeroom_teacher_id) return;
+      const label = String(c.grade || '') + (c.room && String(c.room) !== '1' ? '/' + c.room : '');
+      const ht = T[c.homeroom_teacher_id];
+      const acc = ht && linked.find(function (x) { return sameTeacher(x.t, ht); });
+      const sc = classes.find(function (k) { return k.grade === String(c.grade || '') && roomKey(k.room) === roomKey(c.room); });
+      if (!acc || !sc) { skipped.push(label + (acc ? ' (ไม่พบในข้อมูลนักเรียน)' : ' (ครูยังไม่มีบัญชี)')); return; }
+      const id = acc.u.user_id + '|' + sc.grade + '|' + sc.room;
+      if (exists[id]) return;
+      exists[id] = true;
+      stmts.push(db.prepare('INSERT OR IGNORE INTO STAFF_HOMEROOM (hr_id, user_id, grade, room, created_by, created_at) VALUES (?,?,?,?,?,?)').bind(id, acc.u.user_id, sc.grade, sc.room, me.username, now()));
+    });
+    if (stmts.length) await db.batch(stmts);
+    return { added: stmts.length, skipped: skipped };
+  },
+
   teacher_accounts: async function (params, ctx) {
     await requireCap(ctx, 'manage_users');
     const db = ctx.db, term = await activeTerm(db);

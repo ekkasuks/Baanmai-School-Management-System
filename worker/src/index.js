@@ -24,6 +24,7 @@ import { GeoAPI } from './modules/geo.js';
 import { AcademicAPI } from './modules/academic.js';
 import { GradebookActions } from './modules/gradebook.js';
 import { now } from './db.js';
+import { isWrite, logWrite } from './write-log.js';
 
 const ROUTER = {
   settings: SettingsAPI,
@@ -103,7 +104,9 @@ async function runOne(action, params, base) {
     return { ok: false, data: null, error: { code: 'NOT_FOUND', message: 'ไม่รู้จักคำสั่ง: ' + action } };
   }
   try {
-    const data = await method(params, { db: base.db, env: base.env, token: base.token, ip: base.ip, action: action });
+    const ctx = { db: base.db, env: base.env, token: base.token, ip: base.ip, action: action };
+    const data = await method(params, ctx);
+    if (isWrite(action)) await logWrite(ctx, action, params, data);   // ประวัติการบันทึก (WRITE_LOG)
     return { ok: true, data: data === undefined ? null : data, error: null };
   } catch (err) {
     return { ok: false, data: null, error: { code: (err && err.code) || 'INTERNAL', message: (err && err.message) || String(err) } };

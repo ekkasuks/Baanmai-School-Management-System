@@ -7,15 +7,39 @@
 <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
 <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet">
 <link rel="stylesheet" href="css/style.css">
+<link rel="stylesheet" href="css/tt-common.css">
+<style>
+  /* แท็บผู้ใช้ (js/modules/settings-users.js) */
+  .su-who { display:flex; justify-content:space-between; align-items:center; gap:8px; flex-wrap:wrap; margin:0 0 12px; font-size:14px; color:var(--muted); }
+  .su-head { display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:8px; margin-bottom:10px; }
+  .su-note { font-size:13px; color:var(--muted); }
+  .su-table { width:100%; font-size:14px; border-collapse:collapse; }
+  .su-table th, .su-table td { padding:8px; border-bottom:1px solid var(--border); text-align:left; vertical-align:middle; }
+  .su-table th { color:var(--muted); font-weight:600; white-space:nowrap; }
+  .su-actions { white-space:nowrap; text-align:right; }
+  .su-actions .btn { padding:5px 10px; font-size:14px; margin:0 0 0 4px; }
+  .su-chip { display:inline-block; padding:1px 8px; border-radius:999px; font-size:12px; font-weight:600; background:var(--primary-light); color:var(--primary-dark); margin:1px 0; white-space:nowrap; }
+  .su-badge { display:inline-block; padding:2px 8px; border-radius:6px; font-size:12px; font-weight:600; }
+  .su-badge.ok { background:#E8F5E9; color:var(--green-dark); } .su-badge.bad { background:#FFEBEE; color:#C62828; } .su-badge.off { background:#ECEFF1; color:#607D8B; }
+  .su-modal { max-width:640px !important; max-height:calc(100vh - 36px); overflow-y:auto !important; }
+  .su-form { display:grid; grid-template-columns:1fr 1fr; gap:4px 14px; }
+  .su-foot { display:flex; justify-content:flex-end; gap:8px; margin-top:12px; }
+  .su-classes { display:grid; grid-template-columns:repeat(auto-fill,minmax(130px,1fr)); gap:6px; }
+  .su-check { display:flex; align-items:center; gap:8px; padding:6px 10px; border:2px solid var(--border); border-radius:10px; cursor:pointer; font-weight:500; margin:0; }
+  .su-check:has(input:checked) { border-color:var(--primary); background:var(--primary-light); }
+  .su-check input { width:16px; height:16px; margin:0; }
+  .btn-sm { padding:6px 12px; font-size:14px; margin:0; }
+  @media (max-width:640px) { .su-form { grid-template-columns:1fr; } }
+</style>
 </head>
-<body>
+<body data-tt-login="pick">
 
 <header class="app-header">
   <a href="index.html" class="back">‹</a>
   <span class="logo">⚙️</span>
   <div>
     <div class="title">ตั้งค่าระบบ</div>
-    <div style="font-size:13px;opacity:.9">ข้อมูลโรงเรียน · DMC · PIN · สำรองข้อมูล</div>
+    <div style="font-size:13px;opacity:.9">ข้อมูลโรงเรียน · ผู้ใช้ · DMC · PIN · สำรองข้อมูล</div>
   </div>
 </header>
 
@@ -23,6 +47,7 @@
 
   <div class="tabs">
     <button class="tab active" data-tab="school">🏫 ข้อมูลโรงเรียน</button>
+    <button class="tab" data-tab="users">👥 ผู้ใช้</button>
     <button class="tab" data-tab="dmc">📥 นำเข้า DMC</button>
     <button class="tab" data-tab="pin">🔒 PIN</button>
     <button class="tab" data-tab="backup">💾 สำรองข้อมูล</button>
@@ -63,6 +88,9 @@
   </section>
 
   <!-- นำเข้า DMC -->
+  <!-- ผู้ใช้ (บัญชีบุคลากร) — js/modules/settings-users.js · ต้องเข้าสู่ระบบด้วยบัญชีผู้ดูแลระบบ -->
+  <section class="tab-pane hidden" id="tab-users"></section>
+
   <section class="tab-pane hidden" id="tab-dmc">
     <div class="card">
       <h3 class="card-title">📥 นำเข้าข้อมูลนักเรียนจาก DMC</h3>
@@ -159,6 +187,8 @@
 <script src="js/api.js"></script>
 <script src="js/store.js"></script>
 <script src="js/utils.js"></script>
+<script src="js/tt-session.js"></script>
 <script src="js/modules/settings.js"></script>
+<script src="js/modules/settings-users.js"></script>
 </body>
 </html>

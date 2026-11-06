@@ -38,7 +38,7 @@
       sel.value = data.viewing;
     }
     note.innerHTML = !data.me && !data.can_view_all
-      ? '<div class="alert alert-warning" style="margin:10px 0 0">บัญชีนี้ยังไม่ได้ผูกกับรายชื่อครูในตารางสอนของภาคเรียนนี้ — แจ้งผู้ดูแลระบบให้ผูกบัญชี (ตารางสอน › ผู้ใช้)</div>'
+      ? '<div class="alert alert-warning" style="margin:10px 0 0">บัญชีนี้ยังไม่ได้ผูกกับรายชื่อครูในตารางสอนของภาคเรียนนี้ — แจ้งผู้ดูแลระบบให้ผูกบัญชี (ตั้งค่าระบบ › ผู้ใช้)</div>'
       : (!data.me && data.can_view_all ? '<p class="tt-note" style="margin:8px 0 0">บัญชีนี้ไม่ได้ผูกกับครู — แสดงทุกวิชาในฐานะ' + (data.can_admin ? 'ฝ่ายวิชาการ/ผู้ดูแล' : 'ผู้บริหาร') + '</p>' : '');
   }
 

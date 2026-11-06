@@ -54,6 +54,9 @@ export const TABLES = {
   GB_ITEM:          { pk: 'item_id',   cols: ['item_id', 'course_id', 'period', 'title', 'max_score', 'item_date', 'late_pct', 'note', 'active', 'created_by', 'created_at', 'updated_by', 'updated_at'] },
   GB_SCORE:         { pk: 'score_id',  cols: ['score_id', 'item_id', 'course_id', 'citizen_id', 'score', 'flag', 'recorded_by', 'updated_at'] },
   GB_DEDUCT:        { pk: 'deduct_id', cols: ['deduct_id', 'course_id', 'citizen_id', 'points', 'reason', 'deduct_date', 'created_by', 'created_at', 'voided_at', 'voided_by', 'void_reason'] },
+  // บัญชีบุคลากรเมื่อบันทึกข้อมูล (schema-staff.sql)
+  STAFF_HOMEROOM:   { pk: 'hr_id',     cols: ['hr_id', 'user_id', 'grade', 'room', 'created_by', 'created_at'] },
+  WRITE_LOG:        { pk: 'log_id',    secret: true, cols: ['log_id', 'at', 'user_id', 'user_name', 'role', 'module', 'action', 'ref_date', 'grade', 'room', 'n', 'target', 'detail', 'ip'] },   // ประวัติ — ไม่ส่งออก/กู้คืนจากไฟล์
   // secret = ไม่รวมใน settings.backup/restore และ admin.import (รหัสผ่าน/ session ห้ามหลุดออกหรือถูกเขียนทับจากไฟล์)
   TT_USER:       { pk: 'user_id',    secret: true, cols: ['user_id', 'username', 'display_name', 'role', 'password_hash', 'teacher_id', 'class_id', 'active', 'failed_count', 'locked_until', 'last_login', 'created_at', 'updated_at'] },
   TT_SESSION:    { pk: 'token_hash', secret: true, cols: ['token_hash', 'user_id', 'created_at', 'expires_at'] },
