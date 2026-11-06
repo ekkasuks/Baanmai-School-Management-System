@@ -114,6 +114,43 @@
   .gb-th label { font-size:13px; color:var(--muted); display:block; }
   .gb-th input { width:100%; text-align:center; }
   .gb-status-tag { color:var(--green-dark); border-color:#C8E6C9; background:#E8F5E9; }
+  /* เฟส 4: แดชบอร์ด */
+  .gb-kpis { display:grid; grid-template-columns:repeat(auto-fit,minmax(150px,1fr)); gap:10px; margin-bottom:4px; }
+  .gb-kpi { border:1px solid var(--border); border-radius:14px; padding:12px 14px; }
+  .gb-kpi .v { font-size:26px; font-weight:700; line-height:1.2; }
+  .gb-kpi .l { font-size:13px; color:var(--muted); }
+  .gb-kpi .s { font-size:12px; color:var(--muted); }
+  .gb-filters { display:flex; gap:8px; flex-wrap:wrap; align-items:center; }
+  .gb-filters .form-control { width:auto; min-width:140px; max-width:100%; flex:0 1 auto; margin:0; }
+  .gb-bars { display:flex; align-items:flex-end; gap:2px; height:160px; padding:18px 0 0; border-bottom:1px solid var(--border); }
+  .gb-bars .b { flex:1; display:flex; flex-direction:column; align-items:center; justify-content:flex-end; height:100%; min-width:26px; cursor:default; }
+  .gb-bars .b i { display:block; width:70%; max-width:44px; background:var(--primary-dark); border-radius:4px 4px 0 0; min-height:0; }
+  .gb-bars .b span { font-size:12px; color:var(--ink); margin-bottom:3px; }
+  .gb-bars-x { display:flex; gap:2px; }
+  .gb-bars-x span { flex:1; text-align:center; font-size:12px; color:var(--muted); min-width:26px; padding-top:4px; }
+  .gb-heat { border-collapse:separate; border-spacing:2px; font-size:13px; }
+  .gb-heat th { font-weight:600; padding:4px 6px; white-space:nowrap; color:var(--muted); font-size:12px; }
+  .gb-heat th.r { text-align:left; position:sticky; left:0; background:var(--card); }
+  .gb-heat td { min-width:58px; height:40px; text-align:center; border-radius:6px; cursor:pointer; line-height:1.15; padding:2px 4px; }
+  .gb-heat td.e { cursor:default; background:transparent; border:1px dashed var(--border); }
+  .gb-heat td small { display:block; font-size:11px; opacity:.85; }
+  .gb-heat td:hover:not(.e) { outline:2px solid var(--ink); }
+  .gb-legend { display:flex; gap:6px; align-items:center; font-size:12px; color:var(--muted); flex-wrap:wrap; margin-top:8px; }
+  .gb-legend i { display:inline-block; width:22px; height:12px; border-radius:3px; }
+  .gb-risk { display:flex; gap:10px; padding:8px 0; border-bottom:1px solid var(--border); align-items:flex-start; flex-wrap:wrap; }
+  .gb-risk .nm { min-width:180px; flex:1; }
+  .gb-risk .tags { display:flex; gap:4px; flex-wrap:wrap; flex:2; }
+  .gb-badge { font-size:12px; border-radius:6px; padding:1px 7px; border:1px solid #EF9A9A; color:#B71C1C; background:#FFEBEE; white-space:nowrap; }
+  .gb-badge.w { border-color:#FFE082; color:#8a6d00; background:#FFF8E1; }
+  .gb-pbar { display:inline-block; width:70px; height:6px; border-radius:3px; background:var(--border); vertical-align:middle; overflow:hidden; margin-right:6px; }
+  .gb-pbar > i { display:block; height:100%; background:var(--primary-dark); }
+  .gb-sec { margin-top:18px; }
+  .nw { white-space:nowrap; }
+  .gb-sec h4 { margin:0 0 8px; font-size:16px; }
+  html[data-theme="dark"] .gb-heat th.r { background:var(--card); }
+  html[data-theme="dark"] .gb-badge { background:#3E1A1A; border-color:#7a3030; color:#FFCDD2; }
+  html[data-theme="dark"] .gb-badge.w { background:#3A3212; border-color:#6b5a1a; color:#FFE082; }
+  html[data-theme="dark"] .gb-bars .b i, html[data-theme="dark"] .gb-pbar > i { background:#4FC3F7; }
   html[data-theme="dark"] .gb-grid-t td.res, html[data-theme="dark"] .gb-grid-t th.res { background:#2E2A12; }
   html[data-theme="dark"] .gb-banner, html[data-theme="dark"] .gb-status-tag { background:#16301C; border-color:#2E5233; color:#A5D6A7; }
   html[data-theme="dark"] .gb-grid-t thead th { background:#12324A; }
@@ -143,10 +180,34 @@
       <div class="gb-bar">
         <div class="gb-who" id="gb-who" style="flex:1;min-width:200px">กำลังโหลด...</div>
         <select class="form-control hidden" id="gb-teacher" aria-label="ดูในนามครู" style="max-width:320px"></select>
+        <button class="btn btn-primary" id="gb-btn-dash" style="margin:0"><i class="bi bi-bar-chart-line"></i> แดชบอร์ด</button>
       </div>
       <div id="gb-note"></div>
     </div>
     <div class="card"><div id="gb-courses" class="text-muted">กำลังโหลด...</div></div>
+  </div>
+
+  <!-- แดชบอร์ด -->
+  <div id="gb-dash" class="hidden">
+    <div class="card">
+      <div class="gb-head">
+        <div>
+          <button class="btn btn-secondary" id="gb-dash-back" style="margin:0 0 8px"><i class="bi bi-arrow-left"></i> วิชาของฉัน</button>
+          <h3 id="gb-dash-title">📊 แดชบอร์ดผลการเรียน</h3>
+          <div class="gb-info" id="gb-dash-sub"></div>
+        </div>
+        <div class="gb-actions">
+          <button class="btn btn-secondary" id="gb-csv-courses"><i class="bi bi-filetype-csv"></i> CSV รายวิชา</button>
+          <button class="btn btn-secondary" id="gb-csv-results"><i class="bi bi-filetype-csv"></i> CSV ผลรายคน</button>
+        </div>
+      </div>
+      <div class="gb-filters" style="margin-top:12px">
+        <select class="form-control" id="gb-f-term" aria-label="ภาคเรียน"></select>
+        <select class="form-control hidden" id="gb-f-teacher" aria-label="ครู"></select>
+        <select class="form-control" id="gb-f-class" aria-label="ชั้น"></select>
+      </div>
+    </div>
+    <div class="card" id="gb-dash-body"><div class="text-muted">กำลังโหลด...</div></div>
   </div>
 
   <!-- รายวิชา -->
@@ -173,12 +234,14 @@
           <button class="tab active" data-tab="grid" role="tab">📊 ตารางคะแนน</button>
           <button class="tab" data-tab="items" role="tab">📝 งาน/ช่องคะแนน <span id="gb-n-items"></span></button>
           <button class="tab" data-tab="ded" role="tab">➖ หักคะแนน <span id="gb-n-ded"></span></button>
+          <button class="tab" data-tab="sum" role="tab">📈 สรุป</button>
         </div>
         <span class="gb-save hidden" id="gb-save" aria-live="polite"></span>
       </div>
       <div id="gb-tab-grid"></div>
       <div id="gb-tab-items" class="hidden"></div>
       <div id="gb-tab-ded" class="hidden"></div>
+      <div id="gb-tab-sum" class="hidden"></div>
     </div>
   </div>
 </main>

@@ -4,6 +4,7 @@
  * เฟส 2: GB_COURSE (น้ำหนัก 4 ช่วง) · GB_ROSTER (ถ่ายรายชื่อ ณ ภาคนั้น) · GB_ITEM (งาน) · GB_SCORE (คะแนน) — schema-gradebook.sql
  * เฟส 3: ป้ายในงาน (ช้า/ไม่ส่ง/ยกเว้น + % หักส่งช้า) · GB_DEDUCT หักจากคะแนนรวม (ยกเลิก = void) · ตัดเกรด 0–4 / ผ–มผ (วิชากิจกรรม)
  *        · ผลพิเศษ ร/มส (ผ/มผ กำหนดเอง) ใน GB_ROSTER.special · ส่งผล = ล็อก, gb_admin ปลดล็อก — schema-gradebook-002.sql
+ * เฟส 4: gb_overview — สรุปทุกรายวิชาของภาค (ผู้ดู) หรือเฉพาะวิชาของครู + ผลรายคน (ไม่ส่งเลขประจำตัว) สำหรับแดชบอร์ด/CSV
  *   gb       : ครู — เห็น/บันทึกเฉพาะวิชา×ชั้นที่ได้รับมอบหมาย
  *   gb_admin : ฝ่ายวิชาการ/ผู้ดูแล — ทุกวิชา · ดูในนามครูคนใดก็ได้
  *   gb_view  : ผู้บริหาร — ดูทุกวิชา (แก้ไม่ได้)
@@ -42,6 +43,7 @@ function validTh(th) {
  * คะแนนของนักเรียน 1 คน (ใช้ทั้งหน้าเว็บและแดชบอร์ด — สูตรเดียวกับ js/modules/gradebook.js calc)
  *  ช่วง = Σ ได้ / Σ เต็ม × น้ำหนัก · ช่องว่าง/ไม่ส่ง = 0 · ช้า = คะแนน × (1 − %หัก) · ยกเว้น = ไม่นับงานนั้นทั้งได้และเต็ม
  *  ยกเว้นทุกงานในช่วง → ช่วงนั้นไม่นับ และขยายคะแนนรวมเป็นฐาน 100 · รวม = max(0, ดิบ − หักรวม) · ตัดเกรดจากคะแนนรวมปัดเป็นจำนวนเต็ม
+ *  pct = คะแนนเทียบสัดส่วนเฉพาะช่วงที่มีงานแล้ว (ระหว่างภาค ใช้ประเมินความเสี่ยง — ไม่ใช่เกรดจริง)
  */
 export function calcStudent(items, weights, sc, fl, deduct, scale, special) {
   sc = sc || {}; fl = fl || {};
@@ -64,6 +66,8 @@ export function calcStudent(items, weights, sc, fl, deduct, scale, special) {
     return e / m * w;
   });
   let raw = per.reduce(function (a, b) { return a + (b || 0); }, 0);
+  const covW = weights.reduce(function (a, w, i) { return a + (per[i] != null ? w : 0); }, 0);
+  const pct = covW ? Math.max(0, raw / covW * 100 - (deduct || 0)) : null;
   if (exW > 0 && exW < 100) raw = raw * 100 / (100 - exW);
   const total = Math.max(0, raw - (deduct || 0));
   let result = '';
@@ -73,7 +77,14 @@ export function calcStudent(items, weights, sc, fl, deduct, scale, special) {
     if (scale.mode === 'pass') result = t >= scale.pass ? 'ผ' : 'มผ';
     else { result = '0'; for (let i = 0; i < 7; i++) if (t >= scale.th[i]) { result = String(GRADE_STEPS[i]); break; } }
   }
-  return { per: per, raw: raw, deduct: deduct || 0, total: total, result: result };
+  return { per: per, raw: raw, deduct: deduct || 0, total: total, pct: pct, result: result, special: special || '' };
+}
+/** เสี่ยง: ส่งผลแล้ว = ผล 0/มผ/ร/มส · ระหว่างภาค = ผลพิเศษ ร/มส/มผ หรือคะแนนเทียบสัดส่วนต่ำกว่าเกณฑ์ผ่านขั้นต่ำ · หรือมีงานไม่ส่ง */
+export function isRisk(x, scale, submitted, missing) {
+  if (missing > 0) return true;
+  if (submitted) return ['0', 'มผ', 'ร', 'มส'].indexOf(x.result) >= 0;
+  if (['ร', 'มส', 'มผ'].indexOf(x.result) >= 0 && x.result !== '' && x.result === x.special) return true;
+  return x.pct != null && x.pct < (scale.mode === 'pass' ? scale.pass : scale.th[6]);
 }
 
 /** "30,20,20,30" → [30,20,20,30] · ผิดรูปแบบ = ค่าเริ่มต้น */
@@ -563,5 +574,89 @@ export const GradebookActions = {
     if (!cx.locked) apiError('VALIDATION', 'รายวิชานี้ยังไม่ได้ส่งผล');
     await courseUpsertStmt(db, cx, u.user_id, { status: '' }).run();
     return { status: '' };
+  },
+
+  /**
+   * แดชบอร์ด · params { term?, teacher_id? } — gb_admin/gb_view เห็นทุกรายวิชา (หรือเฉพาะครูที่เลือก) · ครูเห็นเฉพาะวิชาตัวเอง
+   * → { term, terms[], scope, courses[{…, students, items, entered_pct, avg, dist{ผล:จำนวน}, risk, status}], students[{name, student_code, class_label, grade, room}],
+   *     results[[student_idx, course_idx, total|null, result, missing, risk 0/1, pct|null]] }   (ไม่ส่งเลขประจำตัว)
+   * ความคืบหน้า = ช่องที่มีคะแนนหรือป้าย ÷ (งาน × นักเรียน) · เสี่ยง = isRisk · avg = คะแนนรวมเฉลี่ย (ส่งผลแล้ว) หรือ % เทียบช่วงที่มีงาน (ระหว่างภาค)
+   */
+  gb_overview: async function (params, ctx) {
+    const u = await requireCap(ctx, null), db = ctx.db;
+    if (!can(u, 'gb') && !isViewer(u)) apiError('FORBIDDEN', 'บัญชีนี้ไม่มีสิทธิ์ใช้ระบบบันทึกคะแนน');
+    const cur = await currentTerm(db);
+    const term = /^\d{4}-[1-3]$/.test(String(params.term || '')) ? String(params.term) : cur;
+    if (!term) apiError('CONFIG', 'ยังไม่ได้ตั้งปีการศึกษาปัจจุบันในหน้าตั้งค่าระบบ');
+    const d = await termData(db, term);
+    let scope = '*';
+    if (!isViewer(u)) { const t = await teacherForTerm(db, u, term); scope = t ? t.teacher_id : '-'; }
+    else if (params.teacher_id) scope = String(params.teacher_id);
+    const courses = sortCourses(d.assigns.filter(function (a) { return scope === '*' || a.teacher_id === scope; })
+      .map(function (a) { return courseOf(term, a, d); }).filter(Boolean));
+    // อ่าน GB_* ของทั้งภาคด้วยช่วง course_id (ใช้ index) แล้วจัดกลุ่มในหน่วยความจำ
+    const lo = term + ':', hi = term + ';';
+    const rng = function (t) { return db.prepare('SELECT * FROM ' + t + ' WHERE course_id >= ? AND course_id < ?').bind(lo, hi).all().then(function (r) { return r.results || []; }); };
+    const [gcs, items, scores, deds, rosters, terms] = await Promise.all([rng('GB_COURSE'), rng('GB_ITEM'), rng('GB_SCORE'), rng('GB_DEDUCT'), rng('GB_ROSTER'),
+      db.prepare('SELECT DISTINCT term FROM GB_COURSE').all().then(function (r) { return (r.results || []).map(function (x) { return x.term; }); })]);
+    const by = function (rows) { const o = {}; rows.forEach(function (r) { (o[r.course_id] = o[r.course_id] || []).push(r); }); return o; };
+    const G = {}; gcs.forEach(function (r) { G[r.course_id] = r; });
+    const I = by(items.filter(function (r) { return Number(r.active) !== 0; })), SC = by(scores), DD = by(deds), RO = by(rosters);
+    // ชื่อนักเรียนที่ออกจากชั้น/ไม่ active ต้องอ่านเพิ่ม
+    const S = {}; d.students.forEach(function (x) { S[x.citizen_id] = x; });
+    const missingIds = rosters.filter(function (r) { return !S[r.citizen_id] && Number(r.left_class) !== 1; }).map(function (r) { return r.citizen_id; })
+      .filter(function (x, i, a) { return a.indexOf(x) === i; });
+    for (let i = 0; i < missingIds.length; i += 90) {
+      const part = missingIds.slice(i, i + 90), st = db.prepare('SELECT * FROM STUDENTS WHERE citizen_id IN (' + part.map(function () { return '?'; }).join(',') + ')');
+      ((await st.bind.apply(st, part).all()).results || []).forEach(function (x) { S[x.citizen_id] = x; });
+    }
+    const sIdx = {}, students = [], results = [];
+    const stuIndex = function (cid, c) {
+      if (sIdx[cid] === undefined) {
+        const x = S[cid] || {};
+        sIdx[cid] = students.length;
+        students.push({ name: x.citizen_id ? studentName(x) : '(ไม่พบข้อมูลนักเรียน)', student_code: x.student_code || '', class_label: c.class_label, grade: c.grade, room: c.room });
+      }
+      return sIdx[cid];
+    };
+    const out = courses.map(function (c, ci) {
+      const gc = G[c.course_id], its = I[c.course_id] || [], weights = parseWeights(gc && gc.weights), scale = parseScale(gc && gc.grade_scale, c.subject_type);
+      const ro = RO[c.course_id];
+      const roster = ro && ro.length ? ro.filter(function (r) { return Number(r.left_class) !== 1; }).map(function (r) { return r.citizen_id; })
+        : d.students.filter(function (x) { return classKey(x.grade, x.room) === classKey(c.grade, c.room); }).map(function (x) { return x.citizen_id; });
+      const sp = {}; (ro || []).forEach(function (r) { if (r.special) sp[r.citizen_id] = r.special; });
+      const sc = {}, fl = {}, dd = {};
+      const activeItem = {}; its.forEach(function (i) { activeItem[i.item_id] = true; });
+      let filled = 0;
+      const inRoster = {}; roster.forEach(function (x) { inRoster[x] = true; });
+      (SC[c.course_id] || []).forEach(function (r) {
+        if (!activeItem[r.item_id]) return;
+        const has = r.score != null && r.score !== '';
+        if (has) (sc[r.citizen_id] = sc[r.citizen_id] || {})[r.item_id] = Number(r.score);
+        if (r.flag) (fl[r.citizen_id] = fl[r.citizen_id] || {})[r.item_id] = r.flag;
+        if ((has || r.flag) && inRoster[r.citizen_id]) filled++;
+      });
+      (DD[c.course_id] || []).forEach(function (r) { if (!r.voided_at) dd[r.citizen_id] = (dd[r.citizen_id] || 0) + Number(r.points); });
+      const dist = {}, submitted = !!(gc && gc.status === 'submitted'); let sum = 0, n = 0, risk = 0;
+      roster.forEach(function (cid) {
+        const x = calcStudent(its, weights, sc[cid], fl[cid], dd[cid], scale, sp[cid]);
+        const miss = Object.keys(fl[cid] || {}).filter(function (k) { return fl[cid][k] === 'missing'; }).length;
+        if (x.result) dist[x.result] = (dist[x.result] || 0) + 1;
+        const v = submitted ? x.total : x.pct;
+        if (its.length && v != null) { sum += v; n++; }
+        const bad = isRisk(x, scale, submitted, miss);
+        if (bad) risk++;
+        results.push([stuIndex(cid, c), ci, its.length ? Math.round(x.total * 100) / 100 : null, x.result, miss, bad ? 1 : 0, x.pct == null ? null : Math.round(x.pct * 10) / 10]);
+      });
+      return { course_id: c.course_id, class_id: c.class_id, grade: c.grade, room: c.room, class_label: c.class_label, subject_id: c.subject_id, subject_code: c.subject_code,
+        subject_name: c.subject_name, subject_type: c.subject_type, type_label: c.type_label, teacher_id: c.teacher_id, teacher_name: c.teacher_name, mode: scale.mode,
+        students: roster.length, items: its.length, entered_pct: its.length && roster.length ? Math.round(filled / (its.length * roster.length) * 1000) / 10 : 0,
+        avg: n ? Math.round(sum / n * 100) / 100 : null, dist: dist, risk: risk, status: (gc && gc.status) || '' };
+    });
+    if (terms.indexOf(cur) < 0 && cur) terms.push(cur);
+    terms.sort().reverse();
+    return { term: term, current_term: cur, terms: terms, scope: scope, can_view_all: isViewer(u), courses: out, students: students, results: results,
+      teachers: isViewer(u) ? d.teachers.filter(function (t) { return String(t.active) !== '0'; }).map(function (t) { return { teacher_id: t.teacher_id, name: teacherLabel(t) }; })
+        .sort(function (a, b) { return a.name.localeCompare(b.name, 'th'); }) : [] };
   },
 };
