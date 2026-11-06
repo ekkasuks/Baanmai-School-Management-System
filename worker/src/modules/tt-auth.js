@@ -16,13 +16,14 @@ const MIN_PASSWORD = 8;
 
 /** บทบาท → ความสามารถ */
 export const ROLES = {
-  admin:    { label: 'ผู้ดูแลระบบ',              caps: ['view', 'edit_data', 'edit_timetable', 'approve', 'announce', 'manage_users', 'geo', 'geo_edit', 'geo_admin', 'acad_admin'] },
-  director: { label: 'ผู้บริหาร',                 caps: ['view', 'approve', 'announce', 'geo'] },
-  academic: { label: 'ฝ่ายวิชาการ (ผู้จัดตาราง)', caps: ['view', 'edit_data', 'edit_timetable', 'announce', 'geo', 'geo_edit', 'acad_admin'] },
-  teacher:  { label: 'ครู',                       caps: ['view', 'geo', 'geo_edit'] },
+  admin:    { label: 'ผู้ดูแลระบบ',              caps: ['view', 'edit_data', 'edit_timetable', 'approve', 'announce', 'manage_users', 'geo', 'geo_edit', 'geo_admin', 'acad_admin', 'gb', 'gb_admin', 'gb_view'] },
+  director: { label: 'ผู้บริหาร',                 caps: ['view', 'approve', 'announce', 'geo', 'gb_view'] },
+  academic: { label: 'ฝ่ายวิชาการ (ผู้จัดตาราง)', caps: ['view', 'edit_data', 'edit_timetable', 'announce', 'geo', 'geo_edit', 'acad_admin', 'gb', 'gb_admin', 'gb_view'] },
+  teacher:  { label: 'ครู',                       caps: ['view', 'geo', 'geo_edit', 'gb'] },
   student:  { label: 'นักเรียน',                  caps: [] },
   parent:   { label: 'ผู้ปกครอง',                 caps: [] },
 };
+const STAFF_ROLES = ['admin', 'director', 'academic', 'teacher'];
 
 /* ── crypto ── */
 function b64(buf) { return btoa(String.fromCharCode.apply(null, new Uint8Array(buf))); }
@@ -108,6 +109,34 @@ async function log(db, action, id, by, detail) {
   } catch (e) { /* ignore */ }
 }
 
+/* ── ครูข้ามภาคเรียน: TT_TEACHER เป็นรายภาค (คัดลอกภาค = teacher_id ใหม่) → จับคู่ด้วย teacher_id / รหัสครู / ชื่อ ── */
+function normName(n) { return String(n || '').replace(/\s+/g, ' ').trim(); }
+export function sameTeacher(a, b) {
+  if (!a || !b) return false;
+  if (a.teacher_id === b.teacher_id) return true;
+  const ca = String(a.code || '').trim().toLowerCase(), cb = String(b.code || '').trim().toLowerCase();
+  if (ca && cb) return ca === cb;
+  return !!normName(a.name) && normName(a.name) === normName(b.name);
+}
+/** แถว TT_TEACHER ของภาค term ที่ตรงกับครูที่บัญชีนี้ผูกไว้ (หรือ null) */
+export async function teacherForTerm(db, user, term) {
+  if (!user || !user.teacher_id) return null;
+  const linked = await getBy(db, 'TT_TEACHER', 'teacher_id', String(user.teacher_id));
+  if (!linked) return null;
+  if (String(linked.term_id) === String(term)) return linked;
+  const list = await selectWhere(db, 'TT_TEACHER', 'term_id', String(term));
+  return list.find(function (t) { return sameTeacher(t, linked); }) || null;
+}
+async function activeTerm(db) {
+  const year = String((await getSetting(db, 'current_year')) || '').trim(), sem = String((await getSetting(db, 'current_semester')) || '1').trim();
+  return year + '-' + sem;
+}
+/** รหัสผ่านเริ่มต้น 8 ตัว (ตัดตัวที่สับสนง่าย เช่น 0/O 1/l) */
+function initialPassword() {
+  const ch = 'abcdefghjkmnpqrstuvwxyz23456789', r = crypto.getRandomValues(new Uint8Array(8));
+  return Array.prototype.map.call(r, function (b) { return ch[b % ch.length]; }).join('');
+}
+
 /* ════ actions (เรียกผ่าน tt.*) ════ */
 export const AuthActions = {
 
@@ -138,8 +167,10 @@ export const AuthActions = {
 
   login: async function (params, ctx) {
     const db = ctx.db;
-    const username = normUser(params.username), password = String(params.password || '');
-    const u = username ? await getBy(db, 'TT_USER', 'username', username) : null;
+    const username = normUser(params.username), password = String(params.password || ''), uid = String(params.user_id || '');
+    // เข้าสู่ระบบแบบ "เลือกชื่อ" ส่ง user_id มาแทนชื่อผู้ใช้ (เฉพาะบัญชีบุคลากร)
+    let u = uid ? await getBy(db, 'TT_USER', 'user_id', uid) : username ? await getBy(db, 'TT_USER', 'username', username) : null;
+    if (u && uid && STAFF_ROLES.indexOf(u.role) < 0) u = null;
     const fail = function () { apiError('LOGIN_FAILED', 'ชื่อผู้ใช้หรือรหัสผ่านไม่ถูกต้อง'); };
     if (!u || String(u.active) === '0') { await checkPassword(password, DUMMY_HASH); fail(); }   // ใช้เวลาเท่ากันไม่ว่าจะมีชื่อผู้ใช้หรือไม่
     if (u.locked_until && String(u.locked_until) > now()) apiError('LOCKED', 'ใส่รหัสผิดหลายครั้ง — ลองใหม่หลัง ' + String(u.locked_until).slice(11, 16) + ' น.');
@@ -214,6 +245,61 @@ export const AuthActions = {
     }
     await log(db, cur ? 'UPDATE' : 'CREATE', uid, me.username, { role: row.role, active: active });
     return { user_id: uid };
+  },
+
+  /** หน้าเข้าสู่ระบบแบบเลือกชื่อ (สาธารณะ) — ส่งเฉพาะ user_id + ชื่อที่แสดงของบุคลากรที่ใช้งานอยู่ (ไม่ส่งชื่อผู้ใช้) */
+  login_choices: async function (params, ctx) {
+    const users = (await readAll(ctx.db, 'TT_USER')).filter(function (u) { return String(u.active) !== '0' && STAFF_ROLES.indexOf(u.role) >= 0; });
+    return { users: users.map(function (u) { return { user_id: u.user_id, display_name: u.display_name || u.username }; })
+      .sort(function (a, b) { return a.display_name.localeCompare(b.display_name, 'th'); }) };
+  },
+
+  /** ครูในตารางสอนภาคปัจจุบัน + บัญชีที่ผูกไว้ (ถ้ามี) — สำหรับปุ่มสร้างบัญชีครูทั้งหมด */
+  teacher_accounts: async function (params, ctx) {
+    await requireCap(ctx, 'manage_users');
+    const db = ctx.db, term = await activeTerm(db);
+    const teachers = (await selectWhere(db, 'TT_TEACHER', 'term_id', term)).filter(function (t) { return String(t.active) !== '0'; });
+    const users = (await readAll(db, 'TT_USER')).filter(function (u) { return u.teacher_id; });
+    const linkedRows = {};
+    for (const u of users) { const t = await getBy(db, 'TT_TEACHER', 'teacher_id', String(u.teacher_id)); if (t) linkedRows[u.user_id] = t; }
+    return { term: term, teachers: teachers.map(function (t) {
+      const u = users.find(function (x) { return sameTeacher(t, linkedRows[x.user_id]); });
+      return { teacher_id: t.teacher_id, code: t.code || '', name: normName((t.title || '') + ' ' + (t.name || '')) || t.name || '',
+        user: u ? { user_id: u.user_id, username: u.username, active: String(u.active) !== '0', current: u.teacher_id === t.teacher_id } : null };
+    }) };
+  },
+
+  /**
+   * สร้างบัญชีครู 1 คนจากรายชื่อครูในตารางสอน (หน้าเว็บเรียกทีละคน — PBKDF2 ใช้ CPU มาก)
+   * ชื่อผู้ใช้ = รหัสครู (ถ้าใช้ได้) ไม่งั้น t01, t02, … · รหัสผ่านเริ่มต้นสุ่ม คืนให้ครั้งเดียว · ถ้าบัญชีผูกครูภาคก่อนอยู่ → ผูกภาคนี้ให้แทน
+   */
+  user_create_teacher: async function (params, ctx) {
+    const me = await requireCap(ctx, 'manage_users');
+    const db = ctx.db;
+    const t = params.teacher_id ? await getBy(db, 'TT_TEACHER', 'teacher_id', String(params.teacher_id)) : null;
+    if (!t) apiError('NOT_FOUND', 'ไม่พบครูในตารางสอน');
+    const all = await readAll(db, 'TT_USER');
+    for (const u of all.filter(function (x) { return x.teacher_id; })) {
+      const lt = u.teacher_id === t.teacher_id ? t : await getBy(db, 'TT_TEACHER', 'teacher_id', String(u.teacher_id));
+      if (!sameTeacher(t, lt)) continue;
+      if (u.teacher_id !== t.teacher_id) {
+        await updateWhere(db, 'TT_USER', 'user_id', u.user_id, { teacher_id: t.teacher_id, updated_at: now() });
+        await log(db, 'RELINK_TEACHER', u.user_id, me.username, { teacher_id: t.teacher_id });
+      }
+      return { existed: true, user_id: u.user_id, username: u.username };
+    }
+    const taken = {}; all.forEach(function (u) { taken[u.username] = 1; });
+    let username = normUser(t.code);
+    if (!validUsername(username) || taken[username]) {
+      for (let i = 1; i < 1000; i++) { const c = 't' + (i < 10 ? '0' : '') + i; if (!taken[c]) { username = c; break; } }
+    }
+    const password = initialPassword();
+    const uid = genId('USR');
+    const display = normName((t.title || '') + ' ' + (t.name || '')).slice(0, 60) || username;
+    await insertRows(db, 'TT_USER', [{ user_id: uid, username: username, display_name: display, role: 'teacher', password_hash: await hashPassword(password),
+      teacher_id: t.teacher_id, class_id: '', active: '1', failed_count: 0, created_at: now(), updated_at: now() }]);
+    await log(db, 'CREATE', uid, me.username, { role: 'teacher', active: '1', from_teacher: t.teacher_id });
+    return { existed: false, user_id: uid, username: username, display_name: display, password: password };
   },
 
   /** ผู้ดูแลตั้งรหัสผ่านใหม่ให้ผู้ใช้ (ปลดล็อกด้วย) → ออกจากระบบทุกเครื่องของผู้ใช้นั้น */

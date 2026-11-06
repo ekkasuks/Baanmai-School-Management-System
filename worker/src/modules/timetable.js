@@ -1162,7 +1162,7 @@ const API = {
 
 /* ════ เฟส 6: ตรวจสิทธิ์ทุก action (ค่าเริ่มต้น = ปฏิเสธ) ════
    ค่า = ความสามารถที่ต้องมี · ฟังก์ชัน = คำนวณจาก params (คืน array ของเงื่อนไข; เงื่อนไขเป็น array = มีอย่างใดอย่างหนึ่ง) */
-const OPEN = ['auth_status', 'setup_admin', 'login', 'logout', 'me', 'change_password', 'users_list', 'user_save', 'user_reset_password', 'public_view'];
+const OPEN = ['auth_status', 'setup_admin', 'login', 'logout', 'me', 'change_password', 'users_list', 'user_save', 'user_reset_password', 'public_view', 'login_choices', 'teacher_accounts', 'user_create_teacher'];
 const NEED = {
   bootstrap: 'view', dashboard: 'view', list: 'view', versions: 'view', get_version: 'view', changes: 'view', constraints_get: 'view',
   save: 'edit_data', remove: 'edit_data', assign_save: 'edit_data', combine: 'edit_data', uncombine: 'edit_data', seed_periods: 'edit_data', sync_classes: 'edit_data', import_entities: 'edit_data',

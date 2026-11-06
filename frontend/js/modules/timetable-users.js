@@ -8,7 +8,7 @@
   const host = document.getElementById('tab-users');
   const CAP_LABEL = { view: 'ดูข้อมูล', edit_data: 'แก้ข้อมูลพื้นฐาน', edit_timetable: 'จัด/แก้ตาราง', approve: 'อนุมัติ/เผยแพร่', announce: 'ประกาศ', manage_users: 'จัดการผู้ใช้',
     geo: 'ดูแผนที่บ้านนักเรียน', geo_edit: 'บันทึกพิกัดบ้าน', geo_admin: 'ตั้งพิกัดโรงเรียน',
-    acad_admin: 'แก้ผลท่องสูตรคูณภาคก่อน' };
+    acad_admin: 'แก้ผลท่องสูตรคูณภาคก่อน', gb: 'บันทึกคะแนนวิชาที่สอน', gb_admin: 'จัดการคะแนนทุกวิชา', gb_view: 'ดูภาพรวมคะแนน' };
   let users = [];
 
   function roles() { return TTAuth.roles(); }
@@ -21,11 +21,16 @@
       '<div class="card"><div class="flex" style="justify-content:space-between;flex-wrap:wrap;gap:8px;margin-bottom:10px">' +
         '<h3 class="card-title" style="margin:0">👥 ผู้ใช้และสิทธิ์</h3><button class="btn btn-primary" data-add><i class="bi bi-person-plus"></i> เพิ่มผู้ใช้</button></div>' +
         '<div data-list class="text-muted">กำลังโหลด...</div></div>' +
+      '<div class="card"><div class="flex" style="justify-content:space-between;flex-wrap:wrap;gap:8px;margin-bottom:10px">' +
+        '<h3 class="card-title" style="margin:0">👩‍🏫 บัญชีครูจากตารางสอน</h3><button class="btn btn-primary" data-mk disabled><i class="bi bi-people"></i> สร้างบัญชีให้ครูที่ยังไม่มี</button></div>' +
+        '<p class="tt-note" style="margin:0 0 8px">สร้างบัญชีบทบาท "ครู" ผูกกับรายชื่อครูของภาคเรียนปัจจุบัน ใช้เข้า <a href="gradebook.html" target="_blank">บันทึกคะแนน</a> แบบเลือกชื่อ + รหัสผ่าน · รหัสผ่านเริ่มต้นแสดงครั้งเดียว — พิมพ์แจกครูแล้วให้ครูเปลี่ยนเอง</p>' +
+        '<div data-tlist class="text-muted">กำลังโหลด...</div></div>' +
       '<div class="card"><h3 class="card-title">🌐 การเข้าถึงหน้าดูตาราง</h3>' +
         '<label class="tt-chip"><input type="checkbox" data-public> เปิดให้ดูตารางที่เผยแพร่แล้วโดยไม่ต้องเข้าสู่ระบบ</label>' +
         '<p class="tt-note" style="margin:8px 0 0">หน้า <a href="timetable-view.html" target="_blank">ดูตารางเรียน / ตารางสอน</a> แสดงเฉพาะฉบับที่ "เผยแพร่แล้ว" (รายห้อง/รายครู — ไม่มีข้อมูลส่วนบุคคลของนักเรียน) · ถ้าปิด ต้องเข้าสู่ระบบด้วยบัญชีใดก็ได้ก่อน</p></div>' +
       '<div class="card"><h3 class="card-title">🛡️ สิทธิ์ของแต่ละบทบาท</h3><div data-matrix></div></div>';
     host.querySelector('[data-add]').onclick = function () { edit(null); };
+    host.querySelector('[data-mk]').onclick = createTeacherAccounts;
     host.querySelector('[data-public]').onchange = async function () {
       const cb = this;
       try {
@@ -53,7 +58,69 @@
       host.querySelector('[data-public]').checked = !TT.S.config || TT.S.config.public_view !== false;
       renderList();
       renderMatrix();
+      loadTeachers();
     } catch (e) { host.querySelector('[data-list]').innerHTML = '<div class="alert alert-danger">' + esc(e.message) + '</div>'; }
+  }
+
+  /* ── บัญชีครูจากตารางสอน ── */
+  let tAcc = [];
+  async function loadTeachers() {
+    const box = host.querySelector('[data-tlist]'), btn = host.querySelector('[data-mk]');
+    try {
+      const r = await api('tt.teacher_accounts', {}, { loading: false });
+      tAcc = r.teachers;
+      const missing = tAcc.filter(function (t) { return !t.user; }).length;
+      btn.disabled = !missing;
+      btn.innerHTML = '<i class="bi bi-people"></i> ' + (missing ? 'สร้างบัญชีให้ครูที่ยังไม่มี (' + missing + ' คน)' : 'ครูทุกคนมีบัญชีแล้ว');
+      box.innerHTML = !tAcc.length ? '<div class="alert alert-info">ยังไม่มีรายชื่อครูในภาคเรียน ' + esc(r.term) + ' — เพิ่มครูในแท็บข้อมูลพื้นฐานก่อน</div>' :
+        '<div class="table-wrap"><table class="tt-results"><thead><tr><th>ครู (ภาค ' + esc(r.term) + ')</th><th>รหัสครู</th><th>บัญชี</th></tr></thead><tbody>' +
+        tAcc.map(function (t) {
+          return '<tr><td data-no-i18n>' + esc(t.name) + '</td><td>' + esc(t.code || '-') + '</td><td>' +
+            (t.user ? '<span class="badge badge-pass">' + esc(t.user.username) + '</span>' + (t.user.active ? '' : ' <span class="tt-note">(ปิดใช้งาน)</span>') + (t.user.current ? '' : ' <span class="tt-note">(ผูกครูภาคก่อน — จะผูกภาคนี้ให้เมื่อกดสร้าง)</span>')
+              : '<span class="tt-note">ยังไม่มี</span>') + '</td></tr>';
+        }).join('') + '</tbody></table></div>';
+      if (tAcc.some(function (t) { return t.user && !t.user.current; })) { btn.disabled = false; if (!missing) btn.innerHTML = '<i class="bi bi-link-45deg"></i> ผูกบัญชีกับครูภาคนี้'; }
+    } catch (e) { box.innerHTML = '<div class="alert alert-danger">' + esc(e.message) + '</div>'; }
+  }
+
+  async function createTeacherAccounts() {
+    const todo = tAcc.filter(function (t) { return !t.user || !t.user.current; });
+    if (!todo.length) return;
+    const nNew = todo.filter(function (t) { return !t.user; }).length;
+    if (!confirm((nNew ? 'สร้างบัญชีครูใหม่ ' + nNew + ' คน' : 'ผูกบัญชีเดิมกับครูภาคนี้') + '?\n\nรหัสผ่านเริ่มต้นจะแสดงครั้งเดียวหลังสร้างเสร็จ — เตรียมพิมพ์หรือจดไว้')) return;
+    const made = [], failed = [];
+    for (let i = 0; i < todo.length; i++) {
+      Loading.show('กำลังสร้างบัญชี ' + (i + 1) + '/' + todo.length + '...');
+      try {
+        const r = await api('tt.user_create_teacher', { teacher_id: todo[i].teacher_id }, { silent: true, loading: false, noRetry: true });
+        if (!r.existed) made.push({ name: r.display_name, username: r.username, password: r.password });
+      } catch (e) { failed.push(todo[i].name + ': ' + e.message); }
+    }
+    Loading.hide();
+    if (failed.length) Toast.show('สร้างไม่สำเร็จ ' + failed.length + ' คน: ' + failed.join(' · '), 'error');
+    if (made.length) showCredentials(made);
+    else Toast.show('ผูกบัญชีกับครูภาคนี้แล้ว', 'success');
+    load();
+  }
+
+  function showCredentials(rows) {
+    const table = '<table class="tt-results" style="width:100%"><thead><tr><th>ครู</th><th>ชื่อผู้ใช้</th><th>รหัสผ่านเริ่มต้น</th></tr></thead><tbody>' +
+      rows.map(function (r) { return '<tr><td>' + esc(r.name) + '</td><td><code>' + esc(r.username) + '</code></td><td><code style="font-size:16px">' + esc(r.password) + '</code></td></tr>'; }).join('') + '</tbody></table>';
+    const el = document.createElement('div');
+    el.className = 'modal-backdrop show';
+    el.innerHTML = '<div class="modal wide"><h3 class="modal-title">🔑 บัญชีครูที่สร้างใหม่ (' + rows.length + ' คน)</h3>' +
+      '<div class="alert alert-warning" style="font-size:14px">รหัสผ่านจะแสดง <strong>ครั้งนี้ครั้งเดียว</strong> — พิมพ์หรือจดแจกครู แล้วให้ครูเปลี่ยนรหัสเองหลังเข้าสู่ระบบ (เมนูชื่อผู้ใช้ › เปลี่ยนรหัสผ่าน)</div>' +
+      '<div class="table-wrap">' + table + '</div>' +
+      '<div class="flex" style="justify-content:flex-end;gap:8px;margin-top:12px"><button class="btn btn-secondary" data-print><i class="bi bi-printer"></i> พิมพ์</button><button class="btn btn-primary" data-close>เก็บแล้ว ปิด</button></div></div>';
+    document.body.appendChild(el);
+    el.querySelector('[data-close]').onclick = function () { if (confirm('ปิดแล้วจะดูรหัสผ่านเหล่านี้ไม่ได้อีก — พิมพ์/จดแล้วใช่ไหม?')) el.remove(); };
+    el.querySelector('[data-print]').onclick = function () {
+      const w = window.open('', '_blank');
+      if (!w) { Toast.show('เบราว์เซอร์บล็อกหน้าต่างพิมพ์', 'error'); return; }
+      w.document.write('<!doctype html><meta charset="utf-8"><title>บัญชีครู</title><style>body{font-family:sans-serif;padding:20px}table{border-collapse:collapse;width:100%}td,th{border:1px solid #999;padding:10px;text-align:left}code{font-size:16px}</style>' +
+        '<h2>บัญชีเข้าระบบบันทึกคะแนน — โรงเรียนบ้านใหม่</h2><p>เข้าที่เมนู วิชาการ › บันทึกคะแนน → เลือกชื่อ → ใส่รหัสผ่าน แล้วเปลี่ยนรหัสผ่านทันที</p>' + table);
+      w.document.close(); w.focus(); w.print();
+    };
   }
 
   function renderList() {

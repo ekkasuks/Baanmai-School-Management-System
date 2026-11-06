@@ -32,6 +32,7 @@
 // เมนูย่อยของงานวิชาการ — เพิ่มโมดูลใหม่ต่อท้ายรายการนี้
 const ACAD_MENUS = [
   { href: 'multiplication.html', icon: 'grid-3x3-gap-fill', name: 'ท่องสูตรคูณ', desc: 'แม่ 2–12 · รายคน · ทุกภาคเรียน' },
+  { href: 'gradebook.html', icon: 'journal-check', name: 'บันทึกคะแนน', desc: 'คะแนนรายวิชา · ตามการมอบหมายการสอน' },
 ];
 document.getElementById('acad-menu').innerHTML = ACAD_MENUS.map(function (m) {
   return '<a class="menu-tile" href="' + m.href + '"><i class="bi bi-' + m.icon + ' icon"></i><div class="name">' + m.name + '</div><div class="desc">' + m.desc + '</div></a>';

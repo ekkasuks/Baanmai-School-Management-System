@@ -33,7 +33,41 @@ const TTAuth = (function () {
   function closeScreen() { const el = document.getElementById('tt-auth'); if (el) el.remove(); document.body.classList.remove('tt-locked'); }
   function errBox(el, msg) { const e = el.querySelector('[data-err]'); e.textContent = msg; e.classList.toggle('hidden', !msg); }
 
-  function loginScreen(resolve, msg) {
+  /** หน้าเข้าสู่ระบบแบบ "เลือกชื่อ + รหัสผ่าน" (หน้าที่ตั้ง data-tt-login="pick" เช่น บันทึกคะแนน) · ยังสลับไปใช้ชื่อผู้ใช้ได้ */
+  async function pickLoginScreen(resolve, msg) {
+    let list = [];
+    try { list = (await api('tt.login_choices', {}, { silent: true, loading: false, token: null })).users || []; } catch (e) { /* ใช้แบบชื่อผู้ใช้แทน */ }
+    if (!list.length) { loginScreen(resolve, msg, true); return; }
+    const KEY_LAST = 'baanmai_tt_last_uid';
+    let last = ''; try { last = localStorage.getItem(KEY_LAST) || ''; } catch (e) { /* ignore */ }
+    const el = screen(
+      '<div class="tt-auth-logo">👩‍🏫</div><h3 class="card-title" style="text-align:center">เข้าสู่ระบบสำหรับครู</h3>' +
+      (msg ? '<div class="alert alert-warning" style="font-size:14px">' + esc(msg) + '</div>' : '') +
+      '<form data-form autocomplete="on"><label>เลือกชื่อของคุณ</label><select class="form-control" name="uid" required><option value="">— เลือกชื่อ —</option>' +
+        list.map(function (u) { return '<option value="' + esc(u.user_id) + '"' + (u.user_id === last ? ' selected' : '') + '>' + esc(u.display_name) + '</option>'; }).join('') + '</select>' +
+      '<label style="margin-top:8px">รหัสผ่าน</label><input class="form-control" name="password" type="password" autocomplete="current-password" required>' +
+      '<label class="tt-chip" style="margin-top:10px"><input type="checkbox" name="remember"> จดจำการเข้าสู่ระบบ 30 วัน</label>' +
+      '<div class="alert alert-danger hidden" data-err style="margin-top:10px"></div>' +
+      '<button class="btn btn-primary" style="width:100%;margin-top:12px" type="submit"><i class="bi bi-box-arrow-in-right"></i> เข้าสู่ระบบ</button></form>' +
+      '<div class="tt-auth-links"><a href="#" data-byname>เข้าด้วยชื่อผู้ใช้</a> · <a href="index.html">กลับหน้าหลัก</a></div>' +
+      '<p class="tt-note" style="text-align:center;margin:8px 0 0">ไม่มีชื่อ/ลืมรหัสผ่าน — ติดต่อผู้ดูแลระบบหรือฝ่ายวิชาการ</p>');
+    const f = el.querySelector('[data-form]');
+    el.querySelector('[data-byname]').onclick = function (e) { e.preventDefault(); loginScreen(resolve, msg, true); };
+    setTimeout(function () { (f.uid.value ? f.password : f.uid).focus(); }, 50);
+    f.uid.onchange = function () { if (f.uid.value) f.password.focus(); };
+    f.onsubmit = async function (e) {
+      e.preventDefault();
+      errBox(el, '');
+      try {
+        const r = await api('tt.login', { user_id: f.uid.value, password: f.password.value, remember: f.remember.checked }, { silent: true, loadingMsg: 'กำลังเข้าสู่ระบบ...', noRetry: true, token: null });
+        try { localStorage.setItem(KEY_LAST, f.uid.value); } catch (x) { /* ignore */ }
+        signedIn(r, resolve);
+      } catch (err) { errBox(el, err.message); f.password.value = ''; f.password.focus(); }
+    };
+  }
+
+  function loginScreen(resolve, msg, forceUsername) {
+    if (!forceUsername && document.body.dataset.ttLogin === 'pick') { pickLoginScreen(resolve, msg); return; }
     const el = screen(
       '<div class="tt-auth-logo">' + (document.body.dataset.ttPage === 'admin' ? '🗓️' : '🔐') + '</div><h3 class="card-title" style="text-align:center">' +
         (document.body.dataset.ttPage === 'admin' ? 'เข้าสู่ระบบจัดตารางสอน' : 'เข้าสู่ระบบสำหรับบุคลากร') + '</h3>' +

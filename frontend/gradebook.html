@@ -1,0 +1,85 @@
+<!doctype html>
+<html lang="th">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>บันทึกคะแนน — โรงเรียนบ้านใหม่</title>
+<meta name="theme-color" content="#0288D1">
+<script src="js/tt-theme.js"></script>
+<link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet">
+<link rel="stylesheet" href="css/style.css">
+<link rel="stylesheet" href="css/tt-common.css">
+<link rel="stylesheet" href="css/tt-dark.css">
+<style>
+  .tt-note { font-size:13px; color:var(--muted); }
+  .gb-bar { display:flex; gap:8px; flex-wrap:wrap; align-items:center; }
+  .gb-bar .form-control { flex:1; min-width:180px; }
+  .gb-who { font-size:15px; }
+  .gb-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(230px,1fr)); gap:12px; }
+  .gb-course { text-align:left; border:1px solid var(--border); border-radius:14px; padding:14px; background:var(--card, #fff); cursor:pointer; font-family:inherit; color:inherit; display:flex; flex-direction:column; gap:6px; }
+  .gb-course:hover, .gb-course:focus-visible { border-color:var(--primary); box-shadow:0 0 0 3px var(--primary-light); outline:none; }
+  .gb-course .cls { font-size:13px; font-weight:700; color:var(--primary-dark); background:var(--primary-light); border-radius:999px; padding:2px 10px; align-self:flex-start; }
+  .gb-course .sub { font-size:17px; font-weight:700; line-height:1.3; }
+  .gb-course .meta { font-size:13px; color:var(--muted); display:flex; gap:10px; flex-wrap:wrap; }
+  .gb-group h4 { margin:14px 0 8px; font-size:15px; color:var(--muted); }
+  .gb-group:first-child h4 { margin-top:0; }
+  .gb-tag { display:inline-block; font-size:12px; border:1px solid var(--border); border-radius:6px; padding:0 6px; color:var(--muted); }
+  .gb-head { display:flex; gap:10px; align-items:flex-start; flex-wrap:wrap; justify-content:space-between; }
+  .gb-head h3 { margin:0; }
+  .gb-info { display:flex; gap:8px 16px; flex-wrap:wrap; font-size:14px; color:var(--muted); margin-top:6px; }
+  .gb-roster td:first-child, .gb-roster th:first-child { width:48px; text-align:center; color:var(--muted); }
+</style>
+</head>
+<body data-tt-page="acad" data-tt-login="pick">
+
+<header class="app-header">
+  <a href="academic.html" class="back">‹</a>
+  <span class="logo">📝</span>
+  <div>
+    <div class="title">บันทึกคะแนน</div>
+    <div style="font-size:13px;opacity:.9" id="gb-sub">วิชาการ · คะแนนรายวิชา</div>
+  </div>
+</header>
+
+<main class="container">
+  <!-- วิชาของฉัน -->
+  <div id="gb-home">
+    <div class="card">
+      <div class="gb-bar">
+        <div class="gb-who" id="gb-who" style="flex:1;min-width:200px">กำลังโหลด...</div>
+        <select class="form-control hidden" id="gb-teacher" aria-label="ดูในนามครู" style="max-width:320px"></select>
+      </div>
+      <div id="gb-note"></div>
+    </div>
+    <div class="card"><div id="gb-courses" class="text-muted">กำลังโหลด...</div></div>
+  </div>
+
+  <!-- รายวิชา -->
+  <div id="gb-course" class="hidden">
+    <div class="card">
+      <div class="gb-head">
+        <div>
+          <button class="btn btn-secondary" id="gb-back" style="margin:0 0 8px"><i class="bi bi-arrow-left"></i> วิชาของฉัน</button>
+          <h3 id="gb-c-title"></h3>
+          <div class="gb-info" id="gb-c-info"></div>
+        </div>
+      </div>
+    </div>
+    <div class="card">
+      <h3 class="card-title">👥 รายชื่อนักเรียน <span class="tt-note" id="gb-c-count"></span></h3>
+      <p class="tt-note" style="margin-top:-6px">ดึงจากข้อมูลนักเรียนตามชั้น/ห้องอัตโนมัติ (เฉพาะสถานะกำลังศึกษา) · การสร้างช่องคะแนนและบันทึกคะแนนจะเปิดในขั้นถัดไป</p>
+      <div id="gb-c-roster"></div>
+    </div>
+  </div>
+</main>
+
+<script src="js/config.js"></script>
+<script src="js/auth.js"></script>
+<script src="js/api.js"></script>
+<script src="js/store.js"></script>
+<script src="js/utils.js"></script>
+<script src="js/tt-i18n.js"></script>
+<script src="js/tt-session.js"></script>
+<script src="js/modules/gradebook.js"></script>
+</body>
+</html>
