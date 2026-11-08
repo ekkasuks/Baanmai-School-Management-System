@@ -1,18 +1,18 @@
 /* ============================================================
-   Baanmai SMS — ธีมน่ารัก สดใส · ฟอนต์ Sarabun (เก็บในรีโป)
+   Baanmai SMS — ธีมน่ารัก สดใส · ฟอนต์ Sarabun (เก็บในรีโป: woff2 สำหรับหน้าเว็บ ~32KB · ttf สำรอง + ใช้ฝังใน PDF)
    เนื้อหา 16px · หัวข้อ 18px
    ============================================================ */
 
 @font-face {
   font-family: 'Sarabun';
-  src: url('../assets/fonts/Sarabun-Regular.ttf') format('truetype');
+  src: url('../assets/fonts/Sarabun-Regular.woff2') format('woff2'), url('../assets/fonts/Sarabun-Regular.ttf') format('truetype');
   font-weight: 400; font-style: normal; font-display: swap;
 }
 /* หมายเหตุ: ตัด SemiBold (600) ออกเพื่อลดการโหลดฟอนต์ ~92KB
    น้ำหนัก 600 ที่ใช้ในหน้าเว็บ เบราว์เซอร์จะเลือก Bold (700) ให้อัตโนมัติ — หน้าตาใกล้เคียงเดิม */
 @font-face {
   font-family: 'Sarabun';
-  src: url('../assets/fonts/Sarabun-Bold.ttf') format('truetype');
+  src: url('../assets/fonts/Sarabun-Bold.woff2') format('woff2'), url('../assets/fonts/Sarabun-Bold.ttf') format('truetype');
   font-weight: 700; font-style: normal; font-display: swap;
 }
 
