@@ -80,22 +80,26 @@ export async function currentUser(ctx) {
   ctx._ttUser = null;
   if (!ctx.token || typeof ctx.token !== 'string' || ctx.token.length < 32) return null;
   const h = await sha256hex(ctx.token);
-  const s = await getBy(ctx.db, 'TT_SESSION', 'token_hash', h);
-  if (!s) return null;
-  if (String(s.expires_at) <= now()) { await deleteWhere(ctx.db, 'TT_SESSION', 'token_hash', h); return null; }
-  const u = await getBy(ctx.db, 'TT_USER', 'user_id', s.user_id);
-  if (!u || String(u.active) === '0') return null;
+  // session + ผู้ใช้ในคำสั่งเดียว (เดิม 2 คำสั่งต่อกัน)
+  const u = await ctx.db.prepare('SELECT u.*, s.expires_at AS session_expires_at FROM TT_SESSION s LEFT JOIN TT_USER u ON u.user_id = s.user_id WHERE s.token_hash = ?').bind(h).first();
+  if (!u) return null;
+  const exp = u.session_expires_at;
+  delete u.session_expires_at;
+  if (String(exp) <= now()) { await deleteWhere(ctx.db, 'TT_SESSION', 'token_hash', h); return null; }
+  if (!u.user_id || String(u.active) === '0') return null;
   ctx._ttUser = u;
   ctx._ttTokenHash = h;
   return u;
 }
+/** จำนวนบัญชีทั้งหมด (นับอย่างเดียว ไม่ดึงทุกแถว) */
+async function userCount(db) { const r = await db.prepare('SELECT COUNT(*) AS n FROM TT_USER').first(); return r ? Number(r.n) || 0 : 0; }
 export function can(user, cap) { return !!(user && ROLES[user.role] && ROLES[user.role].caps.indexOf(cap) >= 0); }
 
 /** ต้องเข้าสู่ระบบ + มีความสามารถ cap (null = แค่เข้าสู่ระบบ) */
 export async function requireCap(ctx, cap) {
   const u = await currentUser(ctx);
   if (!u) {
-    const n = (await readAll(ctx.db, 'TT_USER')).length;
+    const n = await userCount(ctx.db);
     apiError(n ? 'AUTH_REQUIRED' : 'SETUP_REQUIRED', n ? 'กรุณาเข้าสู่ระบบ' : 'ยังไม่ได้ตั้งผู้ดูแลระบบ — สร้างบัญชีผู้ดูแลคนแรกก่อน');
   }
   if (cap && !can(u, cap)) apiError('FORBIDDEN', 'บัญชี "' + (ROLES[u.role] ? ROLES[u.role].label : u.role) + '" ไม่มีสิทธิ์ทำรายการนี้');
@@ -158,10 +162,10 @@ export const AuthActions = {
 
   /** สถานะ: ต้องตั้งผู้ดูแลคนแรกไหม + ผู้ใช้ปัจจุบัน (ถ้ามี token ที่ใช้ได้) */
   auth_status: async function (params, ctx) {
-    const n = (await readAll(ctx.db, 'TT_USER')).length;
-    const u = await currentUser(ctx);
+    // อ่านพร้อมกัน (เดิมทีละคำสั่ง 5 ครั้ง)
+    const [n, u, reqV] = await Promise.all([userCount(ctx.db), currentUser(ctx), getSetting(ctx.db, 'staff_login_required')]);
     const pu = u ? Object.assign(publicUser(u), { homeroom: await homeroomsOf(ctx.db, u.user_id) }) : null;
-    const req = String((await getSetting(ctx.db, 'staff_login_required')) || '') === '1';
+    const req = String(reqV || '') === '1';
     return { setup_required: n === 0, user: pu, write_login_required: req, roles: Object.keys(ROLES).map(function (k) { return { key: k, label: ROLES[k].label, caps: ROLES[k].caps }; }) };
   },
 

@@ -81,6 +81,34 @@ export async function readAll(db, table) {
   return res.results || [];
 }
 
+/**
+ * แถวที่ "วันที่" อยู่ในช่วง from..to (วันไทย) — ใช้ index ของคอลัมน์ ไม่ต้องอ่านทั้งตาราง
+ * ข้อมูลมี 2 รูปแบบ: ใหม่ 'YYYY-MM-DD' / 'YYYY-MM' · เก่าจาก Sheets เป็นเวลา UTC 'YYYY-MM-(DD-1)T17:00:00.000Z' (= เที่ยงคืนไทย)
+ * ช่วงข้อความ [วันก่อน from + 'T', to + '~'] ครอบคลุมทั้งสองรูปแบบเสมอ (อาจมีแถวเกินมาเล็กน้อยที่ขอบ)
+ * → ผู้เรียกต้องกรองซ้ำด้วย toYmd/toYm เหมือนเดิม ผลจึงเท่ากับการอ่านทั้งตารางแล้วกรองทุกประการ (เรียงตาม rowid เหมือนกัน)
+ * @param from 'YYYY-MM-DD' (หรือ '' = ไม่จำกัดต้น) · @param to 'YYYY-MM-DD' หรือ 'YYYY-MM' (หรือ '' = ไม่จำกัดท้าย)
+ */
+export async function selectDateRange(db, table, col, from, to, cols) {
+  def(table);
+  if (!/^[a-z_]+$/.test(col) || (cols && !/^[a-z_, ]+$/.test(cols))) throw new Error('column ไม่ถูกต้อง');
+  const b = dateBounds(from, to);
+  const res = await db.prepare('SELECT ' + (cols || '*') + ' FROM ' + table + ' WHERE ' + col + ' >= ? AND ' + col + ' <= ? ORDER BY rowid').bind(b[0], b[1]).all();   // rowid = ลำดับเดียวกับอ่านทั้งตาราง
+  return res.results || [];
+}
+/** [ล่าง, บน] ของช่วงข้อความที่ครอบคลุมวันไทย from..to ทั้งสองรูปแบบ (ดู selectDateRange) */
+export function dateBounds(from, to) {
+  const p = from ? prevDay(from) : '';
+  return [p ? p + 'T' : '', to ? String(to) + '~' : '\uffff'];
+}
+/** แถวของเดือน 'YYYY-MM' (วันไทย) — ต้องกรองซ้ำด้วย toYm */
+export function selectMonth(db, table, col, ym, cols) { return selectDateRange(db, table, col, String(ym).slice(0, 7) + '-01', String(ym).slice(0, 7), cols); }
+function prevDay(ymd) {
+  const d = new Date(String(ymd).slice(0, 10) + 'T00:00:00Z');
+  if (isNaN(d.getTime())) return '';
+  d.setUTCDate(d.getUTCDate() - 1);
+  return d.toISOString().slice(0, 10);
+}
+
 /** หา 1 แถวที่ column = value (หรือ null) */
 export async function getBy(db, table, col, val) {
   def(table);
@@ -128,15 +156,20 @@ export async function upsert(db, table, obj) {
 
 /** UPDATE เฉพาะ field ที่ส่งมา WHERE col=val */
 export async function updateWhere(db, table, col, val, fields) {
+  const st = updateStmt(db, table, col, val, fields);
+  if (st) await st.run();
+}
+/** statement UPDATE (ยังไม่รัน) — รวมหลายแถวใน db.batch เดียว · null ถ้าไม่มีคอลัมน์ให้แก้ */
+export function updateStmt(db, table, col, val, fields) {
   const d = def(table);
   const keys = Object.keys(fields).filter(function (k) { return d.cols.indexOf(k) >= 0; });
-  if (!keys.length) return;
+  if (!keys.length) return null;
   const sql = 'UPDATE ' + table + ' SET ' + keys.map(function (k) { return k + '=?'; }).join(',') +
     ' WHERE ' + col + '=?';
   const binds = keys.map(function (k) { return norm(fields[k]); });
   binds.push(val);
   const st = db.prepare(sql);
-  await st.bind.apply(st, binds).run();
+  return st.bind.apply(st, binds);
 }
 
 export async function deleteWhere(db, table, col, val) {

@@ -2,7 +2,7 @@
  *  แก้วันที่เช็คผิด: ย้ายไปวันที่ถูก (move_day) · ลบ → ถังกู้คืน ATTENDANCE_TRASH (remove_day / trash_restore)
  *  วันหยุดโรงเรียน ATT_HOLIDAY: ไม่นับในรายงานรายเดือน (แถวเช็คชื่อไม่ถูกลบ) · บันทึกในวันหยุดต้องยืนยัน (force) */
 import {
-  readAll, insertRows, updateWhere, buildIndex,
+  readAll, insertRows, updateStmt, buildIndex, selectDateRange, selectMonth,
   now, today, yearMonth, toYmd, toYm, genId, audit, apiError,
 } from '../db.js';
 import { studentName, gradeSortKey, listClasses, studentsInClass } from '../shared.js';
@@ -29,7 +29,7 @@ async function holidayMap(db) {
 /** แถวเช็คชื่อของวันที่ (+ เฉพาะชั้น/ห้อง ถ้าระบุ) — ชั้นตามข้อมูลนักเรียนปัจจุบัน */
 async function rowsOfDay(db, date, grade, room) {
   const stIndex = buildIndex(await readAll(db, 'STUDENTS'), 'citizen_id');
-  return (await readAll(db, 'ATTENDANCE')).filter(function (a) {
+  return (await dayRows(db, date)).filter(function (a) {
     if (toYmd(a.date) !== date) return false;
     if (!grade) return true;
     const s = stIndex[String(a.citizen_id)];
@@ -37,6 +37,8 @@ async function rowsOfDay(db, date, grade, room) {
     return room === undefined || room === null || room === '' || String(s.room) === String(room);
   });
 }
+/** แถวเช็คชื่อของวันเดียว (ผ่าน index — ผู้เรียกกรอง toYmd ซ้ำ) */
+function dayRows(db, date) { return selectDateRange(db, 'ATTENDANCE', 'date', date, date); }
 function chunks(arr) { const out = []; for (let i = 0; i < arr.length; i += CHUNK) out.push(arr.slice(i, i + CHUNK)); return out; }
 function qs(n) { return new Array(n).fill('?').join(','); }
 /** prepare + bind หลายค่า */
@@ -62,7 +64,7 @@ export const AttendanceAPI = {
     if (!params.grade) apiError('VALIDATION', 'กรุณาเลือกชั้นเรียน');
     const date = params.date ? toYmd(params.date) : today();
     const attIndex = {};
-    (await readAll(ctx.db, 'ATTENDANCE')).forEach(function (a) {
+    (await dayRows(ctx.db, date)).forEach(function (a) {
       if (toYmd(a.date) === date) attIndex[String(a.citizen_id)] = a;
     });
     const results = (await studentsInClass(ctx.db, params.grade, params.room)).map(function (s) {
@@ -91,9 +93,10 @@ export const AttendanceAPI = {
 
     // index att_id เดิมตาม (วันไทย|citizen_id)
     const keyToId = {};
-    (await readAll(db, 'ATTENDANCE')).forEach(function (a) {
+    (await dayRows(db, date)).forEach(function (a) {
       keyToId[toYmd(a.date) + '|' + String(a.citizen_id)] = a.att_id;
     });
+    const updates = [];
 
     const inserts = [];
     const seen = {};
@@ -107,13 +110,15 @@ export const AttendanceAPI = {
       const note = r.note || '';
       const existId = keyToId[key];
       if (existId) {
-        await updateWhere(db, 'ATTENDANCE', 'att_id', existId, { date: date, status: status, note: note, recorded_by: by, created_at: ts });
+        updates.push(updateStmt(db, 'ATTENDANCE', 'att_id', existId, { date: date, status: status, note: note, recorded_by: by, created_at: ts }));
         updated++;
       } else {
         inserts.push({ att_id: genId('ATT'), date: date, citizen_id: r.citizen_id, status: status, note: note, recorded_by: by, created_at: ts });
         inserted++;
       }
     }
+    // แก้ของเดิมทั้งชั้นในคำขอเดียว (เดิมทีละคน)
+    for (let i = 0; i < updates.length; i += 50) await db.batch(updates.slice(i, i + 50));
     if (inserts.length) await insertRows(db, 'ATTENDANCE', inserts);
     await audit(db, 'attendance', 'SAVE', date, { date: date, inserted: inserted, updated: updated }, by);
     return { date: date, inserted: inserted, updated: updated };
@@ -122,7 +127,10 @@ export const AttendanceAPI = {
   history: async function (params, ctx) {
     const p = params || {};
     const stIndex = buildIndex(await readAll(ctx.db, 'STUDENTS'), 'citizen_id');
-    let rows = await readAll(ctx.db, 'ATTENDANCE');
+    // ดึงเฉพาะช่วงวันที่ที่ขอ (ผ่าน index) · ไม่ระบุวันเลยจึงอ่านทั้งตาราง
+    let rows = p.date ? await dayRows(ctx.db, toYmd(p.date))
+      : (p.date_from || p.date_to) ? await selectDateRange(ctx.db, 'ATTENDANCE', 'date', p.date_from || '', p.date_to || '')
+      : await readAll(ctx.db, 'ATTENDANCE');
     if (p.date) rows = rows.filter(function (a) { return toYmd(a.date) === toYmd(p.date); });
     if (p.date_from) rows = rows.filter(function (a) { return toYmd(a.date) >= p.date_from; });
     if (p.date_to) rows = rows.filter(function (a) { return toYmd(a.date) <= p.date_to; });
@@ -147,9 +155,10 @@ export const AttendanceAPI = {
   dashboard: async function (params, ctx) {
     const db = ctx.db;
     const date = (params && params.date) ? toYmd(params.date) : today();
-    const stIndex = buildIndex(await readAll(db, 'STUDENTS'), 'citizen_id');
-    const records = (await readAll(db, 'ATTENDANCE')).filter(function (a) { return toYmd(a.date) === date; });
-    const totalStudents = (await readAll(db, 'STUDENTS')).filter(function (s) { return s.status !== 'inactive'; }).length;
+    const students = await readAll(db, 'STUDENTS');
+    const stIndex = buildIndex(students, 'citizen_id');
+    const records = (await dayRows(db, date)).filter(function (a) { return toYmd(a.date) === date; });
+    const totalStudents = students.filter(function (s) { return s.status !== 'inactive'; }).length;
 
     const counts = { 'มา': 0, 'ขาด': 0, 'ลา': 0, 'สาย': 0 };
     const gradeMap = {};
@@ -181,7 +190,7 @@ export const AttendanceAPI = {
     const db = ctx.db;
     const date = (params && params.date) ? toYmd(params.date) : today();
     const statusByCid = {};
-    (await readAll(db, 'ATTENDANCE')).forEach(function (a) { if (toYmd(a.date) === date) statusByCid[String(a.citizen_id)] = a.status; });
+    (await dayRows(db, date)).forEach(function (a) { if (toYmd(a.date) === date) statusByCid[String(a.citizen_id)] = a.status; });
 
     const classMap = {};
     (await readAll(db, 'STUDENTS')).forEach(function (s) {
@@ -218,7 +227,8 @@ export const AttendanceAPI = {
 
   report_months: async function (params, ctx) {
     const set = {};
-    (await readAll(ctx.db, 'ATTENDANCE')).forEach(function (a) { const ym = toYm(a.date); if (ym) set[ym] = true; });
+    // อ่านเฉพาะวันที่ที่ไม่ซ้ำ (จาก index) แทนการอ่านทุกแถว
+    ((await ctx.db.prepare('SELECT DISTINCT date FROM ATTENDANCE').all()).results || []).forEach(function (a) { const ym = toYm(a.date); if (ym) set[ym] = true; });
     set[yearMonth()] = true;
     return { months: Object.keys(set).sort().reverse() };
   },
@@ -226,10 +236,11 @@ export const AttendanceAPI = {
   monthly_by_class: async function (params, ctx) {
     const db = ctx.db;
     const ym = (params && params.year_month) ? String(params.year_month).substring(0, 7) : yearMonth();
-    const stIndex = buildIndex(await readAll(db, 'STUDENTS'), 'citizen_id');
+    const students = await readAll(db, 'STUDENTS');
+    const stIndex = buildIndex(students, 'citizen_id');
     const classMap = {};
     const keyOf = function (g, r) { return g + '|' + r; };
-    (await readAll(db, 'STUDENTS')).forEach(function (s) {
+    students.forEach(function (s) {
       if (s.status === 'inactive') return;
       const grade = s.grade || '-';
       const room = (s.room === undefined || s.room === null) ? '' : String(s.room);
@@ -238,7 +249,7 @@ export const AttendanceAPI = {
       classMap[k].student_count++;
     });
     const allDays = {}, hol = await holidayMap(db), skipped = {};
-    (await readAll(db, 'ATTENDANCE')).forEach(function (a) {
+    (await selectMonth(db, 'ATTENDANCE', 'date', ym)).forEach(function (a) {
       if (toYm(a.date) !== ym) return;
       if (hol[toYmd(a.date)]) { skipped[toYmd(a.date)] = true; return; }   // วันหยุด → ไม่นับ (ข้อมูลยังอยู่)
       const s = stIndex[String(a.citizen_id)];
@@ -273,7 +284,7 @@ export const AttendanceAPI = {
       byCid[String(s.citizen_id)] = row;
     });
     const allDays = {}, hol = await holidayMap(db), skipped = {};
-    (await readAll(db, 'ATTENDANCE')).forEach(function (a) {
+    (await selectMonth(db, 'ATTENDANCE', 'date', ym)).forEach(function (a) {
       if (toYm(a.date) !== ym) return;
       if (hol[toYmd(a.date)]) { skipped[toYmd(a.date)] = true; return; }
       const row = byCid[String(a.citizen_id)];
@@ -298,7 +309,7 @@ export const AttendanceAPI = {
     const ym = params && params.year_month ? String(params.year_month).substring(0, 7) : yearMonth();
     const stIndex = buildIndex(await readAll(db, 'STUDENTS'), 'citizen_id');
     const hol = await holidayMap(db), td = today(), map = {};
-    (await readAll(db, 'ATTENDANCE')).forEach(function (a) {
+    (await selectMonth(db, 'ATTENDANCE', 'date', ym)).forEach(function (a) {
       const d = toYmd(a.date);
       if (!d || d.substring(0, 7) !== ym) return;
       const s = stIndex[String(a.citizen_id)];
@@ -344,7 +355,7 @@ export const AttendanceAPI = {
     if (!rows.length) apiError('NOT_FOUND', 'ไม่มีการเช็คชื่อในวันที่/ชั้นนี้');
     const cids = {};
     rows.forEach(function (a) { cids[String(a.citizen_id)] = 1; });
-    const clash = (await readAll(db, 'ATTENDANCE')).filter(function (a) { return toYmd(a.date) === to && cids[String(a.citizen_id)]; });
+    const clash = (await dayRows(db, to)).filter(function (a) { return toYmd(a.date) === to && cids[String(a.citizen_id)]; });
     if (clash.length && params.overwrite !== true) apiError('CONFLICT', 'วันที่ ' + to + ' มีการเช็คชื่อของนักเรียนกลุ่มนี้แล้ว ' + clash.length + ' คน — ยืนยันเขียนทับ (ข้อมูลเดิมของวันนั้นไปอยู่ในถังกู้คืน)');
     const ts = now(), batchId = genId('ATB'), stmts = [];
     if (clash.length) trashStmts(db, clash.map(function (a) { return a.att_id; }), batchId, by, 'ถูกเขียนทับเมื่อย้ายจาก ' + date, ts).forEach(function (x) { stmts.push(x); });

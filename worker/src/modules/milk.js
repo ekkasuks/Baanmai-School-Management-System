@@ -1,6 +1,6 @@
 /** Milk — นมโรงเรียน (ไม่ใช้ PIN) · ยอดค้าง = วันไม่มา (ขาด/ลา) หลัง watermark */
 import {
-  readAll, insertRows, buildIndex,
+  readAll, insertRows, buildIndex, dateBounds,
   now, today, toYmd, genId, audit, apiError,
 } from '../db.js';
 import { studentName, gradeSortKey, listClasses } from '../shared.js';
@@ -121,7 +121,11 @@ async function computeMilkPending(db) {
   const td = today();
   const pending = {};
   const lastAbsent = {};
-  (await readAll(db, 'ATTENDANCE')).forEach(function (a) {
+  // เฉพาะวันขาด/ลา หลังวันล้างยอดทั้งหมด จนถึงวันนี้ (ผ่าน index ของวันที่) — กรองซ้ำด้านล่างเหมือนเดิม
+  const b = dateBounds(wm.resetAll || '', td);
+  const st = db.prepare('SELECT date, citizen_id, status FROM ATTENDANCE WHERE date >= ? AND date <= ? AND status IN (' + MILK_ABSENT_STATUSES.map(function () { return '?'; }).join(',') + ') ORDER BY rowid');
+  const rows = (await st.bind.apply(st, [b[0], b[1]].concat(MILK_ABSENT_STATUSES)).all()).results || [];
+  rows.forEach(function (a) {
     if (MILK_ABSENT_STATUSES.indexOf(a.status) < 0) return;
     const d = toYmd(a.date);
     if (!d || d > td) return;

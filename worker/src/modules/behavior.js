@@ -1,6 +1,6 @@
 /** Behavior — พฤติกรรม (ไม่ใช้ PIN) · คะแนนเดือน = behavior_start + ผลรวม points_change ของเดือนนั้น */
 import {
-  readAll, getBy, selectWhere, insertRows, updateWhere, buildIndex,
+  readAll, getBy, selectWhere, selectMonth, insertRows, updateWhere, buildIndex,
   now, today, yearMonth, toYmd, toYm, genId, audit, apiError,
 } from '../db.js';
 import { studentName, listClasses, studentsInClass, behaviorStart } from '../shared.js';
@@ -166,6 +166,7 @@ export const BehaviorAPI = {
     const itemIndex = buildIndex(await readAll(db, 'BEHAVIOR_MASTER'), 'item_id');
     let rows = p.citizen_id
       ? await selectWhere(db, 'BEHAVIOR_LOG', 'citizen_id', String(p.citizen_id))
+      : p.year_month && toYm(p.year_month) ? await selectMonth(db, 'BEHAVIOR_LOG', 'year_month', toYm(p.year_month))   // เฉพาะเดือนที่ขอ (index)
       : await readAll(db, 'BEHAVIOR_LOG');
 
     if (p.year_month) { const ymP = toYm(p.year_month); rows = rows.filter(function (l) { return toYm(l.year_month) === ymP; }); }
@@ -246,7 +247,7 @@ export const BehaviorAPI = {
 async function monthScores(db, ym) {
   const sums = {};
   let count = 0;
-  (await readAll(db, 'BEHAVIOR_LOG')).forEach(function (l) {
+  (await selectMonth(db, 'BEHAVIOR_LOG', 'year_month', ym, 'year_month, citizen_id, points_change')).forEach(function (l) {
     if (toYm(l.year_month) !== ym) return;
     count++;
     const cid = String(l.citizen_id);

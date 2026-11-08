@@ -1,6 +1,6 @@
 /** Bank — ธนาคารโรงเรียน (ต้องใช้ PIN: bank) · ยอดคงเหลือเก็บใน BANK_BALANCE */
 import {
-  readAll, getBy, selectWhere, insertRows, upsert, buildIndex,
+  readAll, getBy, selectWhere, selectDateRange, insertRows, upsert, buildIndex,
   now, today, yearMonth, toYmd, toYm, genId, audit, apiError,
 } from '../db.js';
 import { studentName, listClasses, studentsInClass } from '../shared.js';
@@ -37,7 +37,7 @@ export const BankAPI = {
 
     const td = today();
     let depositToday = 0, withdrawToday = 0, depCount = 0, wdCount = 0;
-    (await readAll(db, 'BANK_TRANSACTIONS')).forEach(function (t) {
+    (await selectDateRange(db, 'BANK_TRANSACTIONS', 'date', td, td, 'date, type, amount')).forEach(function (t) {   // เฉพาะวันนี้ (index)
       if (toYmd(t.date) !== td) return;
       const amt = Number(t.amount) || 0;
       if (t.type === 'deposit') { depositToday += amt; depCount++; }
@@ -115,6 +115,7 @@ export const BankAPI = {
     const stIndex = buildIndex(await readAll(ctx.db, 'STUDENTS'), 'citizen_id');
     let rows = p.citizen_id
       ? await selectWhere(ctx.db, 'BANK_TRANSACTIONS', 'citizen_id', String(p.citizen_id))
+      : (p.date_from || p.date_to) ? await selectDateRange(ctx.db, 'BANK_TRANSACTIONS', 'date', p.date_from || '', p.date_to || '')   // เฉพาะช่วงที่ขอ (index)
       : await readAll(ctx.db, 'BANK_TRANSACTIONS');
 
     if (p.type) rows = rows.filter(function (t) { return t.type === p.type; });
@@ -170,7 +171,11 @@ export const BankAPI = {
     const monthlyTrend = {};
     months.forEach(function (m) { monthlyTrend[m] = { year_month: m, deposit_count: 0, deposit_total: 0 }; });
     const countByStudent = {}, amountByStudent = {};
-    (await readAll(ctx.db, 'BANK_TRANSACTIONS')).forEach(function (t) {
+    // เฉพาะ 6 เดือนที่แสดง (index) — เดือนผิดรูปแบบจึงอ่านทั้งตารางแบบเดิม
+    const txns = /^\d{4}-\d{2}$/.test(ym)
+      ? await selectDateRange(ctx.db, 'BANK_TRANSACTIONS', 'date', months[0] + '-01', ym, 'date, type, amount, citizen_id')
+      : await readAll(ctx.db, 'BANK_TRANSACTIONS');
+    txns.forEach(function (t) {
       if (t.type !== 'deposit') return;
       const tYm = toYm(t.date), amt = Number(t.amount) || 0;
       if (monthlyTrend[tYm]) { monthlyTrend[tYm].deposit_count++; monthlyTrend[tYm].deposit_total += amt; }

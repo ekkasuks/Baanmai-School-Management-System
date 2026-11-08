@@ -85,8 +85,13 @@ export default {
       const calls = req.params && req.params.calls;
       if (!Array.isArray(calls) || !calls.length) return json(false, null, { code: 'VALIDATION', message: 'batch ต้องมี calls อย่างน้อย 1 รายการ' });
       if (calls.length > 10) return json(false, null, { code: 'VALIDATION', message: 'batch ได้สูงสุด 10 รายการต่อครั้ง' });
+      const list = calls.map(function (c) { return { action: String((c && c.action) || ''), params: (c && c.params) || {} }; });
+      // อ่านอย่างเดียว → ทำพร้อมกัน (ไม่ต้องรอทีละคำสั่ง) · มีคำสั่งเขียน → ทีละคำสั่งตามลำดับเหมือนเดิม
+      if (list.every(function (c) { return !isWrite(c.action) && READ_ONLY.test(c.action.split('.')[1] || ''); })) {
+        return json(true, { results: await Promise.all(list.map(function (c) { return runOne(c.action, c.params, base); })) });
+      }
       const results = [];
-      for (const c of calls) results.push(await runOne(String((c && c.action) || ''), (c && c.params) || {}, base));
+      for (const c of list) results.push(await runOne(c.action, c.params, base));
       return json(true, { results: results });
     }
 
@@ -96,6 +101,9 @@ export default {
     });
   },
 };
+
+/** คำสั่งอ่านอย่างเดียวที่ทำพร้อมกันใน batch ได้ (ไม่อยู่ในรายการ → ทำทีละคำสั่งเหมือนเดิม) */
+const READ_ONLY = /^(get|list|classes|years|dashboard|summary|ticker|master_list|by_class|search|history|stats|overview|balance|passbook|pending|profile|days|holidays|report_months|monthly_by_class|monthly_by_student|daily_summary|saving_habit|ranking|student_score|auth_status)$/;
 
 function throwErr(code, message) { const e = new Error(message); e.code = code; throw e; }
 
