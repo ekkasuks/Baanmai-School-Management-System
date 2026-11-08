@@ -65,8 +65,8 @@ export const BehaviorAPI = {
   by_class: async function (params, ctx) {
     if (!params.grade) apiError('VALIDATION', 'กรุณาเลือกชั้นเรียน');
     const ym = toYm(params.year_month) || yearMonth();
-    const ms = await monthScores(ctx.db, ym);
-    const results = (await studentsInClass(ctx.db, params.grade, params.room)).map(function (s) {
+    const [ms, inClass] = await Promise.all([monthScores(ctx.db, ym), studentsInClass(ctx.db, params.grade, params.room)]);
+    const results = inClass.map(function (s) {
       return {
         citizen_id: s.citizen_id, student_code: s.student_code, name: studentName(s),
         grade: s.grade, room: s.room, score: ms.start + (ms.sums[String(s.citizen_id)] || 0),
@@ -80,8 +80,7 @@ export const BehaviorAPI = {
     const q = String(params.q || '').trim().toLowerCase();
     if (!q) return { results: [] };
     const ym = toYm(params.year_month) || yearMonth();
-    const ms = await monthScores(ctx.db, ym);
-    const rows = await readAll(ctx.db, 'STUDENTS');
+    const [ms, rows] = await Promise.all([monthScores(ctx.db, ym), readAll(ctx.db, 'STUDENTS')]);
     const results = [];
     for (let i = 0; i < rows.length && results.length < 20; i++) {
       const s = rows[i];
@@ -193,8 +192,8 @@ export const BehaviorAPI = {
   ranking: async function (params, ctx) {
     const db = ctx.db;
     const ym = (params && toYm(params.year_month)) || yearMonth();
-    const ms = await monthScores(db, ym);
-    const students = (await readAll(db, 'STUDENTS')).filter(function (s) { return s.status !== 'inactive'; });
+    const [ms, stRows] = await Promise.all([monthScores(db, ym), readAll(db, 'STUDENTS')]);
+    const students = stRows.filter(function (s) { return s.status !== 'inactive'; });
     let list = students.map(function (s) {
       return {
         citizen_id: s.citizen_id, student_code: s.student_code, name: studentName(s),
@@ -210,8 +209,8 @@ export const BehaviorAPI = {
   dashboard: async function (params, ctx) {
     const db = ctx.db;
     const ym = (params && toYm(params.year_month)) || yearMonth();
-    const ms = await monthScores(db, ym);
-    const students = (await readAll(db, 'STUDENTS')).filter(function (s) { return s.status !== 'inactive'; });
+    const [ms, stRows] = await Promise.all([monthScores(db, ym), readAll(db, 'STUDENTS')]);
+    const students = stRows.filter(function (s) { return s.status !== 'inactive'; });
     const enriched = students.map(function (s) {
       return { citizen_id: s.citizen_id, name: studentName(s), grade: s.grade, room: s.room, score: ms.start + (ms.sums[String(s.citizen_id)] || 0) };
     });
@@ -247,13 +246,14 @@ export const BehaviorAPI = {
 async function monthScores(db, ym) {
   const sums = {};
   let count = 0;
-  (await selectMonth(db, 'BEHAVIOR_LOG', 'year_month', ym, 'year_month, citizen_id, points_change')).forEach(function (l) {
+  const [rows, start] = await Promise.all([selectMonth(db, 'BEHAVIOR_LOG', 'year_month', ym, 'year_month, citizen_id, points_change'), behaviorStart(db)]);
+  rows.forEach(function (l) {
     if (toYm(l.year_month) !== ym) return;
     count++;
     const cid = String(l.citizen_id);
     sums[cid] = (sums[cid] || 0) + (Number(l.points_change) || 0);
   });
-  return { start: await behaviorStart(db), sums: sums, count: count };
+  return { start: start, sums: sums, count: count };
 }
 
 function behaviorLogView(l, itemIndex) {

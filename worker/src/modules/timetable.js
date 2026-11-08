@@ -100,16 +100,24 @@ function sortItems(entName, items) {
 /** ภาคเรียนที่ใช้งาน = current_year-current_semester จาก SETTINGS (สร้างแถว TT_TERM ถ้ายังไม่มี) */
 async function activeTerm(db, params) {
   if (params && params.term_id) return String(params.term_id);
-  const year = String((await getSetting(db, 'current_year')) || '').trim();
-  const sem = String((await getSetting(db, 'current_semester')) || '1').trim();
-  const id = year + '-' + sem;
+  const t = await activeTermId(db);
+  await ensureTerm(db, t);
+  return t.id;
+}
+/** รหัสภาคเรียนจาก SETTINGS (อ่าน 2 ค่าพร้อมกัน) — ยังไม่สร้างแถว TT_TERM */
+async function activeTermId(db) {
+  const v = await Promise.all([getSetting(db, 'current_year'), getSetting(db, 'current_semester')]);
+  const year = String(v[0] || '').trim(), sem = String(v[1] || '1').trim();
+  return { id: year + '-' + sem, year: year, sem: sem };
+}
+async function ensureTerm(db, t) {
+  const id = t.id, year = t.year, sem = t.sem;
   if (!(await getBy(db, 'TT_TERM', 'term_id', id))) {
     await insertRows(db, 'TT_TERM', [{
       term_id: id, school_id: 'default', year: year, semester: sem,
       label: 'ปีการศึกษา ' + year + ' ภาคเรียนที่ ' + sem, is_active: '1', created_at: now(),
     }]);
   }
-  return id;
 }
 
 async function listEntity(db, entName, term, opts) {
@@ -720,13 +728,16 @@ const API = {
    */
   ticker: async function (params, ctx) {
     const db = ctx.db;
-    const term = await activeTerm(db, params);
-    const cfg = await getConfig(db, term);
+    // หน้าหลักเรียกทุกครั้ง — อ่านพร้อมกัน (เดิมทีละคำสั่ง 6 ครั้ง)
+    const t = params.term_id ? null : await activeTermId(db);
+    const term = t ? t.id : String(params.term_id);
+    const [, cfg, verRows, chgRows] = await Promise.all([t ? ensureTerm(db, t) : null, getConfig(db, term),
+      selectWhere(db, 'TT_VERSION', 'term_id', term), selectWhere(db, 'TT_CHANGE', 'term_id', term)]);
     const all = params.all === true;
     if (!cfg.ticker_enabled && !all) return { enabled: false, days: cfg.ticker_days, items: [] };
     const V = {};
-    (await selectWhere(db, 'TT_VERSION', 'term_id', term)).forEach(function (v) { V[v.version_id] = v; });
-    const rows = (await selectWhere(db, 'TT_CHANGE', 'term_id', term)).map(function (r) { return Object.assign({}, r, { det: parseJson(r.detail, {}) }); });
+    verRows.forEach(function (v) { V[v.version_id] = v; });
+    const rows = chgRows.map(function (r) { return Object.assign({}, r, { det: parseJson(r.detail, {}) }); });
     const publishedAt = {};
     rows.forEach(function (r) {
       if (r.det.action === 'UPDATE' && r.det.entity === 'version' && r.det.status === 'published' && String(r.created_at) > (publishedAt[r.version_id] || '')) publishedAt[r.version_id] = String(r.created_at);

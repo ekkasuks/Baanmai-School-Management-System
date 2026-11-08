@@ -63,11 +63,12 @@ export const AttendanceAPI = {
   by_class: async function (params, ctx) {
     if (!params.grade) apiError('VALIDATION', 'กรุณาเลือกชั้นเรียน');
     const date = params.date ? toYmd(params.date) : today();
+    const [attRows, inClass, hol] = await Promise.all([dayRows(ctx.db, date), studentsInClass(ctx.db, params.grade, params.room), holidayMap(ctx.db)]);
     const attIndex = {};
-    (await dayRows(ctx.db, date)).forEach(function (a) {
+    attRows.forEach(function (a) {
       if (toYmd(a.date) === date) attIndex[String(a.citizen_id)] = a;
     });
-    const results = (await studentsInClass(ctx.db, params.grade, params.room)).map(function (s) {
+    const results = inClass.map(function (s) {
       const a = attIndex[String(s.citizen_id)];
       return {
         citizen_id: s.citizen_id, student_code: s.student_code, name: studentName(s),
@@ -77,7 +78,7 @@ export const AttendanceAPI = {
     });
     results.sort(function (a, b) { return String(a.name).localeCompare(String(b.name), 'th'); });
     const wd = weekday(date);
-    return { date: date, results: results, weekday: WEEKDAYS[wd], weekend: wd === 0 || wd === 6, holiday: (await holidayMap(ctx.db))[date] || '', future: date > today() };
+    return { date: date, results: results, weekday: WEEKDAYS[wd], weekend: wd === 0 || wd === 6, holiday: hol[date] || '', future: date > today() };
   },
 
   /** บันทึกเช็คชื่อ (หลายคน) — upsert ตาม (date, citizen_id) */
@@ -126,11 +127,13 @@ export const AttendanceAPI = {
 
   history: async function (params, ctx) {
     const p = params || {};
-    const stIndex = buildIndex(await readAll(ctx.db, 'STUDENTS'), 'citizen_id');
-    // ดึงเฉพาะช่วงวันที่ที่ขอ (ผ่าน index) · ไม่ระบุวันเลยจึงอ่านทั้งตาราง
-    let rows = p.date ? await dayRows(ctx.db, toYmd(p.date))
-      : (p.date_from || p.date_to) ? await selectDateRange(ctx.db, 'ATTENDANCE', 'date', p.date_from || '', p.date_to || '')
-      : await readAll(ctx.db, 'ATTENDANCE');
+    // ดึงเฉพาะช่วงวันที่ที่ขอ (ผ่าน index) · ไม่ระบุวันเลยจึงอ่านทั้งตาราง · อ่านพร้อมรายชื่อนักเรียน
+    const [stRows, rows0] = await Promise.all([readAll(ctx.db, 'STUDENTS'),
+      p.date ? dayRows(ctx.db, toYmd(p.date))
+        : (p.date_from || p.date_to) ? selectDateRange(ctx.db, 'ATTENDANCE', 'date', p.date_from || '', p.date_to || '')
+        : readAll(ctx.db, 'ATTENDANCE')]);
+    const stIndex = buildIndex(stRows, 'citizen_id');
+    let rows = rows0;
     if (p.date) rows = rows.filter(function (a) { return toYmd(a.date) === toYmd(p.date); });
     if (p.date_from) rows = rows.filter(function (a) { return toYmd(a.date) >= p.date_from; });
     if (p.date_to) rows = rows.filter(function (a) { return toYmd(a.date) <= p.date_to; });
@@ -155,9 +158,9 @@ export const AttendanceAPI = {
   dashboard: async function (params, ctx) {
     const db = ctx.db;
     const date = (params && params.date) ? toYmd(params.date) : today();
-    const students = await readAll(db, 'STUDENTS');
+    const [students, dRows] = await Promise.all([readAll(db, 'STUDENTS'), dayRows(db, date)]);
     const stIndex = buildIndex(students, 'citizen_id');
-    const records = (await dayRows(db, date)).filter(function (a) { return toYmd(a.date) === date; });
+    const records = dRows.filter(function (a) { return toYmd(a.date) === date; });
     const totalStudents = students.filter(function (s) { return s.status !== 'inactive'; }).length;
 
     const counts = { 'มา': 0, 'ขาด': 0, 'ลา': 0, 'สาย': 0 };
@@ -190,10 +193,11 @@ export const AttendanceAPI = {
     const db = ctx.db;
     const date = (params && params.date) ? toYmd(params.date) : today();
     const statusByCid = {};
-    (await dayRows(db, date)).forEach(function (a) { if (toYmd(a.date) === date) statusByCid[String(a.citizen_id)] = a.status; });
+    const [dRows, students] = await Promise.all([dayRows(db, date), readAll(db, 'STUDENTS')]);
+    dRows.forEach(function (a) { if (toYmd(a.date) === date) statusByCid[String(a.citizen_id)] = a.status; });
 
     const classMap = {};
-    (await readAll(db, 'STUDENTS')).forEach(function (s) {
+    students.forEach(function (s) {
       if (s.status === 'inactive') return;
       const grade = s.grade || '-';
       const room = (s.room === undefined || s.room === null) ? '' : String(s.room);
@@ -236,7 +240,7 @@ export const AttendanceAPI = {
   monthly_by_class: async function (params, ctx) {
     const db = ctx.db;
     const ym = (params && params.year_month) ? String(params.year_month).substring(0, 7) : yearMonth();
-    const students = await readAll(db, 'STUDENTS');
+    const [students, hol, monthRows] = await Promise.all([readAll(db, 'STUDENTS'), holidayMap(db), selectMonth(db, 'ATTENDANCE', 'date', ym)]);
     const stIndex = buildIndex(students, 'citizen_id');
     const classMap = {};
     const keyOf = function (g, r) { return g + '|' + r; };
@@ -248,8 +252,8 @@ export const AttendanceAPI = {
       if (!classMap[k]) classMap[k] = newMonthRow(grade, room);
       classMap[k].student_count++;
     });
-    const allDays = {}, hol = await holidayMap(db), skipped = {};
-    (await selectMonth(db, 'ATTENDANCE', 'date', ym)).forEach(function (a) {
+    const allDays = {}, skipped = {};
+    monthRows.forEach(function (a) {
       if (toYm(a.date) !== ym) return;
       if (hol[toYmd(a.date)]) { skipped[toYmd(a.date)] = true; return; }   // วันหยุด → ไม่นับ (ข้อมูลยังอยู่)
       const s = stIndex[String(a.citizen_id)];
@@ -278,13 +282,14 @@ export const AttendanceAPI = {
     const ym = params.year_month ? String(params.year_month).substring(0, 7) : yearMonth();
     const grade = params.grade, room = params.room || '';
     const byCid = {};
-    (await studentsInClass(db, grade, room)).forEach(function (s) {
+    const [inClass, hol, monthRows] = await Promise.all([studentsInClass(db, grade, room), holidayMap(db), selectMonth(db, 'ATTENDANCE', 'date', ym)]);
+    inClass.forEach(function (s) {
       const row = newMonthRow(s.grade, (s.room === undefined || s.room === null) ? '' : String(s.room));
       row.citizen_id = s.citizen_id; row.name = studentName(s); row.student_count = 1;
       byCid[String(s.citizen_id)] = row;
     });
-    const allDays = {}, hol = await holidayMap(db), skipped = {};
-    (await selectMonth(db, 'ATTENDANCE', 'date', ym)).forEach(function (a) {
+    const allDays = {}, skipped = {};
+    monthRows.forEach(function (a) {
       if (toYm(a.date) !== ym) return;
       if (hol[toYmd(a.date)]) { skipped[toYmd(a.date)] = true; return; }
       const row = byCid[String(a.citizen_id)];
@@ -307,9 +312,10 @@ export const AttendanceAPI = {
   days: async function (params, ctx) {
     const db = ctx.db;
     const ym = params && params.year_month ? String(params.year_month).substring(0, 7) : yearMonth();
-    const stIndex = buildIndex(await readAll(db, 'STUDENTS'), 'citizen_id');
-    const hol = await holidayMap(db), td = today(), map = {};
-    (await selectMonth(db, 'ATTENDANCE', 'date', ym)).forEach(function (a) {
+    const [stRows, hol, monthRows] = await Promise.all([readAll(db, 'STUDENTS'), holidayMap(db), selectMonth(db, 'ATTENDANCE', 'date', ym)]);
+    const stIndex = buildIndex(stRows, 'citizen_id');
+    const td = today(), map = {};
+    monthRows.forEach(function (a) {
       const d = toYmd(a.date);
       if (!d || d.substring(0, 7) !== ym) return;
       const s = stIndex[String(a.citizen_id)];

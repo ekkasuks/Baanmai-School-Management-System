@@ -9,10 +9,14 @@ import { requireStaffOrPin } from './auth.js';
 export const BankAPI = {
 
   dashboard: async function (params, ctx) {
-    await requireStaffOrPin(ctx, 'bank', 'read');
     const db = ctx.db;
-    const students = (await readAll(db, 'STUDENTS')).filter(function (s) { return s.status === 'active' || !s.status; });
-    const balIndex = buildIndex(await readAll(db, 'BANK_BALANCE'), 'citizen_id');
+    const td = today();
+    // ตรวจสิทธิ์ + อ่านข้อมูลพร้อมกัน (สิทธิ์ไม่ผ่าน → Promise.all ล้มเหลว ไม่คืนข้อมูล)
+    const [, stRows, balRows, todayTxns] = await Promise.all([requireStaffOrPin(ctx, 'bank', 'read'),
+      readAll(db, 'STUDENTS'), readAll(db, 'BANK_BALANCE'),
+      selectDateRange(db, 'BANK_TRANSACTIONS', 'date', td, td, 'date, type, amount')]);   // เฉพาะวันนี้ (index)
+    const students = stRows.filter(function (s) { return s.status === 'active' || !s.status; });
+    const balIndex = buildIndex(balRows, 'citizen_id');
 
     let total = 0;
     const enriched = students.map(function (s) {
@@ -35,9 +39,8 @@ export const BankAPI = {
       return o;
     });
 
-    const td = today();
     let depositToday = 0, withdrawToday = 0, depCount = 0, wdCount = 0;
-    (await selectDateRange(db, 'BANK_TRANSACTIONS', 'date', td, td, 'date, type, amount')).forEach(function (t) {   // เฉพาะวันนี้ (index)
+    todayTxns.forEach(function (t) {
       if (toYmd(t.date) !== td) return;
       const amt = Number(t.amount) || 0;
       if (t.type === 'deposit') { depositToday += amt; depCount++; }
@@ -53,15 +56,15 @@ export const BankAPI = {
   },
 
   classes: async function (params, ctx) {
-    await requireStaffOrPin(ctx, 'bank', 'read');
-    return { classes: await listClasses(ctx.db) };
+    const [, classes] = await Promise.all([requireStaffOrPin(ctx, 'bank', 'read'), listClasses(ctx.db)]);
+    return { classes: classes };
   },
 
   by_class: async function (params, ctx) {
-    await requireStaffOrPin(ctx, 'bank', 'read');
+    const [, balRows, inClass] = await Promise.all([requireStaffOrPin(ctx, 'bank', 'read'), readAll(ctx.db, 'BANK_BALANCE'), studentsInClass(ctx.db, params.grade, params.room)]);
     if (!params.grade) apiError('VALIDATION', 'กรุณาเลือกชั้นเรียน');
-    const balIndex = buildIndex(await readAll(ctx.db, 'BANK_BALANCE'), 'citizen_id');
-    const results = (await studentsInClass(ctx.db, params.grade, params.room)).map(function (s) {
+    const balIndex = buildIndex(balRows, 'citizen_id');
+    const results = inClass.map(function (s) {
       const row = balIndex[String(s.citizen_id)];
       return {
         citizen_id: s.citizen_id, student_code: s.student_code, name: studentName(s),
@@ -73,11 +76,10 @@ export const BankAPI = {
   },
 
   search: async function (params, ctx) {
-    await requireStaffOrPin(ctx, 'bank', 'read');
     const q = String(params.q || '').trim().toLowerCase();
-    if (!q) return { results: [] };
-    const balIndex = buildIndex(await readAll(ctx.db, 'BANK_BALANCE'), 'citizen_id');
-    const rows = await readAll(ctx.db, 'STUDENTS');
+    if (!q) { await requireStaffOrPin(ctx, 'bank', 'read'); return { results: [] }; }
+    const [, balRows, rows] = await Promise.all([requireStaffOrPin(ctx, 'bank', 'read'), readAll(ctx.db, 'BANK_BALANCE'), readAll(ctx.db, 'STUDENTS')]);
+    const balIndex = buildIndex(balRows, 'citizen_id');
     const results = [];
     for (let i = 0; i < rows.length && results.length < 20; i++) {
       const s = rows[i];
@@ -110,13 +112,13 @@ export const BankAPI = {
   },
 
   history: async function (params, ctx) {
-    await requireStaffOrPin(ctx, 'bank', 'read');
     const p = params || {};
-    const stIndex = buildIndex(await readAll(ctx.db, 'STUDENTS'), 'citizen_id');
-    let rows = p.citizen_id
-      ? await selectWhere(ctx.db, 'BANK_TRANSACTIONS', 'citizen_id', String(p.citizen_id))
-      : (p.date_from || p.date_to) ? await selectDateRange(ctx.db, 'BANK_TRANSACTIONS', 'date', p.date_from || '', p.date_to || '')   // เฉพาะช่วงที่ขอ (index)
-      : await readAll(ctx.db, 'BANK_TRANSACTIONS');
+    const [, stRows, rows0] = await Promise.all([requireStaffOrPin(ctx, 'bank', 'read'), readAll(ctx.db, 'STUDENTS'),
+      p.citizen_id ? selectWhere(ctx.db, 'BANK_TRANSACTIONS', 'citizen_id', String(p.citizen_id))
+        : (p.date_from || p.date_to) ? selectDateRange(ctx.db, 'BANK_TRANSACTIONS', 'date', p.date_from || '', p.date_to || '')   // เฉพาะช่วงที่ขอ (index)
+        : readAll(ctx.db, 'BANK_TRANSACTIONS')]);
+    const stIndex = buildIndex(stRows, 'citizen_id');
+    let rows = rows0;
 
     if (p.type) rows = rows.filter(function (t) { return t.type === p.type; });
     if (p.date_from) rows = rows.filter(function (t) { return toYmd(t.date) >= p.date_from; });
@@ -139,13 +141,13 @@ export const BankAPI = {
   },
 
   passbook: async function (params, ctx) {
-    await requireStaffOrPin(ctx, 'bank', 'read');
     const cid = params.citizen_id;
-    if (!cid) apiError('VALIDATION', 'กรุณาระบุนักเรียน');
-    const s = await getBy(ctx.db, 'STUDENTS', 'citizen_id', String(cid));
+    if (!cid) { await requireStaffOrPin(ctx, 'bank', 'read'); apiError('VALIDATION', 'กรุณาระบุนักเรียน'); }
+    const [, s, balRow, txRows] = await Promise.all([requireStaffOrPin(ctx, 'bank', 'read'),
+      getBy(ctx.db, 'STUDENTS', 'citizen_id', String(cid)), getBy(ctx.db, 'BANK_BALANCE', 'citizen_id', String(cid)),
+      selectWhere(ctx.db, 'BANK_TRANSACTIONS', 'citizen_id', String(cid))]);
     if (!s) apiError('NOT_FOUND', 'ไม่พบนักเรียน');
-    const balRow = await getBy(ctx.db, 'BANK_BALANCE', 'citizen_id', String(cid));
-    const txns = (await selectWhere(ctx.db, 'BANK_TRANSACTIONS', 'citizen_id', String(cid)))
+    const txns = txRows
       .sort(function (a, b) { return String(a.created_at).localeCompare(String(b.created_at)); })
       .map(function (t) {
         return {
@@ -162,19 +164,19 @@ export const BankAPI = {
 
   /** สถิตินิสัยการออม — ความถี่การฝาก (จำนวนครั้ง) รายเดือน + จัดอันดับ */
   saving_habit: async function (params, ctx) {
-    await requireStaffOrPin(ctx, 'bank', 'read');
     const p = params || {};
     const ym = p.year_month || yearMonth();
     const months = lastMonths(ym, 6);
-    const students = (await readAll(ctx.db, 'STUDENTS')).filter(function (s) { return s.status === 'active' || !s.status; });
+    // เฉพาะ 6 เดือนที่แสดง (index) — เดือนผิดรูปแบบจึงอ่านทั้งตารางแบบเดิม · ตรวจสิทธิ์พร้อมกัน
+    const [, stRows, txns] = await Promise.all([requireStaffOrPin(ctx, 'bank', 'read'), readAll(ctx.db, 'STUDENTS'),
+      /^\d{4}-\d{2}$/.test(ym)
+        ? selectDateRange(ctx.db, 'BANK_TRANSACTIONS', 'date', months[0] + '-01', ym, 'date, type, amount, citizen_id')
+        : readAll(ctx.db, 'BANK_TRANSACTIONS')]);
+    const students = stRows.filter(function (s) { return s.status === 'active' || !s.status; });
 
     const monthlyTrend = {};
     months.forEach(function (m) { monthlyTrend[m] = { year_month: m, deposit_count: 0, deposit_total: 0 }; });
     const countByStudent = {}, amountByStudent = {};
-    // เฉพาะ 6 เดือนที่แสดง (index) — เดือนผิดรูปแบบจึงอ่านทั้งตารางแบบเดิม
-    const txns = /^\d{4}-\d{2}$/.test(ym)
-      ? await selectDateRange(ctx.db, 'BANK_TRANSACTIONS', 'date', months[0] + '-01', ym, 'date, type, amount, citizen_id')
-      : await readAll(ctx.db, 'BANK_TRANSACTIONS');
     txns.forEach(function (t) {
       if (t.type !== 'deposit') return;
       const tYm = toYm(t.date), amt = Number(t.amount) || 0;

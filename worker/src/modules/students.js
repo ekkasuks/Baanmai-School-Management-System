@@ -138,19 +138,29 @@ export const StudentsAPI = {
     const db = ctx.db;
     if (!params.citizen_id) apiError('VALIDATION', 'ไม่ได้ระบุ citizen_id');
     const cid = String(params.citizen_id);
-    const student = await getBy(db, 'STUDENTS', 'citizen_id', cid);
+    // อ่านทุกส่วนพร้อมกัน (เดิมทีละคำสั่ง 10 ครั้ง)
+    const [student, balRow, start, masterRows, bhvRows, healthRows, attRows, growthRows, curYearV, schRows] = await Promise.all([
+      getBy(db, 'STUDENTS', 'citizen_id', cid),
+      getBy(db, 'BANK_BALANCE', 'citizen_id', cid),
+      behaviorStart(db),
+      readAll(db, 'BEHAVIOR_MASTER'),
+      selectWhere(db, 'BEHAVIOR_LOG', 'citizen_id', cid),
+      selectWhere(db, 'HEALTH_CHECK', 'citizen_id', cid),
+      selectWhere(db, 'ATTENDANCE', 'citizen_id', cid),
+      selectWhere(db, 'GROWTH', 'citizen_id', cid),
+      getSetting(db, 'current_year'),
+      selectWhere(db, 'SCHOLARSHIP', 'citizen_id', cid),
+    ]);
     if (!student) apiError('NOT_FOUND', 'ไม่พบนักเรียน');
 
     const ym = yearMonth();
 
     // ธนาคาร
-    const balRow = await getBy(db, 'BANK_BALANCE', 'citizen_id', cid);
     const balance = balRow ? Number(balRow.balance) || 0 : 0;
 
     // พฤติกรรม — คะแนนเดือนปัจจุบัน + 5 รายการล่าสุด
-    const start = await behaviorStart(db);
-    const itemIndex = buildIndex(await readAll(db, 'BEHAVIOR_MASTER'), 'item_id');
-    const bhvLogs = (await selectWhere(db, 'BEHAVIOR_LOG', 'citizen_id', cid))
+    const itemIndex = buildIndex(masterRows, 'item_id');
+    const bhvLogs = bhvRows
       .filter(function (l) { return toYm(l.year_month) === ym; })
       .sort(function (a, b) { return String(a.created_at).localeCompare(String(b.created_at)); });
     const behaviorScore = bhvLogs.length ? Number(bhvLogs[bhvLogs.length - 1].points_after) || start : start;
@@ -162,7 +172,7 @@ export const StudentsAPI = {
     // สุขภาพ — ผลตรวจล่าสุด
     const healthItems = ['hair', 'nails', 'cup', 'toothbrush', 'toothpaste'];
     let latestHealth = null;
-    (await selectWhere(db, 'HEALTH_CHECK', 'citizen_id', cid)).forEach(function (c) {
+    healthRows.forEach(function (c) {
       if (!latestHealth || toYmd(c.date) > toYmd(latestHealth.date)) latestHealth = c;
     });
     let health = null;
@@ -173,14 +183,14 @@ export const StudentsAPI = {
 
     // การมาเรียน — สรุปเดือนปัจจุบัน
     const attCounts = { 'มา': 0, 'ขาด': 0, 'ลา': 0, 'สาย': 0 };
-    (await selectWhere(db, 'ATTENDANCE', 'citizen_id', cid)).forEach(function (a) {
+    attRows.forEach(function (a) {
       if (toYm(a.date) !== ym) return;
       if (attCounts[a.status] !== undefined) attCounts[a.status]++;
     });
 
     // การเจริญเติบโต — ผลล่าสุด (ใช้ค่าที่บันทึกไว้)
     let latestGrowth = null;
-    (await selectWhere(db, 'GROWTH', 'citizen_id', cid)).forEach(function (g) {
+    growthRows.forEach(function (g) {
       if (!latestGrowth || toYmd(g.date) > toYmd(latestGrowth.date)) latestGrowth = g;
     });
     let growth = null;
@@ -194,8 +204,8 @@ export const StudentsAPI = {
     }
 
     // ทุนการศึกษา
-    const curYear = String((await getSetting(db, 'current_year')) || '');
-    const schAll = (await selectWhere(db, 'SCHOLARSHIP', 'citizen_id', cid))
+    const curYear = String(curYearV || '');
+    const schAll = schRows
       .map(function (r) { return { date: toYmd(r.date), year: String(r.year), name: r.name, amount: Number(r.amount) || 0 }; })
       .sort(function (a, b) { return b.date.localeCompare(a.date); });
     let schYearTotal = 0, schYearCount = 0;

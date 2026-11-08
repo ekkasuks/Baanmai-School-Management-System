@@ -11,8 +11,8 @@ export const MilkAPI = {
 
   dashboard: async function (params, ctx) {
     const db = ctx.db;
-    const pend = await computeMilkPending(db);
-    const stIndex = buildIndex(await readAll(db, 'STUDENTS'), 'citizen_id');
+    const [pend, stRows] = await Promise.all([computeMilkPending(db), readAll(db, 'STUDENTS')]);
+    const stIndex = buildIndex(stRows, 'citizen_id');
     const gradeMap = {};
     let totalStudents = 0, totalBoxes = 0;
     Object.keys(pend.pending).forEach(function (cid) {
@@ -38,8 +38,8 @@ export const MilkAPI = {
   pending: async function (params, ctx) {
     const db = ctx.db;
     const p = params || {};
-    const pend = await computeMilkPending(db);
-    const stIndex = buildIndex(await readAll(db, 'STUDENTS'), 'citizen_id');
+    const [pend, stRows] = await Promise.all([computeMilkPending(db), readAll(db, 'STUDENTS')]);
+    const stIndex = buildIndex(stRows, 'citizen_id');
     let list = Object.keys(pend.pending).map(function (cid) {
       const s = stIndex[cid];
       if (!s || s.status === 'inactive') return null;
