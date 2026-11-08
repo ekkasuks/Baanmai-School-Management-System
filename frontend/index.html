@@ -56,6 +56,7 @@
 <script src="js/api.js"></script>
 <script src="js/store.js"></script>
 <script src="js/utils.js"></script>
+<script src="js/tt-session.js"></script>
 <script src="js/tt-ticker.js"></script>
 <script>
 document.getElementById('stat-date').textContent = Utils.fmtDateThai(new Date());
@@ -75,16 +76,38 @@ const MENUS = [
   { href: 'growth.html',     icon: 'rulers',             name: 'การเจริญเติบโต',  desc: 'น้ำหนัก · ส่วนสูง · BMI',  ready: true },
   { href: 'students.html',   icon: 'people-fill',        name: 'ข้อมูลนักเรียน',  desc: 'ทะเบียน · ค้นหา · แก้ไข',  ready: true },
   { href: 'map.html',        icon: 'geo-alt-fill',       name: 'แผนที่บ้านนักเรียน', desc: 'พิกัดบ้าน · ระยะทาง · เฉพาะบุคลากร', ready: true },
-  { href: 'timetable.html',  icon: 'calendar3-week-fill', name: 'จัดตารางสอน',     desc: 'AI Smart Timetable · เข้าสู่ระบบ', ready: true },
-  { href: 'settings.html',   icon: 'gear-fill',          name: 'ตั้งค่าระบบ',     desc: 'ข้อมูลโรงเรียน · นำเข้า DMC · สำรองข้อมูล', ready: true },
+  { href: 'timetable.html',  icon: 'calendar3-week-fill', name: 'จัดตารางสอน',     desc: 'AI Smart Timetable · เข้าสู่ระบบ', ready: true, admin: true },
+  { href: 'settings.html',   icon: 'gear-fill',          name: 'ตั้งค่าระบบ',     desc: 'ข้อมูลโรงเรียน · นำเข้า DMC · สำรองข้อมูล', ready: true, admin: true },
   { href: 'help.html',       icon: 'book-fill',          name: 'คู่มือการใช้งาน', desc: 'วิธีใช้แต่ละเมนู',         ready: true },
 ];
-document.getElementById('menu-grid').innerHTML = MENUS.map(function (m) {
+// เมนู admin:true (จัดตารางสอน · ตั้งค่าระบบ) แสดงเฉพาะบัญชีผู้ดูแลระบบ / ฝ่ายวิชาการ — ซ่อนในหน้าหลักเท่านั้น
+// (หน้าเหล่านั้นตรวจสิทธิ์ที่เซิร์ฟเวอร์อยู่แล้ว ถ้าเปิดลิงก์ตรงก็ต้องเข้าสู่ระบบด้วยบัญชีที่มีสิทธิ์)
+const MANAGER_ROLES = ['admin', 'academic'];
+let homeUser = (function () {   // ผู้ใช้จาก session ในเครื่อง → แสดงเมนูได้ทันทีไม่กระพริบ (ตรวจกับ server อีกครั้งด้านล่าง)
+  try { const s = JSON.parse(localStorage.getItem('baanmai_tt_session') || 'null'); return s && s.user ? s.user : null; } catch (e) { return null; }
+})();
+let lastTicker = null;
+function isManager() { return !!(homeUser && MANAGER_ROLES.indexOf(homeUser.role) >= 0); }
+function tickerLink() { return isManager() ? 'timetable.html' : 'timetable-view.html'; }
+function mountTicker(items) {
+  lastTicker = items;
+  TTTicker.mount(document.getElementById('tt-ticker'), items, tickerLink());
+}
+function renderMenus() {
+  document.getElementById('menu-grid').innerHTML = MENUS.filter(function (m) { return !m.admin || isManager(); }).map(function (m) {
   const badge = m.ready ? '' : '<div class="badge badge-fail" style="margin-top:4px">เร็วๆ นี้</div>';
   const tag = m.ready ? 'a' : 'div';
   const href = m.ready ? ' href="' + m.href + '"' : ' style="opacity:.6;cursor:not-allowed"';
   return '<' + tag + ' class="menu-tile"' + href + '><i class="bi bi-' + m.icon + ' icon"></i><div class="name">' + m.name + '</div><div class="desc">' + m.desc + '</div>' + badge + '</' + tag + '>';
-}).join('');
+  }).join('');
+}
+renderMenus();
+// ผลตรวจกับ server (js/staff-bar.js) / เข้าสู่ระบบจากปุ่มมุมขวาบน → แสดง/ซ่อนเมนูตามบทบาท
+document.addEventListener('staff:change', function (e) {
+  homeUser = e.detail || null;
+  renderMenus();
+  if (lastTicker) { try { mountTicker(lastTicker); } catch (er) { /* ignore */ } }
+});
 
 function paintSettings(s) {
   s = s || {};
@@ -112,7 +135,7 @@ async function loadDashboard() {
   const cachedCfg = Store.get('home:settings');
   if (cachedCfg) paintSettings(cachedCfg);
   const cachedTicker = Store.get('home:ticker');
-  if (cachedTicker) { try { TTTicker.mount(document.getElementById('tt-ticker'), cachedTicker, 'timetable.html'); } catch (e) { /* ignore */ } }
+  if (cachedTicker) { try { mountTicker(cachedTicker); } catch (e) { /* ignore */ } }
 
   try {
     // ⚡ ดึงตั้งค่า + สรุปภาพรวม + ข้อความวิ่ง ใน request เดียว
@@ -122,7 +145,7 @@ async function loadDashboard() {
       { action: 'tt.ticker' },
     ], { silent: true, loading: false });
     if (tickR && tickR.ok) {
-      try { TTTicker.mount(document.getElementById('tt-ticker'), tickR.data.items, 'timetable.html'); Store.set('home:ticker', tickR.data.items); } catch (e) { /* ข้อความวิ่งไม่ควรทำให้หน้าหลักพัง */ }
+      try { mountTicker(tickR.data.items); Store.set('home:ticker', tickR.data.items); } catch (e) { /* ข้อความวิ่งไม่ควรทำให้หน้าหลักพัง */ }
     }
 
     if (cfgR && cfgR.ok) {
@@ -142,5 +165,7 @@ async function loadDashboard() {
 }
 loadDashboard();
 </script>
+<!-- ปุ่มเข้าสู่ระบบ / ชื่อผู้ใช้ มุมขวาบน (เหมือนหน้าบันทึกข้อมูล) — โหลดท้ายสุด -->
+<script src="js/staff-bar.js"></script>
 </body>
 </html>
